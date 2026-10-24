@@ -1,0 +1,370 @@
+
+
+
+
+
+
+
+
+
+Assignment  Report
+
+
+Score:
+
+
+Student ID:
+
+Student Name:
+
+Subject:
+Computational Geometry
+Submitted Date:
+2026.11.11
+
+
+
+Northwestern Polytechnical University
+
+
+
+(Using this as the cover page of the report, delete this comment when submitting)
+
+
+Fortune’s Sweep-Line Algorithm for Constructing Voronoi Diagrams
+Major Assignment with AI-Assisted Programming
+Assignment Particulars
+Course
+Computational Geometry
+Instructor
+Prof. Yu Jianfeng
+Working mode
+Individual 
+(Each student submits independently)
+Released
+Thursday, 22 October 2026
+Submission deadline
+Wednesday, 11 November 2026, 23:59 (GMT+8)
+Submission channel
+E-mail to 57865700@qq.com
+Duration
+3 weeks
+Weight
+60% of the final course grade
+Deliverables: report (no fewer than 10 body pages) · complete source code · runnable program · demo recording
+Assignment Summary
+This assignment requires each student, working individually, to design, implement, test, document and demonstrate a complete program that constructs the Voronoi diagram of a set of planar points using Fortune’s sweep-line algorithm, with the assistance of a mainstream AI programming tool. The assignment runs for three weeks, from 22 October to 11 November 2026.
+Students must document the tool used, the construction process, the problems encountered and the solutions adopted, and submit a report of no fewer than 10 body pages together with the complete source code and a runnable program.
+Correctness is judged against brute-force validation and required degenerate configurations (collinear, cocircular, duplicated, and near-coincident sites); AI-assisted work is accepted only where it is disclosed and where the submitted walkthrough recording shows that the author understands and can explain the code.
+Keywords: Voronoi diagram; Fortune’s sweep-line algorithm; beach line; circle events; AI-assisted programming; computational geometry
+Table of Contents
+
+1. Overview1
+2. Learning Objectives2
+3. Background Essentials (Brief)3
+4. Programming Tasks and Functional Requirements4
+5. AI-Assisted Programming Requirements8
+6. Documentation (Report) Requirements11
+7. Submission Checklist and Packaging12
+8. Assessment Criteria13
+9. Academic Integrity and Responsible Use of AI14
+Appendix A. Recommended AI-Assisted Programming Tools15
+Appendix B. References and Learning Resources16
+Appendix C. Pre-Submission Self-Check List16
+
+
+
+1. Overview
+This major assignment asks you to design, implement, test, document, and defend a complete program that constructs the Voronoi diagram of a set of planar points using Fortune’s sweep-line algorithm, with the assistance of a mainstream AI programming tool.
+The educational goals are deliberately twofold. First, the assignment consolidates your understanding of one of the most elegant algorithms in computational geometry: Fortune’s deterministic sweep-line algorithm computes a Voronoi diagram in O(n log n) time and is a classic exercise in algorithmic data structures, event-driven simulation, geometric predicates, and numerical robustness.
+Second, the assignment makes AI-assisted software development itself an object of study: you must not only write the program with AI assistance, but also document, analyse, and critically evaluate how the AI tool contributed to the process — including where it helped, where it failed, and how you verified every piece of generated code before trusting it.
+The final deliverables are: 
+(i) a report of no fewer than 10 pages in the main body;
+(ii) the complete source code;
+(iii) a runnable program with build/run instructions and a narrated demo recording.
+This single assignment carries 60% of the final course grade, and the work is individual and the window is short: three weeks, from Thursday 22 October to Wednesday 11 November 2026. Plan backwards from the deadline. A workable allocation is to have a correct diagram for general-position input by the end of the first week; to spend the second week on degenerate cases, the test suite, and benchmarks; and to keep the third week for the report, the figures, and the walkthrough recording, with the last two or three days left as buffer for whatever turns out to be harder than expected. Your own record of the process — a development log if you keep one, or your commit history and notes — is what shows that this plan was actually followed.
+Table 1 — Assignment at a glance
+Item
+Description
+Assessment type
+Major course project, individual (programming + documentation)
+Weight in final grade
+60%
+Working mode
+Individual work; each student submits independently, and the algorithm and report must be their own
+Language
+English (report, code comments, README, commit messages)
+Programming language
+Free choice (C++, Python, Java, or JavaScript recommended)
+Mandatory tool
+At least one mainstream AI-assisted programming tool
+Release date
+Thursday, 22 October 2026
+Submission deadline
+Wednesday, 11 November 2026, 23:59 (GMT+8), by e-mail to 57865700@qq.com
+Duration
+Three weeks, no extension
+2. Learning Objectives
+Upon completing this assignment, you should be able to:
+Explain the mathematical foundations of Voronoi diagrams (definitions, duality with the Delaunay triangulation, unbounded cells) and the mechanics of Fortune’s algorithm (the sweep line, the beach line as the lower envelope of parabolas, site events and circle events, the event priority queue).
+Implement the full algorithm from scratch — beach-line management, event queue, event handlers, and cell construction — using an event-driven architecture, and to reason about its O(n log n) time complexity and O(n) space complexity.
+Handle degenerate and numerically difficult configurations: collinear sites, cocircular sites, coincident sites, duplicate input points, and floating-point failure modes, with explicit epsilon tolerances.
+Drive a mainstream AI programming tool productively: design prompts, obtain architecture suggestions and code drafts, and then verify, correct, and integrate AI output with independent testing.
+Practise professional engineering discipline: modular decomposition, version control (git recommended, not required), reproducible builds, systematic testing (brute-force cross-validation), and benchmarking.
+Communicate technical work professionally: write a structured English technical report with figures and tables, keep a usable record of your own process, analyse problems with root causes, and explain your own code and design decisions in the recorded walkthrough.
+3. Background Essentials (Brief)
+This section states only the minimum theory you need in order to build and debug the program. It is deliberately short: the lectures and the readings in Appendix B are the reference for the algorithm itself, and the substance of this assignment lies in Sections 4–9, that is, in what you are asked to build, test, document and submit.
+3.1 Voronoi diagrams
+Given a set P of n distinct points in the plane, called sites, the Voronoi cell of a site p consists of all points at least as close to p as to any other site, and the Voronoi diagram Vor(P) is the subdivision of the plane into these cells:
+Vor(p) = { q ∈ ℝ² : |q − p| ≤ |q − p′| for every p′ ∈ P, p′ ≠ p }(1)
+Four properties bound what a correct implementation must produce: every cell is a (possibly unbounded) convex polygon; every vertex is the centre of an empty circle through three or more sites; the straight-line dual of the diagram is the Delaunay triangulation of P; and cells of sites on the convex hull are unbounded, with the whole diagram degenerating to parallel bisectors when all sites are collinear.
+3.2 Fortune’s algorithm in one page
+Fortune’s algorithm (1987) computes Vor(P) in O(n log n) time with a horizontal sweep line moving monotonically downwards. Five ideas are enough to implement it, to debug it, and to write about it:
+Beach line — the lower envelope of the parabolas that have each already-passed site as focus and the sweep line as directrix. It is x-monotone, consists of arcs separated by breakpoints, and summarises everything still relevant. It must live in an ordered structure supporting locate, insert and delete in O(log n); the choice of structure is yours and must be justified.
+Site event — the sweep line reaches a new site; a zero-width arc appears and splits an existing arc in two.
+Circle event — three consecutive arcs become tangent to one common circle; the middle arc shrinks to nothing at the circle’s lowest point, a Voronoi vertex is emitted, and edges are completed.
+Event queue — a priority queue ordered by sweep position, holding n site events and at most 2n − 5 circle events, which yields the O(n log n) bound.
+Output — edges are produced incrementally while unbounded edges are only resolved at the end, so a doubly-connected edge list (or an equivalent per-cell boundary representation) plus a final clip to the bounding box is strongly recommended.
+You are not required to re-derive the parabola-intersection formulae in your report. You are required to implement the algorithm correctly, to know why each of the five components above exists, and to justify the data structures you chose for them.
+4. Programming Tasks and Functional Requirements
+This section specifies the program you must build, its interfaces, its quality bar, and the rules that keep the exercise honest. Where a requirement is marked mandatory, missing it costs marks under the rubric in Section 8.
+4.1 Core requirement: the algorithm must be built from scratch
+The algorithmic core — the beach line, the event queue, the event handlers, and the cell/vertex construction — must be your own implementation, produced with AI assistance. You may freely use standard-utility libraries (containers, mathematics, plotting, GUI frameworks; e.g. std::priority_queue, Eigen, NumPy/SciPy for plotting and numerical utilities only, matplotlib, SFML, Qt, three.js).
+Prohibited as the algorithmic core: you must not call any existing Voronoi/Delaunay implementation. Prohibited examples include scipy.spatial.Voronoi, scipy.spatial.Delaunay, CGAL’s Voronoi module, d3-delaunay/Voronoi, GEOS, OpenCV’s Subdiv2D, and equivalent functions in any language. Such code may be used only in the clearly separated validation section of your work (Section 4.4), and this exception must be disclosed in the report.
+4.2 Input and output specifications
+Your program must support the following input modes:
+File input — a plain text file with one site per line: x y (whitespace- or comma-separated). A sample input file must be included in your package.
+Seeded random generation — n sites uniform in the unit square, with a user-given random seed (reproducibility is required for your own test suite).
+Interactive input — clicking on the canvas adds sites; double-click or a button triggers computation. (Recommended, not mandatory.)
+Your program must produce the following outputs:
+Rendering of the complete Voronoi diagram on screen (see 4.3).
+Export to a lossless raster or vector image (PNG or SVG), written next to the input or to a user-specified path.
+Machine-readable output — for every cell, the ordered list of vertex coordinates (and, for unbounded cells, an explicit ray/endpoint of the clipped edge), written to a text or CSV file.
+Console statistics — number of sites, number of cells, number of Voronoi vertices, number of edges, and total construction time.
+A batch mode must be provided for automated testing, e.g. voronoi --input sites.txt --output result.png --csv cells.csv, in addition to the interactive mode. Command-line arguments must be documented in the README.
+4.3 Visualization requirements
+The rendered diagram must show: the Voronoi cells (drawn as closed polygons, with hues alternating or assigned per cell for readability), the input sites (as distinct markers, with indices as labels), and an indication of the bounding box used for clipping unbounded edges.
+Optional bonus features (each worth up to 2 marks within Criterion 1 of the rubric): animated replay of the sweep (sweep line, beach line, event queue), and overlay of the dual Delaunay triangulation. Screenshots of the visualization are mandatory report figures (Section 6.3).
+4.4 Testing, degenerate cases, and benchmarking
+A program that draws plausible pictures is not yet correct. Your package must include an automated test suite (script or test program) that covers:
+Brute-force nearest-neighbour validation. For random configurations, sample many query points; for each query point, check that the diagram’s reported nearest site matches the brute-force linear scan over all sites. This checks the cells, not just the vertices.
+Empty-circle property check. For each emitted Voronoi vertex, verify that it is equidistant (within epsilon) from its three defining sites, and that no other site lies inside the corresponding circle.
+Degenerate configurations, each recorded with an annotated figure in the report: all sites collinear (horizontal, vertical, and a generic slanted line); four or more cocircular sites; a mix of very close sites; duplicate input points; a single site; two sites.
+Scale and stress test. n = 100, 1,000, 10,000 sites (seeded), reporting construction time for each; the observed growth should be consistent with O(n log n). Confirm memory behaviour stays linear.
+Cross-validation (optional but recommended). Compare your output against a reference implementation (e.g., scipy.spatial.Voronoi used only here, in a script under tests/reference_compare/), reporting discrepancies honestly if any remain.
+The failure modes below are what you should expect; each row corresponds to at least one test case in your suite, and very often to one of the five problems you must document (Section 5.3).
+Table 2 — Typical failure modes and their symptoms
+#
+Failure mode
+Typical symptom
+1
+Intersecting two parabolas requires solving a quadratic equation whose leading coefficient can vanish
+Division by zero or NaN when the sweep line approaches a site
+2
+Nearly concurrent events processed in the wrong order
+Cracks, overlapping or crossing Voronoi edges
+3
+Cocircular sites (four sites on a common circle)
+Simultaneous circle events; inconsistent topology; missing or duplicated vertices
+4
+Collinear sites
+Degenerate cells, zero-area or infinite edges; broken DCEL
+5
+Unbounded cells and rays
+Edges not clipped to the output bounding box; “holes” at the diagram border
+6
+Duplicate or nearly duplicate sites
+Empty or inverted arcs; beach-line corruption
+7
+Floating-point comparisons without epsilon tolerance
+Correct-looking output that changes with input ordering or coordinate scale
+4.5 Program delivery and runtime requirements
+The program must run on Windows 10/11 (x64): either ship a standalone executable (.exe or installer-free folder) or a one-command run script (run.bat / make run) whose dependencies are fully documented.
+Third-party dependencies (if any) must be declared with exact versions and installation steps in the README, and must be installable without licence keys.
+The source tree must be complete and self-contained, must compile from a clean checkout, and must be accompanied by a shell/Makefile/CMake build script.
+Version control is recommended but not mandatory: if you use Git, include the repository or a Git log export, since an incremental history is the easiest evidence of steady work. If you do not, nothing is deducted — the record of your process is then carried by the report, your notes, or the walkthrough recording.
+The package must include a demo: pre-generated example outputs plus a screen recording (≤ 5 minutes, MP4 or GIF) in which you yourself demonstrate both batch and interactive modes and explain, on camera, the architecture, the two core invariants (beach line and event queue) and three specific problems you solved or design decisions you made. The recording is a mandatory deliverable and is assessed within Criterion 1 of Section 8.
+5. AI-Assisted Programming Requirements
+This assignment treats the AI programming tool as a documented collaborator. Sections 5.1, 5.3 and 5.4 are mandatory; Section 5.2 describes a practice that is strongly recommended but not required. Criteria 4–5 of Section 8 grade what you do document.
+5.1 Tool selection
+Each student must select at least one mainstream AI-assisted programming tool from the list in Appendix A (or another tool approved by the teaching assistant). The choice, its exact name and version, and the subscription/plan used must be stated in the report.
+Students are strongly encouraged to pick different tools from one another, so that the class seminar can compare tools on the same task; the teaching team may suggest a tool to balance coverage, but the choice remains yours and no tool is privileged in grading.
+You are expected to use the tool across the full development lifecycle, not only for writing isolated functions: requirements clarification and architecture options, data-structure design, code generation, code review of its own output, debugging (feeding error messages and failing test output back to the AI), test-case generation, optimisation, and technical writing.
+Responsibility note: you remain responsible for every line you accept — the tool is a junior pair programmer whose work you verify. “The AI generated it” is never an accepted explanation for a defect.
+5.2 Development record (recommended, not mandatory)
+Keeping a chronological development log is strongly recommended but not required, and no marks are deducted merely for not keeping one. In practice it is the cheapest way to keep hold of evidence of your own process, and it makes the walkthrough recording (Section 4.5) far easier to give; but the choice is yours, and commit messages, working notes, or a short appendix serve the same purpose. If you do keep a log, an entry is most useful when it records:
+Date and session number;
+Goal of the session (one sentence);
+A summary of the prompt(s) sent (or the exact prompt, for pivotal ones);
+A summary of the AI response (what it produced: code, explanation, test cases, review comments);
+Verification result — how you checked the output (compile, unit test, hand-checked example, proof sketch), and whether it passed as-is;
+Modifications you made to the AI output, and why;
+Time spent.
+There is no prescribed number of entries. For a two-week individual project, roughly fifteen to twenty entries spread over the lifecycle — design, site events, circle events, degeneracy handling, visualisation, benchmarking, writing — is ample; the point is coverage of the work, not a count.
+Where the record lives is your choice: an appendix of the report, a devlog.md (or .csv) in the package, or both. Note that a bare statement such as “the AI was used throughout” documents nothing: credit under Criterion 4 comes from showing prompts, verification steps, and the changes you made.
+5.3 Problem-and-solution report
+The report must contain a dedicated section (Section 6 of the report, at least 1.5 pages) documenting at least five substantive problems encountered during the project — algorithmic, numerical, engineering, or tool-related. For each problem, use the following structure:
+Table 3 — Required fields of each documented problem
+Field
+Required content
+Symptom
+Observable failure (crash, wrong output, test failure), with the failing input or test case
+Investigation
+How you isolated the problem (tests, debugger, minimal reproducer)
+Root cause
+The actual cause — be specific (a parabola-intersection special case, an event-ordering bug, a floating-point tolerance, an AI hallucinated API, …)
+Solution
+The fix, with a code excerpt or patch
+Verification
+Evidence that the fix works (test output, before/after figures)
+Prevention / lesson
+What you changed to avoid the class of error; how the AI tool helped or misled
+A useful list of candidate problems is the table of failure modes in Section 4.4; you are not limited to it. Problems that the AI tool introduced, and problems that the AI tool helped you solve, are both of high documentary value — include both kinds.
+5.4 Critical reflection on AI-assisted programming
+The report must contain a critical, balanced reflection (Section 8 of the report, at least 1 page) addressing: which subtasks the tool performed well (with concrete examples from your own work) and which it performed poorly or deceptively; the prompt strategies that worked and those that backfired; and your verification methodology (“never trust, always verify” made concrete).
+Discuss also what you would do differently in a future project, and compare the tool’s behaviour against your expectations from the course’s discussion of automated algorithm design, if applicable.
+6. Documentation (Report) Requirements
+The report is a primary deliverable, not an afterthought: it is graded for structure, completeness, and academic quality. This section fixes the format, the mandatory structure, and the evidence you must include.
+6.1 Format specifications
+The report must be written in English and submitted as a PDF.
+Page setup: A4, margins 2.5 cm on all sides, Times New Roman 12 pt, line spacing 1.5; code listings may use a monospaced font (Consolas or Courier New, 9–10 pt).
+Sections, figures, and tables must be numbered; every figure and table must have a caption; every reference must be cited in the text. Use either numbered (IEEE-style) or APA citations consistently.
+The PDF must be searchable text (no scans of handwritten material). The submission package must also include the editable source of the report (.docx, .md, or .tex).
+Length requirement: the main body — from Section 1 through Section 9, including figures, tables, and references — must be no fewer than 10 pages. Appendices (source listing, and the development record if you keep one) do not count toward this minimum. A report under 10 body pages is penalised by 10% and returned for completion.
+6.2 Mandatory report structure
+Your report must follow the structure below. The suggested page budget is calibrated so that a satisfactory report lands at about 13 pages.
+Table 4 — Mandatory report structure and page budget
+Report section
+Suggested content
+Pages
+1. Introduction and theoretical background
+Problem statement, definitions, Fortune’s algorithm summary, complexity, degeneracies
+2.0
+2. AI tools and development methodology
+Tool name/version/plan, workflow, prompt and verification strategy, how you organised the work
+1.5
+3. Algorithm design and data structures
+Architecture diagram, beach-line representation, event queue, DCEL, module decomposition, design decisions and alternatives considered
+2.0
+4. Implementation and the AI-assisted coding process
+Key modules with annotated excerpts, how AI output was obtained, verified, and modified; screenshots of significant AI interactions
+2.0
+5. Testing and validation
+Test-suite design, brute-force and empty-circle validation, degenerate cases with figures, benchmark methodology
+1.5
+6. Problems and solutions
+At least five problems with the structure of Section 5.3 of this document
+1.5
+7. Performance analysis and results
+Timing table and scaling plot, example outputs (small + large), comparison with expectations
+1.0
+8. Critical reflection on AI-assisted programming
+Analysis required by Section 5.4 of this document
+1.0
+9. Conclusion
+Summary of contributions, limitations, future work
+0.5
+References
+Cited works, consistent style
+0.5–1.0
+Appendix A
+Complete source listing (key modules may be inlined in Section 4)
+—
+Appendix B
+Development record (optional)
+—
+Appendix C
+Additional test data and outputs (optional)
+—
+6.3 Figures, screenshots, and evidence
+At least six original figures/tables are required, for example: (1) system architecture; (2) beach-line/event illustration (hand-made or tool-made); (3) screenshots of the program on general and degenerate inputs (several admissible in one multi-panel figure); (4) at least two screenshots of substantive AI-tool interactions (prompt and response); (5) a runtime-scaling plot; (6) a table of test results.
+All screenshots must be legible; cropped and annotated screenshots are preferred over raw desktop captures. Figures traced from published sources may be used only with an explicit citation, and do not count toward the minimum.
+7. Submission Checklist and Packaging
+Submission is by e-mail, to 57865700@qq.com. Send one ZIP archive named CG_Assignment_<StudentID>_<Name>.zip (for example CG_Assignment_2026301234_LiHua.zip) as an attachment, with the subject line CG-Assignment-<StudentID>-<Name>. If the archive exceeds 50 MB, split it into numbered parts (_part1, _part2, …) or put a download link in the same message. The deadline is measured by the sending time of the e-mail, so keep the sent message until the grade is published. The archive must contain:
+Table 5 — Submission package contents
+Path
+Content
+01_Report/
+report.pdf and the editable report source
+02_SourceCode/
+Complete source tree and build files (repository or git log export if you used version control)
+03_Executable/
+Windows-ready executable or run script, dependencies, and step-by-step run instructions
+04_Demo/
+Example inputs/outputs and a screen recording (≤ 5 min)
+devlog.md (or .csv)
+Optional: your development record, if you kept one
+tests/
+Automated test suite and validation scripts
+README.txt
+Root README: how to build, run, test, and reproduce every figure in the report
+The teaching team acknowledges receipt within one working day. If you receive no acknowledgement within two working days, resend the message and contact the instructor — an unreceived submission counts as a missing submission.
+Before submitting, verify the self-check list in Appendix C. Late submissions lose 10% of the mark per calendar day, up to three days; after that the assignment is not accepted. Because the three-week window has no extension, resubmission after the deadline is not permitted.
+8. Assessment Criteria
+Assessment is criterion-referenced: every criterion below is graded on the stated bands, and the walkthrough recording required in Section 4.5 demonstrates that the submitted work is genuinely your own.
+8.1 Grading rubric
+The assignment is graded out of 100 with the following rubric. Levels describe the 90+/75/60/40% bands for each criterion.
+Table 6 — Grading rubric
+#
+Criterion
+Weight
+What the grader looks for (top band)
+1
+Algorithmic correctness, robustness, and demonstration
+35%
+Complete, from-scratch Fortune implementation; all degenerate cases handled; brute-force and empty-circle validation passing; benchmarks consistent with O(n log n); bonus features (sweep animation, Delaunay overlay) up to +2 marks within this criterion. This criterion also carries the demonstration: the ≤5-minute narrated recording required in Section 4.5 must show both batch and interactive modes, explain the architecture and the beach-line / event-queue invariants, and walk through three specific problems or design decisions; a missing recording, or one that shows no understanding of the submitted code, confines the mark to the middle band or below
+2
+Code quality and engineering practice
+15%
+Clear modular architecture; consistent, commented code; reproducible build; complete README; automated tests; a readable repository layout (an incremental version-control history is credited where present)
+3
+Documentation quality and completeness
+20%
+Full mandatory structure of Section 6.2; ≥10 body pages; ≥6 legible figures; correct academic writing, citations, and captions; honest reporting of limitations
+4
+Evidence of the AI collaboration and of your process
+15%
+Disclosed tool/version/plan; at least two screenshots of substantive interactions (prompt and response); a credible account of how the work actually proceeded — a development log, a commit history, or equivalent notes, any one of these, with no prescribed count; honest reporting of what the tool did well and badly
+5
+Problems-and-solutions analysis
+15%
+≥5 substantive problems fully analysed with the Section 5.3 structure; evidence of root-cause understanding (not symptom patching)
+9. Academic Integrity and Responsible Use of AI
+AI assistance is permitted, expected, and must be disclosed. Undisclosed AI use, or an account of the process that the submitted evidence does not support, is treated as a documentation failure and may be treated as misconduct.
+Understanding is mandatory. Code produced by an AI tool is acceptable only if you can explain it, and the walkthrough recording is where you prove it. Inability to explain code you submitted is treated as an integrity issue regardless of who or what wrote it.
+No external implementations as the core. Using existing Voronoi/Delaunay libraries as the algorithmic core (Section 4.1) forfeits Criterion 1. Reference implementations may be used only in the clearly separated validation section, with disclosure.
+No collaboration and no copying. Because the assignment is individual, code or report text taken from classmates, from public repositories, or from the internet must be attributed; unattributed reuse is plagiarism, and code-similarity checks will be run across submissions.
+AI-polished writing must be accurate. You may use AI tools to polish English, but you must verify that technical statements remain correct and that no content has been invented; declare such polishing in the report’s methodology section.
+Sanctions. Violations result in zero marks for the assignment and referral under the university’s academic-misconduct regulations. When in doubt, ask the teaching team before the deadline.
+Appendix A. Recommended AI-Assisted Programming Tools
+Any mainstream tool that assists code writing qualifies (IDE-embedded assistants, agentic CLIs, or web-based agents). Representative choices at the time of writing:
+Table 7 — Representative AI-assisted programming tools
+Category
+Examples
+Agentic coding assistants / IDEs
+GitHub Copilot (with Copilot Chat/agent mode), Cursor, Windsurf, Trae, CodeBuddy, Qoder, ZCode
+CLI / terminal agents
+Claude Code, Codex CLI, CodeBuddy CLI, Gemini CLI, Aider
+Web-based coding agents and API access
+ChatGPT/Claude web sessions, Qwen, DeepSeek, Tongyi Lingma, Amazon Q Developer
+The list is not exhaustive and the field changes quickly: any tool approved by the TA that meets the criterion "AI-assisted programming" is acceptable. Record the exact product name, version/plan, and access mode in the report.
+Each student must not use more than two different tools for the same submission, so that the account of your process stays interpretable — and students are asked to use different tools from their classmates where possible, to enable the class comparison seminar.
+Appendix B. References and Learning Resources
+S. Fortune, “A sweepline algorithm for Voronoi diagrams,” Algorithmica, vol. 2, no. 1, pp. 153–174, 1987.
+M. de Berg, O. Cheong, M. van Kreveld, and M. Overmars, Computational Geometry: Algorithms and Applications, 3rd ed. Berlin: Springer, 2008, ch. 7 (Voronoi diagrams).
+F. P. Preparata and M. I. Shamos, Computational Geometry: An Introduction. New York: Springer, 1985.
+A. Okabe, B. Boots, K. Sugihara, and S. N. Chiu, Spatial Tessellations: Concepts and Applications of Voronoi Diagrams, 2nd ed. Chichester: Wiley, 2000.
+Course lecture notes on plane-sweep algorithms, DCEL structures, and randomized-geometry validation (course LMS).
+Supplementary: interactive visualisations of Fortune’s algorithm (search “Fortune’s algorithm Voronoi visualization”); your implementation should be validated against brute force, not against other people’s sweep-line code.
+Appendix C. Pre-Submission Self-Check List
+Verify every item before zipping the package; the grader will.
+☐The core Voronoi implementation is your own code (no prohibited libraries in the core).
+☐Program builds from a clean checkout on Windows 10/11 and runs in batch mode (--input/--output/--csv).
+☐Interactive mode and export both work; example inputs and outputs are included.
+☐Automated test suite passes, including all required degenerate configurations.
+☐Benchmark table (n = 100 / 1,000 / 10,000) and scaling plot are in the report.
+☐Report body ≥ 10 pages; mandatory structure of Section 6.2 followed; ≥ 6 legible figures; citations consistent.
+☐≥ 5 problems documented with the six-field structure of Section 5.3.
+☐Critical reflection section completed (≥ 1 page).
+☐Narrated walkthrough recording (≤ 5 min) included in 04_Demo/ and plays with audible commentary.
+☐ZIP named CG_Assignment_<StudentID>_<Name>.zip; e-mailed to 57865700@qq.com before Wed 11 Nov 2026, 23:59 GMT+8; acknowledgement received.

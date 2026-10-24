@@ -1,0 +1,24 @@
+# Python environments and caches
+.venv/
+.venv-win/
+.venv-wsl/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Build output and temporary working files
+build/
+dist/
+tmp/
+.coverage
+htmlcov/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+
+# Final measured results, figures and evidence should be deliberately tracked.
