@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fortune-sweep"
+version = "0.1.0"
+description = "From-scratch planar Voronoi diagrams using Fortune's sweep"
+requires-python = ">=3.11"
+dependencies = ["matplotlib==3.11.2"]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+
+[project.scripts]
+voronoi = "fortune.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
