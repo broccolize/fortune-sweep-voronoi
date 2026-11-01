@@ -1,0 +1,15 @@
+{
+  "configurations": 300,
+  "queries_per_configuration": 25,
+  "seeds": [
+    0,
+    299
+  ],
+  "large_sizes": [
+    100,
+    1000,
+    10000
+  ],
+  "status": "passed",
+  "seconds": 5.673380899999756
+}

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="41" time="0.772" timestamp="2026-11-10T16:21:35.015441+08:00" hostname="DESKTOP-6F1NTUQ"><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[0]" time="0.018" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[1]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[2]" time="0.014" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[3]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[4]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[5]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[6]" time="0.014" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[7]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[8]" time="0.014" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[9]" time="0.016" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[10]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[11]" time="0.016" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[12]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[13]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[14]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[15]" time="0.016" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[16]" time="0.019" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[17]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[18]" time="0.016" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[19]" time="0.019" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[20]" time="0.016" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[21]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[22]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[23]" time="0.015" /><testcase classname="tests.test_diagram" name="test_random_cells_and_empty_circles[24]" time="0.015" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[single]" time="0.003" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[two]" time="0.001"><failure message="AssertionError: ('hole', Point(x=0.6673121581494607, y=-0.06998709373279968))">case = 'two'
+
+    @pytest.mark.parametrize('case', CASES)
+    def test_degenerate_cells(case):
+        d = construct(CASES[case],debug=True)
+&gt;       validate_cells(d,queries=400)
+
+tests\test_diagram.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+diagram = Diagram(sites=[Point(x=0.0, y=0.0), Point(x=1.0, y=1.0)], cells=[Cell(site=0, input_indices=[0], vertices=[Point(x=-0....: 2, 'vertices': 0, 'edges': 1, 'sweep_seconds': 2.370000584051013e-05, 'construction_seconds': 0.0002011999604292214})
+queries = 400, seed = 42
+
+    def validate_cells(diagram, queries=300, seed=42):
+        box, rng = diagram.box, random.Random(seed)
+        scale = max(box.xmax - box.xmin, box.ymax - box.ymin)
+        area = sum(polygon_area(c.vertices) for c in diagram.cells)
+        assert math.isclose(area, (box.xmax - box.xmin) * (box.ymax - box.ymin),
+                            rel_tol=2e-8, abs_tol=1e-11 * scale ** 2), ('area',area)
+        for _ in range(queries):
+            p = Point(rng.uniform(box.xmin, box.xmax), rng.uniform(box.ymin, box.ymax))
+            owners = [c.site for c in diagram.cells if contains(c.vertices, p, 1e-10 * scale)]
+            distances = [p.distance(s) for s in diagram.sites]
+            nearest = min(distances)
+&gt;           assert owners, ('hole',p)
+                   ^^^^^^
+E           AssertionError: ('hole', Point(x=0.6673121581494607, y=-0.06998709373279968))
+
+tests\validation.py:30: AssertionError</failure></testcase><testcase classname="tests.test_diagram" name="test_degenerate_cells[horizontal]" time="0.008" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[vertical]" time="0.006" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[slanted]" time="0.007" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[square]" time="0.004" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[cocircular]" time="0.002"><failure message="AssertionError: ('hole', Point(x=0.3555222585552047, y=-1.1226554180499146))">case = 'cocircular'
+
+    @pytest.mark.parametrize('case', CASES)
+    def test_degenerate_cells(case):
+        d = construct(CASES[case],debug=True)
+&gt;       validate_cells(d,queries=400)
+
+tests\test_diagram.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+diagram = Diagram(sites=[Point(x=1.0, y=0.0), Point(x=0.766044443118978, y=0.6427876096865393), Point(x=0.17364817766693041, y=0...: 9, 'vertices': 1, 'edges': 9, 'sweep_seconds': 0.0005721999914385378, 'construction_seconds': 0.0010153999901376665})
+queries = 400, seed = 42
+
+    def validate_cells(diagram, queries=300, seed=42):
+        box, rng = diagram.box, random.Random(seed)
+        scale = max(box.xmax - box.xmin, box.ymax - box.ymin)
+        area = sum(polygon_area(c.vertices) for c in diagram.cells)
+        assert math.isclose(area, (box.xmax - box.xmin) * (box.ymax - box.ymin),
+                            rel_tol=2e-8, abs_tol=1e-11 * scale ** 2), ('area',area)
+        for _ in range(queries):
+            p = Point(rng.uniform(box.xmin, box.xmax), rng.uniform(box.ymin, box.ymax))
+            owners = [c.site for c in diagram.cells if contains(c.vertices, p, 1e-10 * scale)]
+            distances = [p.distance(s) for s in diagram.sites]
+            nearest = min(distances)
+&gt;           assert owners, ('hole',p)
+                   ^^^^^^
+E           AssertionError: ('hole', Point(x=0.3555222585552047, y=-1.1226554180499146))
+
+tests\validation.py:30: AssertionError</failure></testcase><testcase classname="tests.test_diagram" name="test_degenerate_cells[duplicates]" time="0.004" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[near]" time="0.005" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[grid]" time="0.022" /><testcase classname="tests.test_diagram" name="test_degenerate_cells[equal_rows]" time="0.006" /><testcase classname="tests.test_diagram" name="test_repeatability_and_input_permutations" time="0.033" /><testcase classname="tests.test_diagram" name="test_coordinate_scaling[1e-08-0]" time="0.004" /><testcase classname="tests.test_diagram" name="test_coordinate_scaling[100000000.0-0]" time="0.003" /><testcase classname="tests.test_diagram" name="test_coordinate_scaling[1-1000000000.0]" time="0.003"><failure message="AssertionError: ('equidistance', Vertex(point=Point(x=1000000000.6254717, y=1000000000.7462263), defining={1, 2, 3}))">scale = 1, offset = 1000000000.0
+
+    @pytest.mark.parametrize('scale,offset', [(1e-8,0),(1e8,0),(1,1e9)])
+    def test_coordinate_scaling(scale,offset):
+        points = [(offset+scale*x,offset+scale*y) for x,y in [(0,0),(.2,.9),(.7,.3),(1,1)]]
+        d = construct(points)
+        validate_cells(d)
+&gt;       validate_empty_circles(d)
+
+tests\test_diagram.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+diagram = Diagram(sites=[Point(x=1000000000.0, y=1000000000.0), Point(x=1000000000.2, y=1000000000.9), Point(x=1000000000.7, y=1...4, 'vertices': 2, 'edges': 5, 'sweep_seconds': 0.00010830000974237919, 'construction_seconds': 0.00031780003337189555})
+
+    def validate_empty_circles(diagram):
+        for vertex in diagram.vertices:
+            ds = [vertex.point.distance(p) for p in diagram.sites]
+            defining = [ds[i] for i in vertex.defining]
+            r = defining[0]
+            tolerance = 1e-8 * max(1, r)
+&gt;           assert max(defining) - min(defining) &lt;= tolerance, ('equidistance',vertex)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: ('equidistance', Vertex(point=Point(x=1000000000.6254717, y=1000000000.7462263), defining={1, 2, 3}))
+
+tests\validation.py:40: AssertionError</failure></testcase><testcase classname="tests.test_diagram" name="test_empty_and_nonfinite_rejected" time="0.001" /></testsuite></testsuites>
