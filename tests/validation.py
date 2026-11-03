@@ -11,7 +11,11 @@ def contains(polygon, p, tolerance=2e-10):
     # Clipped cells are convex and ordered counterclockwise.
     for a, b in zip(polygon, polygon[1:] + polygon[:1]):
         cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
-        if cross < -tolerance * max(1e-30, a.distance(b)):
+        # Very short exported edges suffer endpoint subtraction error; the
+        # cross-product uncertainty depends on coordinate ULP, not just length.
+        ulp = math.ulp(max(abs(a.x),abs(a.y),abs(b.x),abs(b.y)))
+        uncertainty = 8 * ulp * (abs(p.x-a.x)+abs(p.y-a.y))
+        if cross < -tolerance * max(1e-30, a.distance(b)) - uncertainty:
             return False
     return True
 

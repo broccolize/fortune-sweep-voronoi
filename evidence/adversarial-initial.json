@@ -1,0 +1,193 @@
+{
+  "cases": 18,
+  "failures": [
+    {
+      "case": "cluster-11",
+      "input": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0.4000000000045238,
+          0.6000000000055977
+        ],
+        [
+          0.40000000000924213,
+          0.6000000000046565
+        ],
+        [
+          0.40000000000507846,
+          0.6000000000058738
+        ],
+        [
+          0.4000000000018466,
+          0.6000000000051191
+        ],
+        [
+          0.4000000000062989,
+          0.6000000000079297
+        ],
+        [
+          0.40000000000094127,
+          0.600000000003034
+        ]
+      ],
+      "error": "AssertionError(('area', 1.439996905390856))",
+      "traceback": "Traceback (most recent call last):\n  File \"<stdin>\", line 16, in <module>\n  File \"C:\\Users\\Mines\\Documents\\ChatGPT\\Computer Geometry\\tests\\validation.py\", line 23, in validate_cells\n    assert math.isclose(area, (box.xmax - box.xmin) * (box.ymax - box.ymin),\n           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                        rel_tol=2e-8, abs_tol=1e-11 * scale ** 2), ('area',area)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ('area', 1.439996905390856)\n"
+    },
+    {
+      "case": "cluster-13",
+      "input": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0.40000000000002595,
+          0.6000000000000685
+        ],
+        [
+          0.4000000000000684,
+          0.6000000000000849
+        ],
+        [
+          0.4000000000000186,
+          0.6000000000000231
+        ],
+        [
+          0.40000000000001473,
+          0.6000000000000225
+        ],
+        [
+          0.4000000000000734,
+          0.600000000000013
+        ],
+        [
+          0.40000000000005315,
+          0.6000000000000214
+        ]
+      ],
+      "error": "AssertionError(('area', 1.4399655574805166))",
+      "traceback": "Traceback (most recent call last):\n  File \"<stdin>\", line 16, in <module>\n  File \"C:\\Users\\Mines\\Documents\\ChatGPT\\Computer Geometry\\tests\\validation.py\", line 23, in validate_cells\n    assert math.isclose(area, (box.xmax - box.xmin) * (box.ymax - box.ymin),\n           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                        rel_tol=2e-8, abs_tol=1e-11 * scale ** 2), ('area',area)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ('area', 1.4399655574805166)\n"
+    },
+    {
+      "case": "cluster-14",
+      "input": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0.4000000000000011,
+          0.600000000000007
+        ],
+        [
+          0.4000000000000065,
+          0.6000000000000094
+        ],
+        [
+          0.40000000000000274,
+          0.6000000000000025
+        ],
+        [
+          0.40000000000000735,
+          0.6000000000000065
+        ],
+        [
+          0.4000000000000031,
+          0.6000000000000069
+        ],
+        [
+          0.40000000000000396,
+          0.6000000000000077
+        ]
+      ],
+      "error": "AssertionError(('area', 1.439872693693034))",
+      "traceback": "Traceback (most recent call last):\n  File \"<stdin>\", line 16, in <module>\n  File \"C:\\Users\\Mines\\Documents\\ChatGPT\\Computer Geometry\\tests\\validation.py\", line 23, in validate_cells\n    assert math.isclose(area, (box.xmax - box.xmin) * (box.ymax - box.ymin),\n           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                        rel_tol=2e-8, abs_tol=1e-11 * scale ** 2), ('area',area)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ('area', 1.439872693693034)\n"
+    },
+    {
+      "case": "cluster-15",
+      "input": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0.40000000000000097,
+          0.6
+        ],
+        [
+          0.40000000000000074,
+          0.6000000000000001
+        ],
+        [
+          0.400000000000001,
+          0.6
+        ],
+        [
+          0.4000000000000009,
+          0.6000000000000006
+        ],
+        [
+          0.40000000000000085,
+          0.600000000000001
+        ],
+        [
+          0.40000000000000024,
+          0.6000000000000003
+        ]
+      ],
+      "error": "AssertionError(('equidistance', Vertex(point=Point(x=0.21052631578947367, y=0.8157894736842105), defining={8, 9, 3})))",
+      "traceback": "Traceback (most recent call last):\n  File \"<stdin>\", line 16, in <module>\n  File \"C:\\Users\\Mines\\Documents\\ChatGPT\\Computer Geometry\\tests\\validation.py\", line 43, in validate_empty_circles\n    assert max(defining) - min(defining) <= tolerance, ('equidistance',vertex)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ('equidistance', Vertex(point=Point(x=0.21052631578947367, y=0.8157894736842105), defining={8, 9, 3}))\n"
+    }
+  ]
+}

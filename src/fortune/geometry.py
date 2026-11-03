@@ -64,7 +64,9 @@ def circumcircle(a: Point, b: Point, c: Point):
     ux, uy = b.x - a.x, b.y - a.y
     vx, vy = c.x - a.x, c.y - a.y
     cross = ux * vy - uy * vx
-    if abs(cross) <= 8e-16 * (abs(ux * vy) + abs(uy * vx)):
+    # A reliable determinant sign alone does not imply an accurate centre.
+    # Ill-conditioned (almost collinear) triples need high-precision coordinates.
+    if abs(cross) <= 1e-8 * (abs(ux * vy) + abs(uy * vx)):
         with localcontext() as ctx:
             ctx.prec = 80
             ax, ay = Decimal(a.x), Decimal(a.y)

@@ -7,10 +7,11 @@ constraints make every nonempty result bounded.
 
 from collections import deque
 from dataclasses import dataclass
+from decimal import Decimal, localcontext
 import math
 from .geometry import Point
 
-EPS = 2e-13  # signed distance in the normalized construction frame
+EPS = 8e-16  # signed distance in the normalized construction frame
 
 
 @dataclass(slots=True)
@@ -19,15 +20,34 @@ class HalfPlane:
     b: float
     c: float  # unit-normal inequality a*x + b*y <= c
     neighbour: int | None = None
+    focuses: tuple[Point, Point] | None = None
 
     def contains(self, point):
         return self.a * point.x + self.b * point.y <= self.c + EPS
 
+    def exact(self):
+        if self.focuses is None:
+            return Decimal(self.a), Decimal(self.b), Decimal(self.c)
+        p, q = self.focuses
+        px, py, qx, qy = map(Decimal, (p.x, p.y, q.x, q.y))
+        a, b = qx - px, qy - py
+        return a, b, (a * (px + qx) + b * (py + qy)) / 2
+
 
 def intersection(p, q):
     det = p.a * q.b - p.b * q.a
-    if abs(det) < 2e-15:
-        return None
+    if abs(det) < 1e-7:
+        # Recompute from exact binary focus coordinates, not from rounded
+        # normalized plane coefficients: close-site bisectors amplify that error.
+        with localcontext() as ctx:
+            ctx.prec = 80
+            a, b, c = p.exact()
+            d, e, f = q.exact()
+            denominator = a * e - b * d
+            if not denominator:
+                return None
+            return Point(float((c * e - b * f) / denominator),
+                         float((a * f - c * d) / denominator))
     return Point((p.c * q.b - p.b * q.c) / det,
                  (p.a * q.c - p.c * q.a) / det)
 
@@ -95,5 +115,5 @@ def clipped_cell(site, neighbours, points, box):
         if not d:
             raise ArithmeticError("Duplicate site survived deduplication")
         a, b = dx / d, dy / d
-        planes.append(HalfPlane(a, b, a * (p.x + q.x) / 2 + b * (p.y + q.y) / 2, j))
+        planes.append(HalfPlane(a, b, a * (p.x + q.x) / 2 + b * (p.y + q.y) / 2, j, (p, q)))
     return halfplane_polygon(planes)
