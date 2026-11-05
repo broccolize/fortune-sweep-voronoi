@@ -14,6 +14,7 @@ class Cell:
     input_indices: list[int]
     vertices: list[Point]
     unbounded: bool
+    boundary_neighbours: list[int | None] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -110,7 +111,8 @@ def construct(coordinates, box=None, *, debug=False):
     cells, edges = [], []
     for i in range(len(sites)):
         polygon, planes = clipped_cell(i, sorted(sweep.neighbours[i]), normalized, nbox)
-        cells.append(Cell(i, groups[i], [world(p) for p in polygon], i in boundary))
+        cells.append(Cell(i, groups[i], [world(p) for p in polygon], i in boundary,
+                          [h.neighbour for h in planes]))
         # Plane k supports the edge from vertex k to vertex k+1 (cyclic).
         for k, h in enumerate(planes):
             j = h.neighbour
