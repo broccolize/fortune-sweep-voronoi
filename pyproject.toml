@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools==80.9.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "fortune-sweep"
 version = "0.1.0"
 description = "From-scratch planar Voronoi diagrams using Fortune's sweep"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = ["matplotlib==3.11.2"]
 
 [project.optional-dependencies]
