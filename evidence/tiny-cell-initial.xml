@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="14" time="0.498" timestamp="2026-11-10T17:04:12.248305+08:00" hostname="DESKTOP-6F1NTUQ"><testcase classname="tests.test_adversarial" name="test_tight_cluster_among_distant_sites[8]" time="0.008" /><testcase classname="tests.test_adversarial" name="test_tight_cluster_among_distant_sites[11]" time="0.008" /><testcase classname="tests.test_adversarial" name="test_tight_cluster_among_distant_sites[13]" time="0.008" /><testcase classname="tests.test_adversarial" name="test_tight_cluster_among_distant_sites[14]" time="0.007" /><testcase classname="tests.test_adversarial" name="test_tight_cluster_among_distant_sites[15]" time="0.007" /><testcase classname="tests.test_adversarial" name="test_high_degree_cell_and_cocircular_sites[8]" time="0.010" /><testcase classname="tests.test_adversarial" name="test_high_degree_cell_and_cocircular_sites[32]" time="0.039" /><testcase classname="tests.test_adversarial" name="test_high_degree_cell_and_cocircular_sites[100]" time="0.149" /><testcase classname="tests.test_adversarial" name="test_every_distinct_cluster_site_retains_a_positive_cell[10]" time="0.002" /><testcase classname="tests.test_adversarial" name="test_every_distinct_cluster_site_retains_a_positive_cell[11]" time="0.002" /><testcase classname="tests.test_adversarial" name="test_every_distinct_cluster_site_retains_a_positive_cell[12]" time="0.002" /><testcase classname="tests.test_adversarial" name="test_every_distinct_cluster_site_retains_a_positive_cell[13]" time="0.003" /><testcase classname="tests.test_adversarial" name="test_every_distinct_cluster_site_retains_a_positive_cell[14]" time="0.003"><failure message="AssertionError: ('missing cell', 14, 8)&#10;assert 0 &gt;= 3&#10; +  where 0 = len([])&#10; +    where [] = Cell(site=8, input_indices=[8], vertices=[], unbounded=False, boundary_neighbours=[]).vertices">exponent = 14
+
+    @pytest.mark.parametrize('exponent',[10,11,12,13,14,15])
+    def test_every_distinct_cluster_site_retains_a_positive_cell(exponent):
+        rng=random.Random(exponent)
+        points=[(0,0),(1,0),(1,1),(0,1)]+[
+            (.4+10**-exponent*rng.random(),.6+10**-exponent*rng.random()) for _ in range(6)]
+        d=construct(points)
+        for c in d.cells:
+&gt;           assert len(c.vertices)&gt;=3,('missing cell',exponent,c.site)
+E           AssertionError: ('missing cell', 14, 8)
+E           assert 0 &gt;= 3
+E            +  where 0 = len([])
+E            +    where [] = Cell(site=8, input_indices=[8], vertices=[], unbounded=False, boundary_neighbours=[]).vertices
+
+tests\test_adversarial.py:35: AssertionError</failure></testcase><testcase classname="tests.test_adversarial" name="test_every_distinct_cluster_site_retains_a_positive_cell[15]" time="0.002"><failure message="AssertionError: ('missing cell', 15, 5)&#10;assert 0 &gt;= 3&#10; +  where 0 = len([])&#10; +    where [] = Cell(site=5, input_indices=[5], vertices=[], unbounded=False, boundary_neighbours=[]).vertices">exponent = 15
+
+    @pytest.mark.parametrize('exponent',[10,11,12,13,14,15])
+    def test_every_distinct_cluster_site_retains_a_positive_cell(exponent):
+        rng=random.Random(exponent)
+        points=[(0,0),(1,0),(1,1),(0,1)]+[
+            (.4+10**-exponent*rng.random(),.6+10**-exponent*rng.random()) for _ in range(6)]
+        d=construct(points)
+        for c in d.cells:
+&gt;           assert len(c.vertices)&gt;=3,('missing cell',exponent,c.site)
+E           AssertionError: ('missing cell', 15, 5)
+E           assert 0 &gt;= 3
+E            +  where 0 = len([])
+E            +    where [] = Cell(site=5, input_indices=[5], vertices=[], unbounded=False, boundary_neighbours=[]).vertices
+
+tests\test_adversarial.py:35: AssertionError</failure></testcase></testsuite></testsuites>

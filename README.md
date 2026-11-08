@@ -9,7 +9,7 @@ project using the supplied course specification as its quality benchmark.
 
 ## Status
 
-- 74 automated tests pass on native Windows 11 / Python 3.14.7.
+- 81 automated tests pass on native Windows 11 / Python 3.14.7.
 - A separate clean environment installed all pinned dependencies, built the
   package, passed the same suite and produced batch PNG/CSV/JSON output.
 - 300 seeded random and 40 tight-cluster configurations passed independent checks.
@@ -29,8 +29,8 @@ installation. Runtime and test dependencies are pinned in requirements.txt.
 git clone https://github.com/broccolize/fortune-sweep-voronoi.git
 cd fortune-sweep-voronoi
 install.bat
-run.bat --input examples\sites.txt --output outputesult.png --csv output\cells.csv --json output\diagram.json --bbox 0 0 1 1
-run.bat --random 100 --seed 2026 --output outputandom.svg --csv outputandom.csv
+run.bat --input examples\sites.txt --output output\result.png --csv output\cells.csv --json output\diagram.json --bbox 0 0 1 1
+run.bat --random 100 --seed 2026 --output output\random.svg --csv output\random.csv
 run.bat --interactive
 test.bat
 ```
@@ -82,15 +82,15 @@ and cell assembly; plotting and export are excluded.
 ## Reproduce validation results and figures
 
 ```bat
-test.bat --junitxml=evidence	ests-current.xml
+test.bat --junitxml=evidence\tests-current.xml
 .venv\Scripts\python tools\stress.py
-.venv\Scripts\python toolsenchmark.py --sizes 100 1000 10000 --repeat 3 --seed 2026
+.venv\Scripts\python tools\benchmark.py --sizes 100 1000 10000 --repeat 3 --seed 2026
 .venv\Scripts\python tools\make_figures.py
 ```
 
 The benchmark uses separate timing and memory runs. The recorded medians are
-0.01516 / 0.16540 / 1.87066 seconds at 100 / 1,000 / 10,000 sites. Traced Python
-peaks are 0.52 / 5.41 / 53.25 MiB. Process RSS includes interpreter and tracing
+0.03265 / 0.38583 / 4.26340 seconds at 100 / 1,000 / 10,000 sites. Traced Python
+peaks are 0.69 / 7.37 / 65.08 MiB. Process RSS includes interpreter and tracing
 overhead. See results/benchmark.json for raw runs, exact scope and environment.
 Measurements vary by machine; these values are observations, not promised speed.
 
@@ -101,8 +101,8 @@ plus cover and appendices. A source listing is report/source_listing.txt.
 On Windows with Times New Roman installed, reproduce the PDF with:
 
 ```bat
-.venv\Scripts\python -m pip install -r reportequirements.txt
-.venv\Scripts\python toolsuild_report.py
+.venv\Scripts\python -m pip install -r report\requirements.txt
+.venv\Scripts\python tools\build_report.py
 ```
 
 The builder uses A4, 2.5 cm margins, Times New Roman 12 pt and 18 pt leading.
@@ -117,8 +117,8 @@ scans live only in tests and stress validation. Sweep-generated neighbours alone
 supply cell constraints. An AVL tree and heap target O(n log n) time; angle-sorted
 half-plane intersection avoids quadratic repeated clipping of a high-degree cell.
 
-Numerical construction uses normalization, explicit singular cases and filtered
-80-digit Decimal fallbacks. This is not a fully certified exact geometry kernel.
+Numerical construction uses normalization, exact rational signs/identities for
+uncertain decisions, and filtered 80-digit Decimal coordinate construction. This is not a fully certified exact geometry kernel.
 Extreme coordinate ratios can be rejected if distinct points collapse on
 normalization. Tests include near-coincidence down to 1e-15 in selected cases,
 not a proof for every possible IEEE-double input. No external reference Voronoi

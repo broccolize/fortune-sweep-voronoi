@@ -1,5 +1,5 @@
 {
-  "actual_timestamp": "2026-11-10T16:30:06.884311+08:00",
+  "actual_timestamp": "2026-11-10T17:10:41.371818+08:00",
   "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]",
   "platform": "Windows-11-10.0.26200-SP0",
   "machine": "AMD64",
@@ -10,109 +10,109 @@
   "memory_method": "fresh subprocess per size; tracemalloc starts after input generation; process RSS includes interpreter and tracing overhead",
   "results": [
     {
-      "median_seconds": 0.015162099967710674,
-      "min_seconds": 0.01386629999615252,
-      "max_seconds": 0.017217400018125772,
+      "median_seconds": 0.03264550003223121,
+      "min_seconds": 0.032610800000838935,
+      "max_seconds": 0.041368600039277226,
       "n": 100,
-      "python_peak_bytes": 540872,
-      "python_retained_bytes": 324160,
+      "python_peak_bytes": 728172,
+      "python_retained_bytes": 493316,
       "cells": 100,
-      "process_peak_rss_bytes": 24264704,
-      "process_working_set_bytes": 23486464
+      "process_peak_rss_bytes": 25042944,
+      "process_working_set_bytes": 24100864
     },
     {
-      "median_seconds": 0.16540379996877164,
-      "min_seconds": 0.14829360001021996,
-      "max_seconds": 0.16633599996566772,
+      "median_seconds": 0.38582720002159476,
+      "min_seconds": 0.35662480001337826,
+      "max_seconds": 0.41435430001001805,
       "n": 1000,
-      "python_peak_bytes": 5670864,
-      "python_retained_bytes": 3061512,
+      "python_peak_bytes": 7733096,
+      "python_retained_bytes": 5034604,
       "cells": 1000,
-      "process_peak_rss_bytes": 39272448,
-      "process_working_set_bytes": 29057024
+      "process_peak_rss_bytes": 43720704,
+      "process_working_set_bytes": 31113216
     },
     {
-      "median_seconds": 1.8706644999911077,
-      "min_seconds": 1.8672901999671012,
-      "max_seconds": 1.9946506000123918,
+      "median_seconds": 4.263395399961155,
+      "min_seconds": 4.25532190001104,
+      "max_seconds": 4.264549100014847,
       "n": 10000,
-      "python_peak_bytes": 55839040,
-      "python_retained_bytes": 28737928,
+      "python_peak_bytes": 68237512,
+      "python_retained_bytes": 34474356,
       "cells": 10000,
-      "process_peak_rss_bytes": 182255616,
-      "process_working_set_bytes": 83361792
+      "process_peak_rss_bytes": 228560896,
+      "process_working_set_bytes": 96247808
     }
   ],
   "raw_timings": [
     {
       "n": 100,
       "repetition": 0,
-      "seconds": 0.017217400018125772,
-      "sweep_seconds": 0.0068348999484442174,
+      "seconds": 0.041368600039277226,
+      "sweep_seconds": 0.03173119999701157,
       "vertices": 188,
       "edges": 265
     },
     {
       "n": 100,
       "repetition": 1,
-      "seconds": 0.01386629999615252,
-      "sweep_seconds": 0.007084899989422411,
+      "seconds": 0.032610800000838935,
+      "sweep_seconds": 0.023049800016451627,
       "vertices": 188,
       "edges": 265
     },
     {
       "n": 100,
       "repetition": 2,
-      "seconds": 0.015162099967710674,
-      "sweep_seconds": 0.007542300038039684,
+      "seconds": 0.03264550003223121,
+      "sweep_seconds": 0.02304639999056235,
       "vertices": 188,
       "edges": 265
     },
     {
       "n": 1000,
       "repetition": 0,
-      "seconds": 0.16540379996877164,
-      "sweep_seconds": 0.08792219997849315,
+      "seconds": 0.41435430001001805,
+      "sweep_seconds": 0.3066561000305228,
       "vertices": 1984,
       "edges": 2886
     },
     {
       "n": 1000,
       "repetition": 1,
-      "seconds": 0.16633599996566772,
-      "sweep_seconds": 0.08970040001440793,
+      "seconds": 0.38582720002159476,
+      "sweep_seconds": 0.27354129997547716,
       "vertices": 1984,
       "edges": 2886
     },
     {
       "n": 1000,
       "repetition": 2,
-      "seconds": 0.14829360001021996,
-      "sweep_seconds": 0.07727609999710694,
+      "seconds": 0.35662480001337826,
+      "sweep_seconds": 0.24923929997021332,
       "vertices": 1984,
       "edges": 2886
     },
     {
       "n": 10000,
       "repetition": 0,
-      "seconds": 1.8706644999911077,
-      "sweep_seconds": 0.9860194999491796,
+      "seconds": 4.25532190001104,
+      "sweep_seconds": 3.0829229000373743,
       "vertices": 19978,
       "edges": 29630
     },
     {
       "n": 10000,
       "repetition": 1,
-      "seconds": 1.9946506000123918,
-      "sweep_seconds": 1.024248500005342,
+      "seconds": 4.264549100014847,
+      "sweep_seconds": 3.0826627000351436,
       "vertices": 19978,
       "edges": 29630
     },
     {
       "n": 10000,
       "repetition": 2,
-      "seconds": 1.8672901999671012,
-      "sweep_seconds": 1.0371757000102662,
+      "seconds": 4.263395399961155,
+      "sweep_seconds": 3.0826402999809943,
       "vertices": 19978,
       "edges": 29630
     }

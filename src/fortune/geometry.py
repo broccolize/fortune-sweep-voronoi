@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from decimal import Decimal, localcontext
 import math
+from fractions import Fraction
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +33,7 @@ class Box:
 
 
 def orient(a: Point, b: Point, c: Point) -> float:
-    """Positive for CCW. Decimal fallback resolves cancellation of float products.
+    """Positive for CCW. Exact dyadic fallback resolves uncertain float products.
 
     This is a filtered predicate, not arbitrary-precision construction: input
     coordinates and returned circumcentres are still IEEE double precision.
@@ -43,13 +44,12 @@ def orient(a: Point, b: Point, c: Point) -> float:
     det = left - right
     if abs(det) > 8e-16 * (abs(left) + abs(right)):
         return det
-    with localcontext() as ctx:
-        ctx.prec = 80
-        ax, ay = Decimal(a.x), Decimal(a.y)
-        bx, by = Decimal(b.x), Decimal(b.y)
-        cx, cy = Decimal(c.x), Decimal(c.y)
-        exact = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
-    value = float(exact)
+    ax,ay,bx,by,cx,cy=map(Fraction,(a.x,a.y,b.x,b.y,c.x,c.y))
+    exact=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax)
+    try:
+        value = float(exact)
+    except OverflowError:
+        value = math.inf if exact>0 else -math.inf
     if value == 0.0 and exact:
         return math.copysign(math.ulp(0.0), 1 if exact > 0 else -1)
     return value
@@ -132,6 +132,22 @@ def circle_bottom(centre: Point, through: Point) -> float:
     if dy >= 0 and radius + dy:
         return through.y - dx * dx / (radius + dy)
     return centre.y - radius
+
+
+def circle_identity(a,b,c):
+    """Exact circle identity for grouping events, not a rounded-centre hash.
+
+    Coordinates are finite input doubles, hence exact dyadic fractions. Keeping
+    distinct circles distinct also preserves real tiny edges between vertices.
+    """
+    ax,ay,bx,by,cx,cy=map(Fraction,(a.x,a.y,b.x,b.y,c.x,c.y))
+    ux,uy,vx,vy=bx-ax,by-ay,cx-ax,cy-ay
+    denominator=2*(ux*vy-uy*vx)
+    if not denominator:return None
+    u2,v2=ux*ux+uy*uy,vx*vx+vy*vy
+    x=ax+(u2*vy-v2*uy)/denominator
+    y=ay+(ux*v2-vx*u2)/denominator
+    return x,y,(x-ax)**2+(y-ay)**2
 
 
 def polygon_area(points) -> float:

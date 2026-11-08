@@ -104,9 +104,9 @@ def construct(coordinates, box=None, *, debug=False):
     collinear = all_collinear(sites)
     sweep_start = perf_counter()
     sweep = (collinear_neighbours(normalized) if collinear
-             else FortuneSweep(normalized, debug=debug).run())
+             else FortuneSweep(normalized, debug=debug,original_points=sites).run())
     sweep_seconds = perf_counter() - sweep_start
-    boundary = set(range(len(sites))) if collinear else hull_sites(normalized)
+    boundary = set(range(len(sites))) if collinear else hull_sites(sites)
     vertices = [Vertex(world(v.point), set(v.defining)) for v in sweep.vertices]
     cells, edges = [], []
     for i in range(len(sites)):
@@ -119,7 +119,7 @@ def construct(coordinates, box=None, *, debug=False):
             if j is None or i >= j:
                 continue
             p, q = polygon[k], polygon[(k + 1) % len(polygon)]
-            if p.distance(q) < 5e-15:
+            if p==q:
                 continue  # zero-length diagonal at a cocircular vertex
             trace = sweep.edges[(i, j)]
             ends = trace.vertices

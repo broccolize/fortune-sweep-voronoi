@@ -8,12 +8,16 @@ from fortune.geometry import Point, polygon_area
 def contains(polygon, p, tolerance=2e-10):
     if len(polygon) < 3:
         return False
+    if (p.x<min(v.x for v in polygon)-tolerance or p.x>max(v.x for v in polygon)+tolerance
+            or p.y<min(v.y for v in polygon)-tolerance or p.y>max(v.y for v in polygon)+tolerance):
+        return False
+    coordinate_ulp=math.ulp(max(max(abs(v.x),abs(v.y)) for v in polygon))
     # Clipped cells are convex and ordered counterclockwise.
     for a, b in zip(polygon, polygon[1:] + polygon[:1]):
         cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
         # Very short exported edges suffer endpoint subtraction error; the
         # cross-product uncertainty depends on coordinate ULP, not just length.
-        ulp = math.ulp(max(abs(a.x),abs(a.y),abs(b.x),abs(b.y)))
+        ulp = coordinate_ulp
         uncertainty = 8 * ulp * (abs(p.x-a.x)+abs(p.y-a.y))
         if cross < -tolerance * max(1e-30, a.distance(b)) - uncertainty:
             return False

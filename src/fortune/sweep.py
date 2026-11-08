@@ -9,7 +9,7 @@ import math
 from .beachline import Arc, BeachLine
 from .events import Event, EventQueue
 from .circle import candidate_circle
-from .geometry import Point, orient
+from .geometry import Point, orient, circle_identity
 
 
 @dataclass(slots=True)
@@ -25,8 +25,9 @@ class TraceEdge:
 
 
 class FortuneSweep:
-    def __init__(self, points, debug=False):
+    def __init__(self, points, debug=False, original_points=None):
         self.points = points
+        self.original_points=original_points if original_points is not None else points
         self.debug = debug
         self.beach = BeachLine()
         self.queue = EventQueue()
@@ -57,6 +58,8 @@ class FortuneSweep:
         if arc.prev is None or arc.next is None:
             return
         ids = (arc.prev.site, arc.site, arc.next.site)
+        if orient(*(self.original_points[i] for i in ids))>=0:
+            return
         result = candidate_circle(*(self.points[i] for i in ids), self.sweep_y)
         if result:
             centre, bottom = result
@@ -98,7 +101,10 @@ class FortuneSweep:
         left, right = middle.prev, middle.next
         if left is None or right is None or (left.site, middle.site, right.site) != event.defining:
             raise ArithmeticError("A valid circle event lost its neighbourhood")
-        key = (round(event.centre.x, 14), round(event.centre.y, 14))
+        key=circle_identity(*(self.original_points[i] for i in event.defining))
+        if key is None:
+            self.statistics['stale_events']+=1
+            return
         vertex = self._vertex_index.get(key)
         if vertex is None:
             vertex = len(self.vertices)
