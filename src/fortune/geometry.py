@@ -1,8 +1,8 @@
 """Small geometric primitives, with explicit singular cases and filtered signs."""
 
+import math
 from dataclasses import dataclass
 from decimal import Decimal, localcontext
-import math
 from fractions import Fraction
 
 
@@ -44,12 +44,12 @@ def orient(a: Point, b: Point, c: Point) -> float:
     det = left - right
     if abs(det) > 8e-16 * (abs(left) + abs(right)):
         return det
-    ax,ay,bx,by,cx,cy=map(Fraction,(a.x,a.y,b.x,b.y,c.x,c.y))
-    exact=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax)
+    ax, ay, bx, by, cx, cy = map(Fraction, (a.x, a.y, b.x, b.y, c.x, c.y))
+    exact = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
     try:
         value = float(exact)
     except OverflowError:
-        value = math.inf if exact>0 else -math.inf
+        value = math.inf if exact > 0 else -math.inf
     if value == 0.0 and exact:
         return math.copysign(math.ulp(0.0), 1 if exact > 0 else -1)
     return value
@@ -76,12 +76,15 @@ def circumcircle(a: Point, b: Point, c: Point):
             if not d:
                 return None
             u2, s2 = u * u + v * v, s * s + t * t
-            centre = Point(float(ax + (u2 * t - s2 * v) / d),
-                           float(ay + (u * s2 - s * u2) / d))
+            centre = Point(
+                float(ax + (u2 * t - s2 * v) / d), float(ay + (u * s2 - s * u2) / d)
+            )
     else:
         u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
-        centre = Point(a.x + (u2 * vy - v2 * uy) / (2 * cross),
-                       a.y + (ux * v2 - vx * u2) / (2 * cross))
+        centre = Point(
+            a.x + (u2 * vy - v2 * uy) / (2 * cross),
+            a.y + (ux * v2 - vx * u2) / (2 * cross),
+        )
     radius = centre.distance(a)
     if not math.isfinite(radius):
         raise ArithmeticError("Circumcircle is outside the supported float range")
@@ -134,25 +137,33 @@ def circle_bottom(centre: Point, through: Point) -> float:
     return centre.y - radius
 
 
-def circle_identity(a,b,c):
+def circle_identity(a, b, c):
     """Exact circle identity for grouping events, not a rounded-centre hash.
 
     Coordinates are finite input doubles, hence exact dyadic fractions. Keeping
     distinct circles distinct also preserves real tiny edges between vertices.
     """
-    ax,ay,bx,by,cx,cy=map(Fraction,(a.x,a.y,b.x,b.y,c.x,c.y))
-    ux,uy,vx,vy=bx-ax,by-ay,cx-ax,cy-ay
-    denominator=2*(ux*vy-uy*vx)
-    if not denominator:return None
-    u2,v2=ux*ux+uy*uy,vx*vx+vy*vy
-    x=ax+(u2*vy-v2*uy)/denominator
-    y=ay+(ux*v2-vx*u2)/denominator
-    return x,y,(x-ax)**2+(y-ay)**2
+    ax, ay, bx, by, cx, cy = map(Fraction, (a.x, a.y, b.x, b.y, c.x, c.y))
+    ux, uy, vx, vy = bx - ax, by - ay, cx - ax, cy - ay
+    denominator = 2 * (ux * vy - uy * vx)
+    if not denominator:
+        return None
+    u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
+    x = ax + (u2 * vy - v2 * uy) / denominator
+    y = ay + (ux * v2 - vx * u2) / denominator
+    return x, y, (x - ax) ** 2 + (y - ay) ** 2
 
 
 def polygon_area(points) -> float:
     if len(points) < 3:
         return 0.0
     origin = points[0]
-    return abs(math.fsum(orient(origin, points[i], points[i + 1])
-                         for i in range(1, len(points) - 1))) / 2
+    return (
+        abs(
+            math.fsum(
+                orient(origin, points[i], points[i + 1])
+                for i in range(1, len(points) - 1)
+            )
+        )
+        / 2
+    )

@@ -1,7 +1,8 @@
 """Circle-event eligibility for three consecutive arcs in a downward sweep."""
 
 import math
-from .geometry import orient, circumcircle, circle_bottom
+
+from .geometry import circle_bottom, circumcircle, orient
 
 
 def candidate_circle(a, b, c, sweep_y):

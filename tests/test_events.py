@@ -1,6 +1,5 @@
-import pytest
-from fortune.events import Event, EventQueue
 from fortune.circle import candidate_circle
+from fortune.events import Event, EventQueue
 from fortune.geometry import Point
 from fortune.sweep import FortuneSweep
 
@@ -24,15 +23,17 @@ def test_circle_clockwise_and_future_only():
 
 
 def test_triangle_sweep_emits_vertex_and_three_edges():
-    sweep = FortuneSweep([Point(0, 0), Point(2, 0), Point(1, 2)],debug=True).run()
+    sweep = FortuneSweep([Point(0, 0), Point(2, 0), Point(1, 2)], debug=True).run()
     assert len(sweep.vertices) == 1
     assert sweep.vertices[0].point == Point(1, 0.75)
     assert len(sweep.edges) == 3
-    assert sweep.statistics['circle_events'] == 1
+    assert sweep.statistics["circle_events"] == 1
 
 
 def test_cocircular_square_merges_simultaneous_vertices():
-    sweep = FortuneSweep([Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)],debug=True).run()
+    sweep = FortuneSweep(
+        [Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)], debug=True
+    ).run()
     assert len(sweep.vertices) == 1
-    assert sweep.vertices[0].point == Point(.5, .5)
+    assert sweep.vertices[0].point == Point(0.5, 0.5)
     assert sweep.vertices[0].defining == {0, 1, 2, 3}

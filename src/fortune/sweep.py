@@ -4,12 +4,13 @@ No cell is constructed here using comparisons with every other site. The
 adjacency graph is generated only by site splits and disappearing arcs.
 """
 
-from dataclasses import dataclass, field
 import math
+from dataclasses import dataclass, field
+
 from .beachline import Arc, BeachLine
-from .events import Event, EventQueue
 from .circle import candidate_circle
-from .geometry import Point, orient, circle_identity
+from .events import Event, EventQueue
+from .geometry import Point, circle_identity, orient
 
 
 @dataclass(slots=True)
@@ -27,7 +28,9 @@ class TraceEdge:
 class FortuneSweep:
     def __init__(self, points, debug=False, original_points=None):
         self.points = points
-        self.original_points=original_points if original_points is not None else points
+        self.original_points = (
+            original_points if original_points is not None else points
+        )
         self.debug = debug
         self.beach = BeachLine()
         self.queue = EventQueue()
@@ -58,17 +61,25 @@ class FortuneSweep:
         if arc.prev is None or arc.next is None:
             return
         ids = (arc.prev.site, arc.site, arc.next.site)
-        if orient(*(self.original_points[i] for i in ids))>=0:
+        if orient(*(self.original_points[i] for i in ids)) >= 0:
             return
         result = candidate_circle(*(self.points[i] for i in ids), self.sweep_y)
         if result:
             centre, bottom = result
-            self.queue.push(Event(bottom, centre.x, 1, arc=arc,
-                                  generation=arc.generation, centre=centre,
-                                  defining=ids))
+            self.queue.push(
+                Event(
+                    bottom,
+                    centre.x,
+                    1,
+                    arc=arc,
+                    generation=arc.generation,
+                    centre=centre,
+                    defining=ids,
+                )
+            )
 
     def site_event(self, site):
-        self.statistics['site_events'] += 1
+        self.statistics["site_events"] += 1
         if self.beach.root is None:
             self.beach.insert_after(None, Arc(site))
             return
@@ -80,8 +91,9 @@ class FortuneSweep:
             # A whole equal-height batch has vertical limiting parabolas. It
             # inserts an adjacent arc instead of splitting a finite parabola.
             new = Arc(site)
-            self.beach.insert_after(old if point.x >= self.points[old.site].x
-                                    else old.prev, new)
+            self.beach.insert_after(
+                old if point.x >= self.points[old.site].x else old.prev, new
+            )
             self.edge(old.site, site)
             for arc in (before, old, new, after):
                 self.schedule(arc)
@@ -96,14 +108,18 @@ class FortuneSweep:
     def circle_event(self, event):
         middle = event.arc
         if not middle.alive or middle.generation != event.generation:
-            self.statistics['stale_events'] += 1
+            self.statistics["stale_events"] += 1
             return
         left, right = middle.prev, middle.next
-        if left is None or right is None or (left.site, middle.site, right.site) != event.defining:
+        if (
+            left is None
+            or right is None
+            or (left.site, middle.site, right.site) != event.defining
+        ):
             raise ArithmeticError("A valid circle event lost its neighbourhood")
-        key=circle_identity(*(self.original_points[i] for i in event.defining))
+        key = circle_identity(*(self.original_points[i] for i in event.defining))
         if key is None:
-            self.statistics['stale_events']+=1
+            self.statistics["stale_events"] += 1
             return
         vertex = self._vertex_index.get(key)
         if vertex is None:
@@ -116,7 +132,7 @@ class FortuneSweep:
         self.edge(middle.site, right.site, vertex)
         self.edge(left.site, right.site, vertex)
         self.beach.remove(middle)
-        self.statistics['circle_events'] += 1
+        self.statistics["circle_events"] += 1
         self.schedule(left)
         self.schedule(right)
 
@@ -132,10 +148,12 @@ class FortuneSweep:
                 self.circle_event(event)
             if self.debug:
                 self.beach.validate()
-        self.statistics.update(queue_peak=self.queue.peak_size,
-                               events_pushed=self.queue.pushed,
-                               beach_max_height=self.beach.max_height,
-                               trace_edges=len(self.edges))
+        self.statistics.update(
+            queue_peak=self.queue.peak_size,
+            events_pushed=self.queue.pushed,
+            beach_max_height=self.beach.max_height,
+            trace_edges=len(self.edges),
+        )
         return self
 
 
@@ -145,7 +163,7 @@ def collinear_neighbours(points):
     order = sorted(range(len(points)), key=lambda i: (points[i].x, points[i].y))
     for a, b in zip(order, order[1:]):
         sweep.edge(a, b)
-    sweep.statistics['collinear_special_case'] = True
+    sweep.statistics["collinear_special_case"] = True
     return sweep
 
 

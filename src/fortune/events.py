@@ -1,10 +1,11 @@
 """Deterministic priority queue: descending y, sites before circles, then x."""
 
-from dataclasses import dataclass
 import heapq
 import itertools
-from .geometry import Point
+from dataclasses import dataclass
+
 from .beachline import Arc
+from .geometry import Point
 
 
 @dataclass(slots=True)
@@ -27,8 +28,9 @@ class EventQueue:
         self.pushed = 0
 
     def push(self, event):
-        heapq.heappush(self._heap, (-event.y, event.kind, event.x,
-                                  next(self._serial), event))
+        heapq.heappush(
+            self._heap, (-event.y, event.kind, event.x, next(self._serial), event)
+        )
         self.pushed += 1
         self.peak_size = max(self.peak_size, len(self._heap))
 

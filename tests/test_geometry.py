@@ -1,7 +1,17 @@
 import math
+
 import pytest
-from fortune.geometry import (Box, Point, orient, circumcircle, parabola_y,
-                              breakpoint_x, circle_bottom, circle_identity)
+
+from fortune.geometry import (
+    Box,
+    Point,
+    breakpoint_x,
+    circle_bottom,
+    circle_identity,
+    circumcircle,
+    orient,
+    parabola_y,
+)
 
 
 def test_orientation_and_collinearity():
@@ -9,30 +19,35 @@ def test_orientation_and_collinearity():
     assert orient(a, b, c) == 6
     assert orient(c, b, a) == -6
     assert orient(a, b, Point(1, 0)) == 0
-    assert orient(Point(0,0),Point(1e200,0),Point(0,1e200))>0
-    assert orient(Point(0,0),Point(1e-200,0),Point(0,1e-200))>0
+    assert orient(Point(0, 0), Point(1e200, 0), Point(0, 1e200)) > 0
+    assert orient(Point(0, 0), Point(1e-200, 0), Point(0, 1e-200)) > 0
 
 
 def test_circle_and_translation():
     for offset in (0, 1e9):
-        result = circumcircle(Point(offset, offset), Point(offset + 2, offset),
-                              Point(offset, offset + 2))
+        result = circumcircle(
+            Point(offset, offset), Point(offset + 2, offset), Point(offset, offset + 2)
+        )
         assert result[0] == Point(offset + 1, offset + 1)
         assert result[1] == pytest.approx(math.sqrt(2))
     assert circumcircle(Point(0, 0), Point(1, 1), Point(2, 2)) is None
 
 
-@pytest.mark.parametrize('left,right,directrix', [
-    (Point(0, 2), Point(1, 1), 0),
-    (Point(1, 1), Point(0, 2), 0),
-    (Point(-2, 3), Point(4, 3), -1),
-    (Point(0.1, 0.7), Point(0.9, 0.70000000001), -0.1),
-    (Point(-1, 1), Point(0.1, 0.2), 0.199999999),
-])
+@pytest.mark.parametrize(
+    "left,right,directrix",
+    [
+        (Point(0, 2), Point(1, 1), 0),
+        (Point(1, 1), Point(0, 2), 0),
+        (Point(-2, 3), Point(4, 3), -1),
+        (Point(0.1, 0.7), Point(0.9, 0.70000000001), -0.1),
+        (Point(-1, 1), Point(0.1, 0.2), 0.199999999),
+    ],
+)
 def test_breakpoint_lies_on_both_parabolas(left, right, directrix):
     x = breakpoint_x(left, right, directrix)
     assert parabola_y(left, x, directrix) == pytest.approx(
-        parabola_y(right, x, directrix), rel=2e-7, abs=2e-9)
+        parabola_y(right, x, directrix), rel=2e-7, abs=2e-9
+    )
 
 
 def test_breakpoint_singular_limits():
@@ -56,9 +71,9 @@ def test_invalid_box():
 
 
 def test_circle_identity_merges_only_the_same_exact_circle():
-    a,b,c,d=Point(0,0),Point(2,0),Point(2,2),Point(0,2)
-    assert circle_identity(a,b,c)==circle_identity(a,c,d)
+    a, b, c, d = Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)
+    assert circle_identity(a, b, c) == circle_identity(a, c, d)
     # These centres round into the same old 14-decimal bucket, but define
     # different circles and must retain distinct vertices and connecting edges.
-    close=Point(0,2+1e-15)
-    assert circle_identity(a,b,d)!=circle_identity(a,b,close)
+    close = Point(0, 2 + 1e-15)
+    assert circle_identity(a, b, d) != circle_identity(a, b, close)

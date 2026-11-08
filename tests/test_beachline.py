@@ -1,11 +1,13 @@
 import math
 import random
+
 import pytest
+
 from fortune.beachline import Arc, BeachLine
 from fortune.geometry import Point
 
 
-@pytest.mark.parametrize('seed', range(5))
+@pytest.mark.parametrize("seed", range(5))
 def test_avl_random_insert_and_delete(seed):
     rng, tree, expected = random.Random(seed), BeachLine(), []
     for i in range(600):

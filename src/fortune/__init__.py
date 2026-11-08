@@ -3,6 +3,6 @@
 __version__ = "0.1.0"
 
 from .diagram import construct
-from .geometry import Point, Box
+from .geometry import Box, Point
 
-__all__ = ['construct', 'Point', 'Box', '__version__']
+__all__ = ["construct", "Point", "Box", "__version__"]
