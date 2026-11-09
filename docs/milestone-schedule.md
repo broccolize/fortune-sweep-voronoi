@@ -91,7 +91,7 @@ support click insertion and compute trigger; generate examples.
 
 Benchmark 100/1,000/10,000 sites, construction time and peak memory;
 generate tables/plots; evaluate complexity and document methodology.
-No actual numeric results were included in the supplied timeline.
+Actual current measurements are retained in results/benchmark.json.
 
 ### 8 November — First report draft
 
@@ -102,7 +102,7 @@ with all six required fields, tests and benchmark findings.
 
 Target 13–16 body pages; apply mandatory formatting; add captions/citations;
 provide problems/reflection page allocations; verify accuracy and export PDF
-plus editable source. Earlier report files have not yet been examined here.
+plus editable source. The editable report and searchable PDF are now in report/.
 
 ## Phase 7 — Demonstration and submission
 
@@ -110,8 +110,8 @@ plus editable source. Earlier report files have not yet been examined here.
 
 Prepare script, personal recording, architecture/invariant explanations and
 three design discussions; organize AI records and two authentic screenshots;
-prepare Windows launcher and submission archive. Completion has not been
-verified; the timeline provides no recording or archive location.
+prepare Windows launcher and submission archive. The package builder prepares the review archive; personal recording and AI
+interaction screenshots remain owner tasks.
 
 ### 11 November — Final checks and submission, planned
 
@@ -120,16 +120,10 @@ video playback, AI evidence and reproduction instructions. Create
 `CG_Assignment_<StudentID>_<Name>.zip` and submit before 23:59 GMT+8.
 These are future tasks at the time this account was recorded.
 
-## Reported milestone summary
+## Current verification status
 
-| Date | Student reported milestone | Verification in this workspace |
-| --- | --- | --- |
-| 25 Oct | Environment and geometry foundation complete | Not inspected |
-| 30 Oct | Fortune engine implemented | Not inspected |
-| 2 Nov | Complete Voronoi construction working | Not inspected |
-| 4 Nov | Degeneracies and correctness checks completed | Not inspected |
-| 6 Nov | CLI and visualization complete | Not inspected |
-| 7 Nov | Benchmarks complete | Raw results not supplied |
-| 9 Nov | Report finalized | Earlier report not supplied |
-| 10 Nov | Demo and package prepared | Artifacts not supplied |
-| 11 Nov | Final verification and submission | Future plan |
+The engine, interfaces, validation, measured benchmarks and report are produced.
+See the actual development log and machine-readable evidence for results. This
+is the owner's requested feature schedule, not a substitute for test evidence.
+Owner review, metadata confirmation, screenshots and narration remain pending.
+Actual course email submission is not applicable to this personal project.

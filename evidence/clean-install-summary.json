@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "actual_timestamp": "2026-11-10T17:46:50.233903+08:00",
+  "separate_environment": true,
+  "wheel_install": true,
+  "installed_import_isolated": true,
+  "batch_outputs": [
+    "clean.png",
+    "clean.csv",
+    "clean.json"
+  ]
+}

@@ -12,11 +12,12 @@ and corrected during this session; raw failing evidence is retained.
 - Root cause: three concurrent clipping constraints produced almost identical
   vertices. Their rounded difference made a tiny edge point in an arbitrary
   direction, adding a false constraint to convex containment.
-- Solution: remove redundant supporting planes whose exported edge is below
-  5e-15 in normalized coordinates, then recompute polygon intersections once.
-  Excerpt: `if vertices[i].distance(vertices[(i+1)%len(vertices)]) > 5e-15`.
-- Verification: both failures in `evidence/initial-cell-failures.xml` became
-  passes in `evidence/tests-current.xml`.
+- Solution: an initial 5e-15 distance cutoff fixed the visible failures but was
+  rejected after stronger checks found missing tiny cells. The final cleanup
+  removes supports only when `concurrent(p,q,r)` proves exact rational concurrence.
+  Distinct circles use `circle_identity` rather than rounded-centre grouping.
+- Verification: both initial failures and six new positive-cell regressions
+  pass. The intermediate missing-cell failures are in `evidence/tiny-cell-initial.xml`.
 - Prevention/lesson: include corner concurrence and zero-length topology in
   tests; area equality alone does not establish coverage.
 
@@ -59,8 +60,9 @@ and corrected during this session; raw failing evidence is retained.
 - Root cause: the original signed-distance epsilon 2e-13 retained an inactive
   plane, creating a reversed edge about 1.2e-13 long. Relaxing the validator did
   not solve this construction defect.
-- Solution: reduce the normalized clipping tolerance to 8e-16, keeping explicit
-  high-precision intersections for difficult constraints.
+- Solution: the initial fix reduced the tolerance to 8e-16. The final
+  `corner_inside` uses exact rational signs for uncertain decisions, retaining
+  high-precision intersection coordinates without an acceptance epsilon.
 - Verification: the two remaining failures in `evidence/tests-adversarial.xml`
   passed afterward. The full core/adversarial suite reached 70 passes.
 - Prevention/lesson: a larger epsilon is not a general robustness fix. Test the
@@ -81,6 +83,22 @@ and corrected during this session; raw failing evidence is retained.
 - Prevention/lesson: error bounds must reflect data representation. Validators
   also need review; fixing their bounds must not replace repairing bad topology.
 
+## P006 Positive microscopic cells were lost despite sampled checks
+
+- Symptom: the 1e-14 and 1e-15 cluster inputs had empty interior cells although
+  area and sampled ownership tests passed.
+- Investigation: added per-site checks for a positive polygon containing its
+  generating site. The saved tiny-cell-initial.xml has two failing regressions.
+- Root cause: a distance-based zero-edge cutoff deleted genuine short edges;
+  rounded-centre hashing also merged distinct circle vertices, losing finite
+  edge identities. Sampling missed cells with microscopic area.
+- Solution: exact rational concurrency removes only truly redundant supports;
+  exact input-circle keys preserve distinct vertices. Uncertain half-plane
+  topology uses rational signs, and positive edges have no distance cutoff.
+- Verification: all six per-site cluster cases and the complete 81-test suite pass.
+- Prevention/lesson: require every distinct in-box site to retain its own cell;
+  do not use a display-scale tolerance as a topology simplification rule.
+
 ## Problem record template
 
 ### Pxxx — Specific problem title
@@ -93,6 +111,23 @@ and corrected during this session; raw failing evidence is retained.
 - Solution: changed file/function, patch or excerpt; explain why it addresses cause.
 - Verification: failing check before fix, same check after fix, raw-result paths.
 - Prevention and lesson: regression coverage or design rule; AI's actual role.
+
+## P007 Cocircular triangulation diagonals were counted as rays
+
+- Symptom: twelve exact integer sites on x*x+y*y=25 produced one vertex but
+  seventeen visible edges, instead of twelve rays. Area and sampled ownership passed.
+- Investigation: manually inspected the counts and traced the extra microscopic
+  edges after normalization. See evidence/cocircular-12-initial.json.
+- Root cause: the sweep's triangulation can include redundant cocircular
+  diagonals. Floating normalization made those constraints appear to have tiny
+  positive length, and a one-ended trace was classified as a ray unconditionally.
+- Solution: a one-ended trace is a ray only when the pair is a convex-hull
+  adjacency; other such traces are zero-length diagonals and are removed before
+  clipping. World vertices are taken directly from their exact input-circle keys.
+- Verification: the exact twelve-site ring now gives one vertex and twelve rays;
+  the existing square regression also checks this larger ring. All 82 tests pass.
+- Prevention/lesson: validate topology counts and ray classification in addition
+  to geometric tolerances, especially for exact cocircular inputs beyond four sites.
 
 ## Initial environment observations
 

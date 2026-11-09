@@ -1,0 +1,11 @@
+{
+  "author": "broccolize",
+  "project_scope": "personal project using a course specification as quality benchmark",
+  "reported_model": "GPT-6.1",
+  "subscription_plan": null,
+  "owner_review_complete": false,
+  "pi_version": "0.86.0",
+  "pi_used_for_code_generation": false,
+  "desktop_windows_package": "OpenAI.Codex",
+  "desktop_package_version": "26.1029.7803.0"
+}

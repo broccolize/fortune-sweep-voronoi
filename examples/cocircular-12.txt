@@ -1,0 +1,13 @@
+# Twelve exact integer sites on the circle x*x + y*y = 25.
+5 0
+4 3
+3 4
+0 5
+-3 4
+-4 3
+-5 0
+-4 -3
+-3 -4
+0 -5
+3 -4
+4 -3

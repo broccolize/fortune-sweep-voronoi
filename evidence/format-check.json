@@ -1,0 +1,8 @@
+{
+  "files_checked": 27,
+  "ast_equivalence": "passed",
+  "formatter": "ruff 0.17.4",
+  "scope": "format-only AST equivalence before separate safe import cleanup",
+  "final_src_tests_lint": "passed",
+  "final_tests_after_import_cleanup": 82
+}

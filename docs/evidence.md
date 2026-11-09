@@ -1,44 +1,40 @@
-# Evidence Register and Personal Review
+# Evidence Register
 
-## Actual tool disclosure
+Actual work date 10 November 2026, GMT+8. Project scope is personal, with the
+supplied assignment as a quality benchmark.
 
-- Current assistant: Codex agent in the desktop session; the student describes
-  the intended interface as the ChatGPT app. Confirm the exact displayed product
-  and mode, app version, selected model and subscription before final report text.
-- Inspected second tool: Pi, `@earendil-works/pi-coding-agent` 0.86.0 on Debian WSL.
-  Underlying model/provider and subscription/API arrangement are not verified.
-- Pi activity so far: installation/help checks only; no model-generated project work.
-- Do not add another AI coding tool without checking the assignment's two-tool limit.
+## Tool disclosure
 
-## Evidence register
+- ChatGPT desktop app, Windows package OpenAI.Codex 26.1029.7803.0, verified via
+  Windows package metadata. Owner-reported model: GPT-6.1.
+- Subscription plan: pending owner confirmation in owner-metadata.json.
+- Pi `@earendil-works/pi-coding-agent` 0.86.0 on Debian 13.7 / WSL 2 was inspected.
+  It did not generate code in this development session. No Pi provider/plan
+  contribution is asserted. No additional AI assistant was used.
 
-| ID | Evidence required | Current status |
+| ID | Evidence | Location and status |
 | --- | --- | --- |
-| E01 | Official specification and requirements mapping | Text read; mapping drafted |
-| E02 | Original earlier project/history | Student-reported; location pending |
-| E03 | Substantive AI interaction screenshot 1, prompt and response | Not captured |
-| E04 | Substantive AI interaction screenshot 2, prompt and response | Not captured |
-| E05 | General-position program screenshot | Not generated |
-| E06 | Annotated required degeneracy figures | Not generated |
-| E07 | Automated test logs and results table | No tests run |
-| E08 | Raw timing/memory results and scaling plots | No benchmarks run |
-| E09 | Architecture and beach-line/event illustrations | Not generated |
-| E10 | Five genuine problem analyses | Not documented yet |
-| E11 | Personally narrated recording at most five minutes | Student recording required |
-| E12 | Native Windows batch and interactive verification | Not performed |
-| E13 | Final PDF layout and page-count verification | Report not authored |
+| E01 | Specification checklist | docs/requirements.md |
+| E02 | Actual development record | devlog.md and Git log |
+| E03 | Substantive AI interaction 1 | Owner capture pending: evidence/ai-interaction-1.png |
+| E04 | Substantive AI interaction 2 | Owner capture pending: evidence/ai-interaction-2.png |
+| E05 | General program output | figures/general.png, examples/batch.png |
+| E06 | Annotated degenerate outputs | figures/degenerate-1.png and degenerate-2.png |
+| E07 | Automated validation | evidence/tests-current.xml: 82 passing |
+| E08 | Timing, memory and scaling | results/benchmark.json and figures/scaling.png |
+| E09 | Architecture and beach-line illustrations | figures/architecture.png, beachline.png |
+| E10 | Genuine problems and retained failures | docs/problems.md and initial failure files |
+| E11 | Personal narrated walkthrough | Owner recording pending: demo/walkthrough.mp4 |
+| E12 | Native Windows GUI Export | evidence/gui-native.png and examples/interactive.* |
+| E13 | Clean install and package execution | evidence/clean-install-summary.json and clean-install-tests.xml |
+| E14 | Full stress including largest vertices | evidence/stress-final.json |
+| E15 | Searchable PDF and layout | report/report.pdf and evidence/report-layout.json |
 
-For each captured item record its actual date, source commit, command/input,
-filename, caption and report placement. Preserve original screenshots; do not
-redraw an AI conversation and label it as a screenshot.
+Report and package layout/completeness are verified during final generation.
+The two AI screenshots must show genuine prompt-and-response context. Useful
+topics are the AVL/event invariants and a numerical regression with its fix.
+Do not substitute an exported program figure for AI interaction evidence.
 
-## Student review checkpoints
-
-1. Trace a small site-event example and a circle-event example.
-2. Explain tree ordering, adjacent arcs and stale-circle-event invalidation.
-3. Explain the actual clipping and tolerance policies.
-4. Rerun tests and inspect failure reports.
-5. Personally try the native Windows input and export workflow.
-6. Review every report claim and supply personal critical reflection.
-7. Record the required demonstration and review its playback.
-8. Provide student name/ID and exact AI plan details; personally send submission.
+The owner reviews understanding, report claims and personal reflection, supplies
+the actual plan, captures the two interactions and records the narration. See
+REVIEW_CHECKLIST.md for exact steps and demo/script.md for the recording sequence.

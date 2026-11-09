@@ -42,3 +42,14 @@ Additional seeded construction completed at n=100, 1,000 and 10,000; empty-circl
 validation was also performed for the first two sizes. These preliminary timings
 are not a replacement for the repeated, separately measured benchmark protocol.
 See `evidence/stress-summary.json`.
+
+
+## Final stricter review
+
+Per-site checks exposed microscopic missing cells that sampling had missed.
+Exact rational concurrency and input-circle identity replaced distance cleanup
+and coordinate buckets. A positive-cell postcondition prevents silent loss for
+in-box sites. Final suite: 82 passing. All 340 stress configurations, 100 queries
+at each large size and all 19,978 circle vertices at n=10000 pass. Final results
+supersede preliminary timing and are in results/benchmark.json. A clean installed
+wheel and the same 82 tests also pass. See evidence/clean-install-summary.json.

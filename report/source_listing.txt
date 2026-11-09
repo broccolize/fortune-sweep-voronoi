@@ -1,0 +1,3175 @@
+==============================================================================
+.github\workflows\tests.yml
+==============================================================================
+name: Tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ['3.12', '3.14']
+    runs-on: ${{ matrix.os }}
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install --no-deps .
+      - run: python -m pytest -q --junitxml=results/ci-tests.xml
+      - run: python -m fortune --random 100 --seed 2026 --output results/ci.png --csv results/ci.csv --json results/ci.json
+
+
+==============================================================================
+install.bat
+==============================================================================
+@echo off
+setlocal
+cd /d "%~dp0"
+python -m venv .venv
+if errorlevel 1 exit /b 1
+".venv\Scripts\python.exe" -m pip install -r requirements.txt
+exit /b %errorlevel%
+
+
+==============================================================================
+pyproject.toml
+==============================================================================
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fortune-sweep"
+version = "0.1.0"
+description = "From-scratch planar Voronoi diagrams using Fortune's sweep"
+requires-python = ">=3.12"
+dependencies = ["matplotlib==3.11.2"]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+
+[project.scripts]
+voronoi = "fortune.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+
+==============================================================================
+requirements.txt
+==============================================================================
+colorama==0.4.6
+contourpy==1.4.0
+cycler==0.12.1
+fonttools==4.68.0
+iniconfig==2.3.1
+kiwisolver==1.5.1
+matplotlib==3.11.2
+numpy==2.5.4
+packaging==26.3
+pillow==13.0.0
+pluggy==1.7.0
+Pygments==2.21.0
+pyparsing==3.3.3
+pytest==9.2.0
+python-dateutil==4.0.0
+tzdata==2026.6
+
+
+==============================================================================
+run.bat
+==============================================================================
+@echo off
+setlocal
+cd /d "%~dp0"
+if not exist ".venv\Scripts\python.exe" (
+    python -m venv .venv
+    if errorlevel 1 exit /b 1
+    ".venv\Scripts\python.exe" -m pip install -r requirements.txt
+    if errorlevel 1 exit /b 1
+)
+set "PYTHONPATH=%~dp0src"
+".venv\Scripts\python.exe" -m fortune %*
+exit /b %errorlevel%
+
+
+==============================================================================
+run.sh
+==============================================================================
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "$0")"
+if [ ! -x .venv-wsl/bin/python ]; then
+    python3 -m venv .venv-wsl
+    .venv-wsl/bin/python -m pip install -r requirements.txt
+fi
+export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
+exec .venv-wsl/bin/python -m fortune "$@"
+
+
+==============================================================================
+src\fortune\__init__.py
+==============================================================================
+"""An independently implemented Fortune sweep; no Voronoi libraries are used."""
+
+__version__ = "0.1.0"
+
+from .diagram import construct
+from .geometry import Box, Point
+
+__all__ = ["construct", "Point", "Box", "__version__"]
+
+
+==============================================================================
+src\fortune\__main__.py
+==============================================================================
+from .cli import main
+
+raise SystemExit(main())
+
+
+==============================================================================
+src\fortune\beachline.py
+==============================================================================
+"""An AVL sequence of arcs, with O(1) links to neighbouring arcs.
+
+Nodes have stable identities: deletion transplants the actual successor node
+rather than copying a payload, because queued events refer to arc objects.
+"""
+
+from dataclasses import dataclass
+
+from .geometry import breakpoint_x
+
+
+@dataclass(eq=False, slots=True)
+class Arc:
+    site: int
+    left: "Arc | None" = None
+    right: "Arc | None" = None
+    parent: "Arc | None" = None
+    prev: "Arc | None" = None
+    next: "Arc | None" = None
+    height: int = 1
+    generation: int = 0
+    alive: bool = True
+
+
+def height(node):
+    return node.height if node else 0
+
+
+def update(node):
+    node.height = 1 + max(height(node.left), height(node.right))
+
+
+class BeachLine:
+    def __init__(self):
+        self.root = None
+        self.first = None
+        self.count = 0
+        self.max_height = 0
+
+    def _replace(self, old, new):
+        parent = old.parent
+        if parent is None:
+            self.root = new
+        elif parent.left is old:
+            parent.left = new
+        else:
+            parent.right = new
+        if new:
+            new.parent = parent
+
+    def _left(self, node):
+        pivot = node.right
+        self._replace(node, pivot)
+        node.right = pivot.left
+        if node.right:
+            node.right.parent = node
+        pivot.left, node.parent = node, pivot
+        update(node)
+        update(pivot)
+        return pivot
+
+    def _right(self, node):
+        pivot = node.left
+        self._replace(node, pivot)
+        node.left = pivot.right
+        if node.left:
+            node.left.parent = node
+        pivot.right, node.parent = node, pivot
+        update(node)
+        update(pivot)
+        return pivot
+
+    def _rebalance(self, node):
+        while node:
+            update(node)
+            balance = height(node.left) - height(node.right)
+            if balance > 1:
+                if height(node.left.left) < height(node.left.right):
+                    self._left(node.left)
+                node = self._right(node)
+            elif balance < -1:
+                if height(node.right.right) < height(node.right.left):
+                    self._right(node.right)
+                node = self._left(node)
+            node = node.parent
+        self.max_height = max(self.max_height, height(self.root))
+
+    def insert_after(self, before, new):
+        if not new.alive or new.parent or new.left or new.right:
+            raise ValueError("Insert a fresh unattached arc")
+        if before is None:
+            if self.root:
+                anchor = self.first
+                anchor.left = new
+                new.parent = anchor
+                new.next, anchor.prev, self.first = anchor, new, new
+            else:
+                self.root = self.first = new
+        else:
+            if not before.alive:
+                raise ValueError("Insertion anchor is not live")
+            anchor = before
+            if before.right:
+                anchor = before.right
+                while anchor.left:
+                    anchor = anchor.left
+                anchor.left = new
+            else:
+                anchor.right = new
+            new.parent = anchor
+            new.prev, new.next = before, before.next
+            if before.next:
+                before.next.prev = new
+            before.next = new
+        self.count += 1
+        self._rebalance(new)
+
+    def remove(self, node):
+        if not node.alive:
+            raise ValueError("Arc has already been removed")
+        if node.prev:
+            node.prev.next = node.next
+        else:
+            self.first = node.next
+        if node.next:
+            node.next.prev = node.prev
+        if node.left and node.right:
+            successor = node.right
+            while successor.left:
+                successor = successor.left
+            if successor.parent is node:
+                start = successor
+            else:
+                start = successor.parent
+                self._replace(successor, successor.right)
+                successor.right = node.right
+                successor.right.parent = successor
+            self._replace(node, successor)
+            successor.left = node.left
+            successor.left.parent = successor
+            update(successor)
+        else:
+            start = node.parent
+            self._replace(node, node.left or node.right)
+        node.alive = False
+        node.generation += 1
+        node.left = node.right = node.parent = None
+        self.count -= 1
+        self._rebalance(start)
+
+    def locate(self, x, directrix, points):
+        node = self.root
+        while node:
+            if node.prev and x < breakpoint_x(
+                points[node.prev.site], points[node.site], directrix
+            ):
+                node = node.left
+            elif node.next and x > breakpoint_x(
+                points[node.site], points[node.next.site], directrix
+            ):
+                node = node.right
+            else:
+                return node
+        raise ArithmeticError("Beach-line search escaped its ordered arcs")
+
+    def __iter__(self):
+        node = self.first
+        while node:
+            yield node
+            node = node.next
+
+    def validate(self):
+        """Expensive debug invariant check; deliberately not in production loops."""
+        order = []
+
+        def walk(node, parent):
+            if node is None:
+                return 0
+            assert node.alive and node.parent is parent
+            lh = walk(node.left, node)
+            order.append(node)
+            rh = walk(node.right, node)
+            assert abs(lh - rh) <= 1
+            assert node.height == 1 + max(lh, rh)
+            return node.height
+
+        walk(self.root, None)
+        assert len(order) == self.count
+        assert list(self) == order
+        for i, arc in enumerate(order):
+            assert arc.prev is (order[i - 1] if i else None)
+            assert arc.next is (order[i + 1] if i + 1 < len(order) else None)
+        return True
+
+
+==============================================================================
+src\fortune\circle.py
+==============================================================================
+"""Circle-event eligibility for three consecutive arcs in a downward sweep."""
+
+import math
+
+from .geometry import circle_bottom, circumcircle, orient
+
+
+def candidate_circle(a, b, c, sweep_y):
+    if a == c or a == b or b == c or orient(a, b, c) >= 0:
+        return None
+    circle = circumcircle(a, b, c)
+    if circle is None:
+        return None
+    centre, _ = circle
+    bottom = circle_bottom(centre, b)
+    # Permit same-level events (essential for cocircular sites), but never a
+    # materially earlier event. The allowance is tied to arithmetic precision.
+    allowance = 64 * math.ulp(max(1.0, abs(sweep_y)))
+    if bottom > sweep_y + allowance:
+        return None
+    return centre, min(bottom, sweep_y)
+
+
+==============================================================================
+src\fortune\cli.py
+==============================================================================
+"""Documented batch and interactive entry points."""
+
+import argparse
+import json
+import sys
+
+from .diagram import construct
+from .geometry import Box
+from .io import random_sites, read_sites, write_csv, write_json
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    parser = argparse.ArgumentParser(
+        description="Fortune sweep-line Voronoi diagrams, from scratch."
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--input", help="UTF-8 coordinate file: x y or x,y per line")
+    group.add_argument(
+        "--random", type=int, metavar="N", help="N uniform sites in the unit square"
+    )
+    parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument(
+        "--bbox", type=float, nargs=4, metavar=("XMIN", "YMIN", "XMAX", "YMAX")
+    )
+    parser.add_argument("--output", help="PNG or SVG image path")
+    parser.add_argument(
+        "--csv", help="Ordered cell boundaries and explicit clipped-edge records"
+    )
+    parser.add_argument(
+        "--json",
+        dest="json_path",
+        help="Complete diagram including rays and defining triples",
+    )
+    parser.add_argument(
+        "--interactive", action="store_true", help="Click-to-add interface"
+    )
+    parser.add_argument(
+        "--show", action="store_true", help="Display batch output on screen"
+    )
+    parser.add_argument(
+        "--no-labels", action="store_true", help="Hide indices for dense previews"
+    )
+    args = parser.parse_args(argv)
+    try:
+        sites = (
+            read_sites(args.input)
+            if args.input
+            else random_sites(args.random, args.seed)
+            if args.random is not None
+            else []
+        )
+        box = (
+            Box(*args.bbox)
+            if args.bbox
+            else Box(0, 0, 1, 1)
+            if args.random is not None
+            else None
+        )
+        if args.interactive or not argv:
+            from .interactive import launch
+
+            launch(sites, box, args.output or "interactive.png")
+            return 0
+        if not sites:
+            parser.error("Specify --input FILE, --random N, or --interactive")
+        diagram = construct(sites, box)
+        if args.csv:
+            write_csv(diagram, args.csv)
+        if args.json_path:
+            write_json(diagram, args.json_path)
+        if args.output or args.show:
+            from .visualize import render
+
+            render(diagram, args.output, show=args.show, labels=not args.no_labels)
+        print(json.dumps(diagram.statistics, indent=2))
+    except (ValueError, ArithmeticError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+==============================================================================
+src\fortune\clipping.py
+==============================================================================
+"""Bounded half-plane intersection over sweep-generated neighbours only.
+
+Angle sorting plus a deque costs O(k log k) for a cell of degree k. This avoids
+the quadratic cost of repeatedly clipping a high-degree polygon. The four box
+constraints make every nonempty result bounded.
+"""
+
+import math
+from collections import deque
+from dataclasses import dataclass
+from decimal import Decimal, localcontext
+from fractions import Fraction
+from functools import cmp_to_key
+
+from .geometry import Point
+
+
+@dataclass(slots=True)
+class HalfPlane:
+    a: float
+    b: float
+    c: float  # unit-normal inequality a*x + b*y <= c
+    neighbour: int | None = None
+    focuses: tuple[Point, Point] | None = None
+
+    def exact(self):
+        if self.focuses is None:
+            return Decimal(self.a), Decimal(self.b), Decimal(self.c)
+        p, q = self.focuses
+        px, py, qx, qy = map(Decimal, (p.x, p.y, q.x, q.y))
+        a, b = qx - px, qy - py
+        return a, b, (a * (px + qx) + b * (py + qy)) / 2
+
+    def rational(self):
+        """Exact dyadic coefficients, used only for uncertain topology decisions."""
+        if self.focuses is None:
+            return Fraction(self.a), Fraction(self.b), Fraction(self.c)
+        p, q = self.focuses
+        px, py, qx, qy = map(Fraction, (p.x, p.y, q.x, q.y))
+        a, b = qx - px, qy - py
+        return a, b, (a * (px + qx) + b * (py + qy)) / 2
+
+
+def parallel(p, q):
+    if abs(p.a * q.b - p.b * q.a) > 1e-12:
+        return False
+    a, b, _ = p.rational()
+    d, e, _ = q.rational()
+    return a * e - b * d == 0
+
+
+def angle_compare(p, q):
+    hp = 0 if p.b > 0 or (p.b == 0 and p.a >= 0) else 1
+    hq = 0 if q.b > 0 or (q.b == 0 and q.a >= 0) else 1
+    if hp != hq:
+        return hp - hq
+    cross = p.a * q.b - p.b * q.a
+    if abs(cross) <= 1e-12:
+        a, b, _ = p.rational()
+        d, e, _ = q.rational()
+        cross = a * e - b * d
+    return -1 if cross > 0 else 1 if cross < 0 else 0
+
+
+def tighter(p, q):
+    """Whether q is stricter than a parallel, same-direction plane p."""
+    a, b, c = p.rational()
+    d, e, f = q.rational()
+    return c * max(abs(d), abs(e)) > f * max(abs(a), abs(b))
+
+
+def corner_inside(test, p, q):
+    """Test a corner using exact rational signs when the float result is close.
+
+    Comparing rounded corner coordinates with an epsilon can retain an invalid
+    support. Instead evaluate the intersection in homogeneous coordinates, so
+    the uncertain sign requires no inexact division.
+    """
+    point = intersection(p, q)
+    if point is None:
+        return False
+    value = test.a * point.x + test.b * point.y - test.c
+    if abs(value) > 1e-10 * (1 + abs(test.c) + abs(point.x) + abs(point.y)):
+        return value < 0
+    a, b, c = p.rational()
+    d, e, f = q.rational()
+    g, h, k = test.rational()
+    determinant = a * e - b * d
+    sign = g * (c * e - b * f) + h * (a * f - c * d) - k * determinant
+    return sign <= 0 if determinant > 0 else sign >= 0
+
+
+def concurrent(p, q, r):
+    a, b, c = p.rational()
+    d, e, f = q.rational()
+    g, h, k = r.rational()
+    return a * (e * k - f * h) - b * (d * k - f * g) + c * (d * h - e * g) == 0
+
+
+def intersection(p, q):
+    det = p.a * q.b - p.b * q.a
+    if abs(det) < 1e-7:
+        # Recompute from exact binary focus coordinates, not from rounded
+        # normalized plane coefficients: close-site bisectors amplify that error.
+        if parallel(p, q):
+            return None
+        with localcontext() as ctx:
+            ctx.prec = 80
+            a, b, c = p.exact()
+            d, e, f = q.exact()
+            denominator = a * e - b * d
+            if not denominator:
+                return None
+            return Point(
+                float((c * e - b * f) / denominator),
+                float((a * f - c * d) / denominator),
+            )
+    return Point((p.c * q.b - p.b * q.c) / det, (p.a * q.c - p.c * q.a) / det)
+
+
+def halfplane_polygon(planes):
+    ordered = sorted(planes, key=cmp_to_key(angle_compare))
+    unique = []
+    for h in ordered:
+        if unique:
+            p = unique[-1]
+            if parallel(p, h) and p.a * h.a + p.b * h.b > 0:
+                if tighter(p, h):
+                    unique[-1] = h
+                continue
+        unique.append(h)
+    active = deque()
+    for h in unique:
+        while len(active) > 1:
+            p = intersection(active[-2], active[-1])
+            if p is None:
+                return [], []
+            if corner_inside(h, active[-2], active[-1]):
+                break
+            active.pop()
+        while len(active) > 1:
+            p = intersection(active[0], active[1])
+            if p is None:
+                return [], []
+            if corner_inside(h, active[0], active[1]):
+                break
+            active.popleft()
+        if active and intersection(active[-1], h) is None:
+            return [], []
+        active.append(h)
+    while len(active) > 2 and not corner_inside(active[0], active[-2], active[-1]):
+        active.pop()
+    while len(active) > 2 and not corner_inside(active[-1], active[0], active[1]):
+        active.popleft()
+    if len(active) < 3:
+        return [], []
+    active = list(active)
+    vertices = [intersection(active[i - 1], active[i]) for i in range(len(active))]
+    if any(p is None for p in vertices):
+        return [], []
+    # A short edge can be real: tiny cells must not be removed by a distance
+    # cutoff. Discard a support only if three defining lines are truly concurrent.
+    active = [
+        h
+        for i, h in enumerate(active)
+        if not (
+            vertices[i].distance(vertices[(i + 1) % len(vertices)]) < 1e-12
+            and concurrent(active[i - 1], h, active[(i + 1) % len(active)])
+        )
+    ]
+    if len(active) < 3:
+        return [], []
+    vertices = [intersection(active[i - 1], active[i]) for i in range(len(active))]
+    return vertices, active
+
+
+def clipped_cell(site, neighbours, points, box):
+    p = points[site]
+    planes = [
+        HalfPlane(-1, 0, -box.xmin),
+        HalfPlane(1, 0, box.xmax),
+        HalfPlane(0, -1, -box.ymin),
+        HalfPlane(0, 1, box.ymax),
+    ]
+    for j in neighbours:
+        q = points[j]
+        dx, dy = q.x - p.x, q.y - p.y
+        d = math.hypot(dx, dy)
+        if not d:
+            raise ArithmeticError("Duplicate site survived deduplication")
+        a, b = dx / d, dy / d
+        planes.append(
+            HalfPlane(a, b, a * (p.x + q.x) / 2 + b * (p.y + q.y) / 2, j, (p, q))
+        )
+    return halfplane_polygon(planes)
+
+
+==============================================================================
+src\fortune\diagram.py
+==============================================================================
+"""Public construction API and ordered clipped-cell output model."""
+
+import math
+from dataclasses import dataclass, field
+from time import perf_counter
+
+from .clipping import clipped_cell
+from .geometry import Box, Point, orient, polygon_area
+from .sweep import FortuneSweep, Vertex, all_collinear, collinear_neighbours
+
+
+@dataclass(slots=True)
+class Cell:
+    site: int
+    input_indices: list[int]
+    vertices: list[Point]
+    unbounded: bool
+    boundary_neighbours: list[int | None] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class Edge:
+    sites: tuple[int, int]
+    start: Point
+    end: Point
+    unbounded: bool
+    kind: str
+    origin: Point | None
+    direction: Point | None
+
+
+@dataclass(slots=True)
+class Diagram:
+    sites: list[Point]
+    cells: list[Cell]
+    edges: list[Edge]
+    vertices: list[Vertex]
+    box: Box
+    statistics: dict = field(default_factory=dict)
+
+
+def hull_order(points):
+    """Convex-hull boundary, retaining collinear sites along a hull edge."""
+    ids = sorted(range(len(points)), key=lambda i: (points[i].x, points[i].y))
+    lower, upper = [], []
+    for i in ids:
+        while (
+            len(lower) > 1
+            and orient(points[lower[-2]], points[lower[-1]], points[i]) < 0
+        ):
+            lower.pop()
+        lower.append(i)
+    for i in reversed(ids):
+        while (
+            len(upper) > 1
+            and orient(points[upper[-2]], points[upper[-1]], points[i]) < 0
+        ):
+            upper.pop()
+        upper.append(i)
+    return lower[:-1] + upper[:-1]
+
+
+def construct(coordinates, box=None, *, debug=False):
+    """Build a Voronoi diagram; exact duplicates share one cell and index list.
+
+    Geometric calculations use a translated, uniformly scaled frame. Distinct
+    near-coincident points are not deliberately merged. Extremely disparate
+    coordinates that collapse in normalization are rejected explicitly.
+    """
+    started = perf_counter()
+    sites, groups, index = [], [], {}
+    input_count = 0
+    for i, value in enumerate(coordinates):
+        p = (
+            value
+            if isinstance(value, Point)
+            else Point(float(value[0]), float(value[1]))
+        )
+        if not math.isfinite(p.x) or not math.isfinite(p.y):
+            raise ValueError(f"Site {i} has a non-finite coordinate")
+        key = (p.x, p.y)
+        if key not in index:
+            index[key] = len(sites)
+            sites.append(p)
+            groups.append([])
+        groups[index[key]].append(i)
+        input_count += 1
+    if not sites:
+        raise ValueError("At least one finite site is required")
+    xmin, xmax = min(p.x for p in sites), max(p.x for p in sites)
+    ymin, ymax = min(p.y for p in sites), max(p.y for p in sites)
+    scale = max(xmax - xmin, ymax - ymin)
+    if not scale:
+        scale = max(1.0, abs(xmin) * 1e-6, abs(ymin) * 1e-6)
+    if not math.isfinite(scale):
+        raise ValueError("Coordinate extent exceeds supported floating-point range")
+    ox, oy = xmin + (xmax - xmin) / 2, ymin + (ymax - ymin) / 2
+
+    def normalize(p):
+        return Point((p.x - ox) / scale, (p.y - oy) / scale)
+
+    def world(p):
+        return Point(ox + scale * p.x, oy + scale * p.y)
+
+    if box is None:
+        pad = scale * 0.1
+        box = Box(xmin - pad, ymin - pad, xmax + pad, ymax + pad)
+    elif not isinstance(box, Box):
+        box = Box(*box)
+    nbox = Box(
+        (box.xmin - ox) / scale,
+        (box.ymin - oy) / scale,
+        (box.xmax - ox) / scale,
+        (box.ymax - oy) / scale,
+    )
+    normalized = [normalize(p) for p in sites]
+    if len(set(normalized)) != len(sites):
+        raise ValueError("Distinct sites collapse at this floating-point scale")
+    collinear = all_collinear(sites)
+    sweep_start = perf_counter()
+    sweep = (
+        collinear_neighbours(normalized)
+        if collinear
+        else FortuneSweep(normalized, debug=debug, original_points=sites).run()
+    )
+    sweep_seconds = perf_counter() - sweep_start
+    hull = [] if collinear else hull_order(sites)
+    boundary = set(range(len(sites))) if collinear else set(hull)
+    hull_edges = {tuple(sorted((a, b))) for a, b in zip(hull, hull[1:] + hull[:1])}
+    # A single-ended trace is a ray only on a hull adjacency. Otherwise it is
+    # a zero-length diagonal of a cocircular triangulation, not a real boundary.
+    zero_edges = {
+        key
+        for key, edge in sweep.edges.items()
+        if len(edge.vertices) == 1 and key not in hull_edges and not collinear
+    }
+    vertices = [Vertex(world(v.point), set(v.defining)) for v in sweep.vertices]
+    for identity, i in sweep._vertex_index.items():
+        vertices[i].point = Point(float(identity[0]), float(identity[1]))
+    cells, edges = [], []
+    for i in range(len(sites)):
+        neighbours = [
+            j
+            for j in sorted(sweep.neighbours[i])
+            if tuple(sorted((i, j))) not in zero_edges
+        ]
+        polygon, planes = clipped_cell(i, neighbours, normalized, nbox)
+        output_polygon = [world(p) for p in polygon]
+        p = sites[i]
+        if (
+            box.xmin <= p.x <= box.xmax
+            and box.ymin <= p.y <= box.ymax
+            and (len(output_polygon) < 3 or polygon_area(output_polygon) <= 0)
+        ):
+            raise ArithmeticError(
+                f"Site {i}: output precision cannot retain a positive cell"
+            )
+        cells.append(
+            Cell(
+                i,
+                groups[i],
+                output_polygon,
+                i in boundary,
+                [h.neighbour for h in planes],
+            )
+        )
+        # Plane k supports the edge from vertex k to vertex k+1 (cyclic).
+        for k, h in enumerate(planes):
+            j = h.neighbour
+            if j is None or i >= j:
+                continue
+            p, q = polygon[k], polygon[(k + 1) % len(polygon)]
+            if p == q:
+                continue  # zero-length diagonal at a cocircular vertex
+            trace = sweep.edges[(i, j)]
+            ends = trace.vertices
+            kind = "segment" if len(ends) >= 2 else ("ray" if ends else "line")
+            origin = vertices[ends[0]].point if ends else None
+            direction = None
+            if kind == "ray":
+                centre = sweep.vertices[ends[0]].point
+                endpoint = p if centre.distance(p) > centre.distance(q) else q
+                length = centre.distance(endpoint)
+                if length:
+                    direction = Point(
+                        (endpoint.x - centre.x) / length,
+                        (endpoint.y - centre.y) / length,
+                    )
+            elif kind == "line":
+                length = p.distance(q)
+                direction = Point((q.x - p.x) / length, (q.y - p.y) / length)
+            edges.append(
+                Edge(
+                    (i, j),
+                    world(p),
+                    world(q),
+                    kind != "segment",
+                    kind,
+                    origin,
+                    direction,
+                )
+            )
+    statistics = dict(sweep.statistics)
+    statistics.update(
+        input_sites=input_count,
+        unique_sites=len(sites),
+        duplicates=input_count - len(sites),
+        cells=len(cells),
+        vertices=len(vertices),
+        edges=len(edges),
+        sweep_seconds=sweep_seconds,
+        construction_seconds=perf_counter() - started,
+    )
+    return Diagram(sites, cells, edges, vertices, box, statistics)
+
+
+==============================================================================
+src\fortune\events.py
+==============================================================================
+"""Deterministic priority queue: descending y, sites before circles, then x."""
+
+import heapq
+import itertools
+from dataclasses import dataclass
+
+from .beachline import Arc
+from .geometry import Point
+
+
+@dataclass(slots=True)
+class Event:
+    y: float
+    x: float
+    kind: int  # 0 = site, 1 = circle
+    site: int | None = None
+    arc: Arc | None = None
+    generation: int = 0
+    centre: Point | None = None
+    defining: tuple[int, int, int] | None = None
+
+
+class EventQueue:
+    def __init__(self):
+        self._heap = []
+        self._serial = itertools.count()
+        self.peak_size = 0
+        self.pushed = 0
+
+    def push(self, event):
+        heapq.heappush(
+            self._heap, (-event.y, event.kind, event.x, next(self._serial), event)
+        )
+        self.pushed += 1
+        self.peak_size = max(self.peak_size, len(self._heap))
+
+    def pop(self):
+        return heapq.heappop(self._heap)[-1]
+
+    def __bool__(self):
+        return bool(self._heap)
+
+
+==============================================================================
+src\fortune\geometry.py
+==============================================================================
+"""Small geometric primitives, with explicit singular cases and filtered signs."""
+
+import math
+from dataclasses import dataclass
+from decimal import Decimal, localcontext
+from fractions import Fraction
+
+
+@dataclass(frozen=True, slots=True)
+class Point:
+    x: float
+    y: float
+
+    def distance(self, other: "Point") -> float:
+        return math.hypot(self.x - other.x, self.y - other.y)
+
+
+@dataclass(frozen=True, slots=True)
+class Box:
+    xmin: float
+    ymin: float
+    xmax: float
+    ymax: float
+
+    def __post_init__(self):
+        if not all(math.isfinite(v) for v in self.as_tuple()):
+            raise ValueError("Bounding-box coordinates must be finite")
+        if self.xmin >= self.xmax or self.ymin >= self.ymax:
+            raise ValueError("Bounding box must have positive width and height")
+
+    def as_tuple(self):
+        return self.xmin, self.ymin, self.xmax, self.ymax
+
+
+def orient(a: Point, b: Point, c: Point) -> float:
+    """Positive for CCW. Exact dyadic fallback resolves uncertain float products.
+
+    This is a filtered predicate, not arbitrary-precision construction: input
+    coordinates and returned circumcentres are still IEEE double precision.
+    """
+    ux, uy = b.x - a.x, b.y - a.y
+    vx, vy = c.x - a.x, c.y - a.y
+    left, right = ux * vy, uy * vx
+    det = left - right
+    if abs(det) > 8e-16 * (abs(left) + abs(right)):
+        return det
+    ax, ay, bx, by, cx, cy = map(Fraction, (a.x, a.y, b.x, b.y, c.x, c.y))
+    exact = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+    try:
+        value = float(exact)
+    except OverflowError:
+        value = math.inf if exact > 0 else -math.inf
+    if value == 0.0 and exact:
+        return math.copysign(math.ulp(0.0), 1 if exact > 0 else -1)
+    return value
+
+
+def circumcircle(a: Point, b: Point, c: Point):
+    """Return (centre, radius), or None for exactly collinear input.
+
+    Translation to a local origin avoids subtracting large squared coordinates.
+    For cancellation-prone determinants, recompute the construction in Decimal.
+    """
+    ux, uy = b.x - a.x, b.y - a.y
+    vx, vy = c.x - a.x, c.y - a.y
+    cross = ux * vy - uy * vx
+    # A reliable determinant sign alone does not imply an accurate centre.
+    # Ill-conditioned (almost collinear) triples need high-precision coordinates.
+    if abs(cross) <= 1e-8 * (abs(ux * vy) + abs(uy * vx)):
+        with localcontext() as ctx:
+            ctx.prec = 80
+            ax, ay = Decimal(a.x), Decimal(a.y)
+            u, v = Decimal(b.x) - ax, Decimal(b.y) - ay
+            s, t = Decimal(c.x) - ax, Decimal(c.y) - ay
+            d = 2 * (u * t - v * s)
+            if not d:
+                return None
+            u2, s2 = u * u + v * v, s * s + t * t
+            centre = Point(
+                float(ax + (u2 * t - s2 * v) / d), float(ay + (u * s2 - s * u2) / d)
+            )
+    else:
+        u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
+        centre = Point(
+            a.x + (u2 * vy - v2 * uy) / (2 * cross),
+            a.y + (ux * v2 - vx * u2) / (2 * cross),
+        )
+    radius = centre.distance(a)
+    if not math.isfinite(radius):
+        raise ArithmeticError("Circumcircle is outside the supported float range")
+    return centre, radius
+
+
+def parabola_y(focus: Point, x: float, directrix: float) -> float:
+    gap = focus.y - directrix
+    if gap <= 0:
+        raise ValueError("A finite beach parabola needs its focus above the directrix")
+    return (x - focus.x) ** 2 / (2 * gap) + (focus.y + directrix) / 2
+
+
+def breakpoint_x(left: Point, right: Point, directrix: float) -> float:
+    """Breakpoint between consecutive arcs in a downward sweep.
+
+    Equal-height sites give a linear equation. A focus on the directrix gives
+    a vertical limiting arc. The remaining quadratic is solved with a stable
+    two-root formula, in coordinates translated to the left focus.
+    """
+    if left.y == right.y:
+        return left.x + (right.x - left.x) / 2
+    dp, dq = left.y - directrix, right.y - directrix
+    if dp <= 0:
+        return left.x
+    if dq <= 0:
+        return right.x
+    dx = right.x - left.x
+    aa = right.y - left.y
+    bb = 2 * dp * dx
+    cc = -dp * dx * dx - aa * dp * dq
+    discr = bb * bb - 4 * aa * cc
+    # Roundoff may make a mathematically nonnegative discriminant slightly negative.
+    if discr < 0:
+        if discr < -2e-14 * (bb * bb + abs(4 * aa * cc)):
+            raise ArithmeticError("Negative breakpoint discriminant")
+        discr = 0.0
+    q = -0.5 * (bb + math.copysign(math.sqrt(discr), bb))
+    roots = (q / aa, cc / q) if q else (-bb / (2 * aa),) * 2
+    root = min(roots) if left.y > right.y else max(roots)
+    return left.x + root
+
+
+def circle_bottom(centre: Point, through: Point) -> float:
+    """Avoid cancellation in centre.y - radius when the centre is high above."""
+    dx, dy = centre.x - through.x, centre.y - through.y
+    radius = math.hypot(dx, dy)
+    if dy >= 0 and radius + dy:
+        return through.y - dx * dx / (radius + dy)
+    return centre.y - radius
+
+
+def circle_identity(a, b, c):
+    """Exact circle identity for grouping events, not a rounded-centre hash.
+
+    Coordinates are finite input doubles, hence exact dyadic fractions. Keeping
+    distinct circles distinct also preserves real tiny edges between vertices.
+    """
+    ax, ay, bx, by, cx, cy = map(Fraction, (a.x, a.y, b.x, b.y, c.x, c.y))
+    ux, uy, vx, vy = bx - ax, by - ay, cx - ax, cy - ay
+    denominator = 2 * (ux * vy - uy * vx)
+    if not denominator:
+        return None
+    u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
+    x = ax + (u2 * vy - v2 * uy) / denominator
+    y = ay + (ux * v2 - vx * u2) / denominator
+    return x, y, (x - ax) ** 2 + (y - ay) ** 2
+
+
+def polygon_area(points) -> float:
+    if len(points) < 3:
+        return 0.0
+    origin = points[0]
+    return (
+        abs(
+            math.fsum(
+                orient(origin, points[i], points[i + 1])
+                for i in range(1, len(points) - 1)
+            )
+        )
+        / 2
+    )
+
+
+==============================================================================
+src\fortune\interactive.py
+==============================================================================
+"""Click-to-add interface with explicit computation, clear and export buttons."""
+
+from .diagram import construct
+from .geometry import Box, Point
+from .io import write_csv, write_json
+from .visualize import draw
+
+
+class InteractiveController:
+    def __init__(self, figure, axes, sites=(), box=None, output="interactive.png"):
+        self.figure, self.axes = figure, axes
+        self.sites = list(sites)
+        self.box = box or Box(0, 0, 1, 1)
+        self.output = output
+        self.diagram = None
+        self.status = figure.text(
+            0.13,
+            0.02,
+            "Click to add sites; Compute or double-click to build.",
+            fontsize=9,
+        )
+        self.figure.canvas.mpl_connect("button_press_event", self.click)
+        self.clear_axes()
+
+    def clear_axes(self):
+        self.axes.clear()
+        b = self.box
+        self.axes.set(
+            xlim=(b.xmin, b.xmax),
+            ylim=(b.ymin, b.ymax),
+            xlabel="x",
+            ylabel="y",
+            title="Fortune sweep | click to add points",
+        )
+        self.axes.set_aspect("equal")
+        if self.sites:
+            self.axes.scatter(
+                [p.x for p in self.sites], [p.y for p in self.sites], c="black"
+            )
+
+    def click(self, event):
+        if event.inaxes is not self.axes or event.button != 1 or event.xdata is None:
+            return
+        if event.dblclick:
+            self.compute()
+            return
+        self.sites.append(Point(event.xdata, event.ydata))
+        self.diagram = None
+        self.clear_axes()
+        self.status.set_text(
+            f"{len(self.sites)} input sites; compute to update the cells."
+        )
+        self.figure.canvas.draw_idle()
+
+    def compute(self, event=None):
+        if not self.sites:
+            self.status.set_text("Add at least one site first.")
+            return
+        try:
+            self.diagram = construct(self.sites, self.box)
+            draw(self.diagram, self.axes)
+            stats = self.diagram.statistics
+            self.status.set_text(
+                f"{stats['unique_sites']} cells; {stats['construction_seconds']:.4f} s. Export saves image, CSV and JSON."
+            )
+        except (ValueError, ArithmeticError) as exc:
+            self.status.set_text(str(exc))
+        self.figure.canvas.draw_idle()
+
+    def clear(self, event=None):
+        self.sites.clear()
+        self.diagram = None
+        self.clear_axes()
+        self.status.set_text("Cleared. Click to add new sites.")
+        self.figure.canvas.draw_idle()
+
+    def export(self, event=None):
+        from pathlib import Path
+
+        if self.diagram is None:
+            self.compute()
+        if self.diagram is None:
+            return
+        path = Path(self.output)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.figure.savefig(path, dpi=160)
+        write_csv(self.diagram, path.with_suffix(".csv"))
+        write_json(self.diagram, path.with_suffix(".json"))
+        self.status.set_text(f"Saved {path.name}, CSV and JSON.")
+        self.figure.canvas.draw_idle()
+
+
+def launch(sites=(), box=None, output="interactive.png"):
+    import matplotlib.pyplot as plt
+    from matplotlib.widgets import Button
+
+    fig, axes = plt.subplots(figsize=(9, 8))
+    fig.subplots_adjust(bottom=0.17)
+    controller = InteractiveController(fig, axes, sites, box, output)
+    controller.buttons = []
+    for x, label, callback in (
+        (0.18, "Compute", controller.compute),
+        (0.43, "Clear", controller.clear),
+        (0.68, "Export", controller.export),
+    ):
+        button = Button(fig.add_axes([x, 0.075, 0.15, 0.05]), label)
+        button.on_clicked(callback)
+        controller.buttons.append(button)
+    plt.show()
+    return controller
+
+
+==============================================================================
+src\fortune\io.py
+==============================================================================
+"""Coordinate parsing and explicit ordered-cell, clipped-edge exports."""
+
+import csv
+import json
+import random
+from pathlib import Path
+
+from .geometry import Point
+
+
+def read_sites(path):
+    sites = []
+    for number, line in enumerate(
+        Path(path).read_text(encoding="utf-8-sig").splitlines(), 1
+    ):
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        fields = line.replace(",", " ").split()
+        if len(fields) != 2:
+            raise ValueError(f"{path}, line {number}: expected exactly x y or x,y")
+        try:
+            sites.append(Point(float(fields[0]), float(fields[1])))
+        except ValueError as exc:
+            raise ValueError(f"{path}, line {number}: invalid number") from exc
+    return sites
+
+
+def random_sites(count, seed):
+    if count < 1:
+        raise ValueError("Random site count must be positive")
+    rng = random.Random(seed)
+    return [Point(rng.random(), rng.random()) for _ in range(count)]
+
+
+def ensure_parent(path):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def write_csv(diagram, path):
+    edge_by_pair = {e.sites: e for e in diagram.edges}
+    fields = [
+        "cell",
+        "input_indices",
+        "site_x",
+        "site_y",
+        "unbounded_cell",
+        "vertex_order",
+        "x",
+        "y",
+        "next_x",
+        "next_y",
+        "neighbour",
+        "edge_kind",
+        "ray_origin_x",
+        "ray_origin_y",
+        "direction_x",
+        "direction_y",
+    ]
+    with ensure_parent(path).open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        for c in diagram.cells:
+            site = diagram.sites[c.site]
+            base = dict(
+                cell=c.site,
+                input_indices=";".join(map(str, c.input_indices)),
+                site_x=site.x,
+                site_y=site.y,
+                unbounded_cell=int(c.unbounded),
+            )
+            if not c.vertices:
+                writer.writerow(base | {"edge_kind": "empty_clipped_cell"})
+            for k, p in enumerate(c.vertices):
+                q = c.vertices[(k + 1) % len(c.vertices)]
+                j = c.boundary_neighbours[k]
+                edge = (
+                    edge_by_pair.get((min(c.site, j), max(c.site, j)))
+                    if j is not None
+                    else None
+                )
+                row = base | dict(
+                    vertex_order=k,
+                    x=p.x,
+                    y=p.y,
+                    next_x=q.x,
+                    next_y=q.y,
+                    neighbour="" if j is None else j,
+                    edge_kind=edge.kind if edge else "box",
+                )
+                if edge and edge.origin:
+                    row.update(ray_origin_x=edge.origin.x, ray_origin_y=edge.origin.y)
+                if edge and edge.direction:
+                    row.update(
+                        direction_x=edge.direction.x, direction_y=edge.direction.y
+                    )
+                writer.writerow(row)
+
+
+def write_json(diagram, path):
+    def pair(p):
+        return [p.x, p.y] if p is not None else None
+
+    payload = dict(
+        schema_version=1,
+        bbox=diagram.box.as_tuple(),
+        sites=[pair(p) for p in diagram.sites],
+        statistics=diagram.statistics,
+        cells=[
+            dict(
+                site=c.site,
+                input_indices=c.input_indices,
+                unbounded=c.unbounded,
+                vertices=[pair(p) for p in c.vertices],
+                boundary_neighbours=c.boundary_neighbours,
+            )
+            for c in diagram.cells
+        ],
+        edges=[
+            dict(
+                sites=e.sites,
+                start=pair(e.start),
+                end=pair(e.end),
+                kind=e.kind,
+                unbounded=e.unbounded,
+                origin=pair(e.origin),
+                direction=pair(e.direction),
+            )
+            for e in diagram.edges
+        ],
+        vertices=[
+            dict(point=pair(v.point), defining=sorted(v.defining))
+            for v in diagram.vertices
+        ],
+    )
+    ensure_parent(path).write_text(
+        json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8"
+    )
+
+
+==============================================================================
+src\fortune\sweep.py
+==============================================================================
+"""Fortune's event-driven sweep, producing adjacency and traced Voronoi edges.
+
+No cell is constructed here using comparisons with every other site. The
+adjacency graph is generated only by site splits and disappearing arcs.
+"""
+
+import math
+from dataclasses import dataclass, field
+
+from .beachline import Arc, BeachLine
+from .circle import candidate_circle
+from .events import Event, EventQueue
+from .geometry import Point, circle_identity, orient
+
+
+@dataclass(slots=True)
+class Vertex:
+    point: Point
+    defining: set[int]
+
+
+@dataclass(slots=True)
+class TraceEdge:
+    sites: tuple[int, int]
+    vertices: list[int] = field(default_factory=list)
+
+
+class FortuneSweep:
+    def __init__(self, points, debug=False, original_points=None):
+        self.points = points
+        self.original_points = (
+            original_points if original_points is not None else points
+        )
+        self.debug = debug
+        self.beach = BeachLine()
+        self.queue = EventQueue()
+        self.sweep_y = math.inf
+        self.neighbours = [set() for _ in points]
+        self.edges = {}
+        self.vertices = []
+        self._vertex_index = {}
+        self.statistics = dict(site_events=0, circle_events=0, stale_events=0)
+
+    def edge(self, a, b, vertex=None):
+        if a == b:
+            raise ArithmeticError("An edge cannot separate a site from itself")
+        key = (min(a, b), max(a, b))
+        if key not in self.edges:
+            self.edges[key] = TraceEdge(key)
+            self.neighbours[a].add(b)
+            self.neighbours[b].add(a)
+        edge = self.edges[key]
+        if vertex is not None and vertex not in edge.vertices:
+            edge.vertices.append(vertex)
+        return edge
+
+    def schedule(self, arc):
+        if arc is None or not arc.alive:
+            return
+        arc.generation += 1
+        if arc.prev is None or arc.next is None:
+            return
+        ids = (arc.prev.site, arc.site, arc.next.site)
+        if orient(*(self.original_points[i] for i in ids)) >= 0:
+            return
+        result = candidate_circle(*(self.points[i] for i in ids), self.sweep_y)
+        if result:
+            centre, bottom = result
+            self.queue.push(
+                Event(
+                    bottom,
+                    centre.x,
+                    1,
+                    arc=arc,
+                    generation=arc.generation,
+                    centre=centre,
+                    defining=ids,
+                )
+            )
+
+    def site_event(self, site):
+        self.statistics["site_events"] += 1
+        if self.beach.root is None:
+            self.beach.insert_after(None, Arc(site))
+            return
+        point = self.points[site]
+        old = self.beach.locate(point.x, self.sweep_y, self.points)
+        before, after = old.prev, old.next
+        old.generation += 1
+        if self.points[old.site].y == point.y:
+            # A whole equal-height batch has vertical limiting parabolas. It
+            # inserts an adjacent arc instead of splitting a finite parabola.
+            new = Arc(site)
+            self.beach.insert_after(
+                old if point.x >= self.points[old.site].x else old.prev, new
+            )
+            self.edge(old.site, site)
+            for arc in (before, old, new, after):
+                self.schedule(arc)
+            return
+        new, right = Arc(site), Arc(old.site)
+        self.beach.insert_after(old, new)
+        self.beach.insert_after(new, right)
+        self.edge(old.site, site)
+        for arc in (before, old, new, right, after):
+            self.schedule(arc)
+
+    def circle_event(self, event):
+        middle = event.arc
+        if not middle.alive or middle.generation != event.generation:
+            self.statistics["stale_events"] += 1
+            return
+        left, right = middle.prev, middle.next
+        if (
+            left is None
+            or right is None
+            or (left.site, middle.site, right.site) != event.defining
+        ):
+            raise ArithmeticError("A valid circle event lost its neighbourhood")
+        key = circle_identity(*(self.original_points[i] for i in event.defining))
+        if key is None:
+            self.statistics["stale_events"] += 1
+            return
+        vertex = self._vertex_index.get(key)
+        if vertex is None:
+            vertex = len(self.vertices)
+            self.vertices.append(Vertex(event.centre, set(event.defining)))
+            self._vertex_index[key] = vertex
+        else:
+            self.vertices[vertex].defining.update(event.defining)
+        self.edge(left.site, middle.site, vertex)
+        self.edge(middle.site, right.site, vertex)
+        self.edge(left.site, right.site, vertex)
+        self.beach.remove(middle)
+        self.statistics["circle_events"] += 1
+        self.schedule(left)
+        self.schedule(right)
+
+    def run(self):
+        for i, p in enumerate(self.points):
+            self.queue.push(Event(p.y, p.x, 0, site=i))
+        while self.queue:
+            event = self.queue.pop()
+            self.sweep_y = min(self.sweep_y, event.y)
+            if event.kind == 0:
+                self.site_event(event.site)
+            else:
+                self.circle_event(event)
+            if self.debug:
+                self.beach.validate()
+        self.statistics.update(
+            queue_peak=self.queue.peak_size,
+            events_pushed=self.queue.pushed,
+            beach_max_height=self.beach.max_height,
+            trace_edges=len(self.edges),
+        )
+        return self
+
+
+def collinear_neighbours(points):
+    """One-dimensional degeneration: consecutive sites alone share bisectors."""
+    sweep = FortuneSweep(points)
+    order = sorted(range(len(points)), key=lambda i: (points[i].x, points[i].y))
+    for a, b in zip(order, order[1:]):
+        sweep.edge(a, b)
+    sweep.statistics["collinear_special_case"] = True
+    return sweep
+
+
+def all_collinear(points):
+    if len(points) < 3:
+        return True
+    a, b = min(points, key=lambda p: (p.x, p.y)), max(points, key=lambda p: (p.x, p.y))
+    return all(orient(a, b, p) == 0 for p in points)
+
+
+==============================================================================
+src\fortune\visualize.py
+==============================================================================
+"""Matplotlib static rendering; the geometric core has no plotting dependency."""
+
+from .io import ensure_parent
+
+
+def draw(diagram, axes, *, labels=True):
+    from matplotlib import colormaps
+    from matplotlib.collections import PolyCollection
+    from matplotlib.patches import Rectangle
+
+    axes.clear()
+    polygons = [[(p.x, p.y) for p in c.vertices] for c in diagram.cells if c.vertices]
+    cmap = colormaps["tab20"]
+    axes.add_collection(
+        PolyCollection(
+            polygons,
+            facecolors=[cmap(i % 20) for i in range(len(polygons))],
+            edgecolors="#3f4754",
+            linewidths=0.6,
+            alpha=0.65,
+        )
+    )
+    axes.scatter(
+        [p.x for p in diagram.sites],
+        [p.y for p in diagram.sites],
+        s=18,
+        c="#101828",
+        zorder=3,
+    )
+    if labels:
+        for c in diagram.cells:
+            p = diagram.sites[c.site]
+            label = "/".join(map(str, c.input_indices))
+            axes.annotate(
+                label, (p.x, p.y), xytext=(4, 4), textcoords="offset points", fontsize=8
+            )
+    b = diagram.box
+    axes.add_patch(
+        Rectangle(
+            (b.xmin, b.ymin),
+            b.xmax - b.xmin,
+            b.ymax - b.ymin,
+            fill=False,
+            ls="--",
+            lw=1.5,
+            color="#b42318",
+            zorder=4,
+        )
+    )
+    axes.set(
+        xlim=(b.xmin, b.xmax),
+        ylim=(b.ymin, b.ymax),
+        xlabel="x",
+        ylabel="y",
+        title=f"Fortune sweep | {len(diagram.sites)} sites | {len(diagram.edges)} clipped edges",
+    )
+    axes.set_aspect("equal", adjustable="box")
+
+
+def render(diagram, path=None, *, show=False, labels=True):
+    if show:
+        import matplotlib.pyplot as plt
+
+        fig, axes = plt.subplots(figsize=(8, 7))
+    else:
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
+
+        fig = Figure(figsize=(8, 7))
+        FigureCanvasAgg(fig)
+        axes = fig.subplots()
+    draw(diagram, axes, labels=labels)
+    fig.tight_layout()
+    if path:
+        fig.savefig(ensure_parent(path), dpi=160)
+    if show:
+        plt.show()
+    return fig
+
+
+==============================================================================
+test.bat
+==============================================================================
+@echo off
+setlocal
+cd /d "%~dp0"
+if not exist ".venv\Scripts\python.exe" (
+    echo Run install.bat first.
+    exit /b 1
+)
+".venv\Scripts\python.exe" -m pytest %*
+exit /b %errorlevel%
+
+
+==============================================================================
+tests\test_adversarial.py
+==============================================================================
+import math
+import random
+
+import pytest
+from validation import contains, validate_cells, validate_empty_circles
+
+from fortune.diagram import construct
+from fortune.geometry import polygon_area
+
+
+@pytest.mark.parametrize("exponent", [8, 11, 13, 14, 15])
+def test_tight_cluster_among_distant_sites(exponent):
+    rng = random.Random(exponent)
+    points = [(0, 0), (1, 0), (1, 1), (0, 1)] + [
+        (0.4 + 10**-exponent * rng.random(), 0.6 + 10**-exponent * rng.random())
+        for _ in range(6)
+    ]
+    diagram = construct(points, debug=True)
+    validate_cells(diagram, queries=200)
+    validate_empty_circles(diagram)
+
+
+@pytest.mark.parametrize("n", [8, 32, 100])
+def test_high_degree_cell_and_cocircular_sites(n):
+    ring = [
+        (math.cos(2 * math.pi * i / n), math.sin(2 * math.pi * i / n)) for i in range(n)
+    ]
+    for points in (ring, ring + [(0, 0)]):
+        diagram = construct(points, debug=True)
+        validate_cells(diagram, queries=150)
+        validate_empty_circles(diagram)
+
+
+@pytest.mark.parametrize("exponent", [10, 11, 12, 13, 14, 15])
+def test_every_distinct_cluster_site_retains_a_positive_cell(exponent):
+    rng = random.Random(exponent)
+    points = [(0, 0), (1, 0), (1, 1), (0, 1)] + [
+        (0.4 + 10**-exponent * rng.random(), 0.6 + 10**-exponent * rng.random())
+        for _ in range(6)
+    ]
+    d = construct(points)
+    for c in d.cells:
+        assert len(c.vertices) >= 3, ("missing cell", exponent, c.site)
+        assert polygon_area(c.vertices) > 0, ("zero area", exponent, c.site)
+        assert contains(c.vertices, d.sites[c.site]), (
+            "site outside own cell",
+            exponent,
+            c.site,
+        )
+
+
+==============================================================================
+tests\test_beachline.py
+==============================================================================
+import math
+import random
+
+import pytest
+
+from fortune.beachline import Arc, BeachLine
+from fortune.geometry import Point
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_avl_random_insert_and_delete(seed):
+    rng, tree, expected = random.Random(seed), BeachLine(), []
+    for i in range(600):
+        index = rng.randrange(len(expected) + 1)
+        new = Arc(i)
+        tree.insert_after(expected[index - 1] if index else None, new)
+        expected.insert(index, new)
+        tree.validate()
+        assert list(tree) == expected
+    assert tree.root.height < 1.45 * math.log2(len(expected) + 2) + 1
+    rng.shuffle(expected)
+    for node in expected:
+        tree.remove(node)
+        tree.validate()
+    assert tree.root is None and tree.count == 0
+
+
+def test_ordered_locate_for_equal_height_sites():
+    tree = BeachLine()
+    points = [Point(-2, 1), Point(0, 1), Point(2, 1)]
+    previous = None
+    for i in range(3):
+        new = Arc(i)
+        tree.insert_after(previous, new)
+        previous = new
+    assert tree.locate(-10, 0, points).site == 0
+    assert tree.locate(0, 0, points).site == 1
+    assert tree.locate(10, 0, points).site == 2
+
+
+def test_removed_arc_cannot_be_deleted_again():
+    tree, node = BeachLine(), Arc(0)
+    tree.insert_after(None, node)
+    tree.remove(node)
+    with pytest.raises(ValueError):
+        tree.remove(node)
+
+
+==============================================================================
+tests\test_diagram.py
+==============================================================================
+import math
+import random
+
+import pytest
+from validation import validate_cells, validate_empty_circles
+
+from fortune.diagram import construct
+from fortune.geometry import Box
+
+
+@pytest.mark.parametrize("seed", range(25))
+def test_random_cells_and_empty_circles(seed):
+    rng = random.Random(seed)
+    diagram = construct(
+        [(rng.random(), rng.random()) for _ in range(35)], Box(0, 0, 1, 1), debug=True
+    )
+    validate_cells(diagram, queries=150, seed=seed)
+    validate_empty_circles(diagram)
+
+
+CASES = {
+    "single": [(0, 0)],
+    "two": [(0, 0), (1, 1)],
+    "horizontal": [(i, 0) for i in range(8)],
+    "vertical": [(0, i) for i in range(8)],
+    "slanted": [(i, 3 * i + 1) for i in range(8)],
+    "square": [(0, 0), (1, 0), (1, 1), (0, 1)],
+    "cocircular": [
+        (math.cos(2 * math.pi * i / 9), math.sin(2 * math.pi * i / 9)) for i in range(9)
+    ],
+    "duplicates": [(0, 0), (1, 0), (0, 1), (0, 0), (1, 0)],
+    "near": [(0, 0), (1e-11, 1e-11), (1, 0), (0.3, 0.7), (0, 1)],
+    "grid": [(x, y) for x in range(5) for y in range(5)],
+    "equal_rows": [(0, 2), (1, 2), (2, 2), (0.5, 1), (1.5, 1), (1, 0)],
+}
+
+
+@pytest.mark.parametrize("case", CASES)
+def test_degenerate_cells(case):
+    d = construct(CASES[case], debug=True)
+    validate_cells(d, queries=400)
+    validate_empty_circles(d)
+    assert d.statistics["unique_sites"] == len(set(CASES[case]))
+    if case == "square":
+        # Twelve exact integer points on x*x+y*y=25 exercise a simultaneous
+        # bottom site/circle event and normalization beyond the unit square.
+        ring = [
+            (5, 0),
+            (4, 3),
+            (3, 4),
+            (0, 5),
+            (-3, 4),
+            (-4, 3),
+            (-5, 0),
+            (-4, -3),
+            (-3, -4),
+            (0, -5),
+            (3, -4),
+            (4, -3),
+        ]
+        circle = construct(ring, debug=True)
+        assert len(circle.vertices) == 1
+        assert len(circle.edges) == 12 and all(e.kind == "ray" for e in circle.edges)
+        validate_cells(circle, queries=300)
+        validate_empty_circles(circle)
+
+
+def test_repeatability_and_input_permutations():
+    rng = random.Random(16)
+    points = [(rng.random(), rng.random()) for _ in range(40)]
+    first = construct(points)
+    second = construct(points)
+    assert [c.vertices for c in first.cells] == [c.vertices for c in second.cells]
+    rng.shuffle(points)
+    validate_cells(construct(points))
+
+
+@pytest.mark.parametrize("scale,offset", [(1e-8, 0), (1e8, 0), (1, 1e9)])
+def test_coordinate_scaling(scale, offset):
+    points = [
+        (offset + scale * x, offset + scale * y)
+        for x, y in [(0, 0), (0.2, 0.9), (0.7, 0.3), (1, 1)]
+    ]
+    d = construct(points)
+    validate_cells(d)
+    validate_empty_circles(d)
+
+
+def test_empty_and_nonfinite_rejected():
+    with pytest.raises(ValueError):
+        construct([])
+    with pytest.raises(ValueError):
+        construct([(0, math.inf)])
+
+
+def test_custom_box_can_clip_away_outside_sites():
+    d = construct([(-3, 0), (-2, 0)], Box(0, -1, 1, 1))
+    assert d.cells[0].vertices == []
+    assert len(d.cells[1].vertices) == 4
+    validate_cells(d, queries=100)
+
+
+==============================================================================
+tests\test_events.py
+==============================================================================
+from fortune.circle import candidate_circle
+from fortune.events import Event, EventQueue
+from fortune.geometry import Point
+from fortune.sweep import FortuneSweep
+
+
+def test_queue_order_and_stable_ties():
+    queue = EventQueue()
+    events = [Event(1, 0, 1), Event(2, 3, 0), Event(1, 1, 0), Event(1, 0, 0)]
+    for event in events:
+        queue.push(event)
+    assert [queue.pop() for _ in events] == [events[1], events[3], events[2], events[0]]
+
+
+def test_circle_clockwise_and_future_only():
+    a, b, c = Point(-1, 1), Point(0, 2), Point(1, 1)
+    centre, bottom = candidate_circle(a, b, c, 1)
+    assert centre == Point(0, 1)
+    assert bottom == 0
+    assert candidate_circle(c, b, a, 1) is None
+    assert candidate_circle(a, b, c, -1) is None
+    assert candidate_circle(a, b, a, 1) is None
+
+
+def test_triangle_sweep_emits_vertex_and_three_edges():
+    sweep = FortuneSweep([Point(0, 0), Point(2, 0), Point(1, 2)], debug=True).run()
+    assert len(sweep.vertices) == 1
+    assert sweep.vertices[0].point == Point(1, 0.75)
+    assert len(sweep.edges) == 3
+    assert sweep.statistics["circle_events"] == 1
+
+
+def test_cocircular_square_merges_simultaneous_vertices():
+    sweep = FortuneSweep(
+        [Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)], debug=True
+    ).run()
+    assert len(sweep.vertices) == 1
+    assert sweep.vertices[0].point == Point(0.5, 0.5)
+    assert sweep.vertices[0].defining == {0, 1, 2, 3}
+
+
+==============================================================================
+tests\test_geometry.py
+==============================================================================
+import math
+
+import pytest
+
+from fortune.geometry import (
+    Box,
+    Point,
+    breakpoint_x,
+    circle_bottom,
+    circle_identity,
+    circumcircle,
+    orient,
+    parabola_y,
+)
+
+
+def test_orientation_and_collinearity():
+    a, b, c = Point(0, 0), Point(2, 0), Point(0, 3)
+    assert orient(a, b, c) == 6
+    assert orient(c, b, a) == -6
+    assert orient(a, b, Point(1, 0)) == 0
+    assert orient(Point(0, 0), Point(1e200, 0), Point(0, 1e200)) > 0
+    assert orient(Point(0, 0), Point(1e-200, 0), Point(0, 1e-200)) > 0
+
+
+def test_circle_and_translation():
+    for offset in (0, 1e9):
+        result = circumcircle(
+            Point(offset, offset), Point(offset + 2, offset), Point(offset, offset + 2)
+        )
+        assert result[0] == Point(offset + 1, offset + 1)
+        assert result[1] == pytest.approx(math.sqrt(2))
+    assert circumcircle(Point(0, 0), Point(1, 1), Point(2, 2)) is None
+
+
+@pytest.mark.parametrize(
+    "left,right,directrix",
+    [
+        (Point(0, 2), Point(1, 1), 0),
+        (Point(1, 1), Point(0, 2), 0),
+        (Point(-2, 3), Point(4, 3), -1),
+        (Point(0.1, 0.7), Point(0.9, 0.70000000001), -0.1),
+        (Point(-1, 1), Point(0.1, 0.2), 0.199999999),
+    ],
+)
+def test_breakpoint_lies_on_both_parabolas(left, right, directrix):
+    x = breakpoint_x(left, right, directrix)
+    assert parabola_y(left, x, directrix) == pytest.approx(
+        parabola_y(right, x, directrix), rel=2e-7, abs=2e-9
+    )
+
+
+def test_breakpoint_singular_limits():
+    assert breakpoint_x(Point(0, 1), Point(2, 1), 1) == 1
+    assert breakpoint_x(Point(1, 0), Point(0, 1), 0) == 1
+    assert breakpoint_x(Point(0, 1), Point(2, 0), 0) == 2
+    with pytest.raises(ValueError):
+        parabola_y(Point(0, 0), 1, 0)
+
+
+def test_stable_circle_bottom():
+    centre, through = Point(0, 1e15), Point(1, 0)
+    assert circle_bottom(centre, through) == pytest.approx(-5e-16)
+
+
+def test_invalid_box():
+    with pytest.raises(ValueError):
+        Box(0, 0, 0, 1)
+    with pytest.raises(ValueError):
+        Box(0, 0, math.inf, 1)
+
+
+def test_circle_identity_merges_only_the_same_exact_circle():
+    a, b, c, d = Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)
+    assert circle_identity(a, b, c) == circle_identity(a, c, d)
+    # These centres round into the same old 14-decimal bucket, but define
+    # different circles and must retain distinct vertices and connecting edges.
+    close = Point(0, 2 + 1e-15)
+    assert circle_identity(a, b, d) != circle_identity(a, b, close)
+
+
+==============================================================================
+tests\test_interfaces.py
+==============================================================================
+import csv
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from fortune.cli import main
+from fortune.diagram import construct
+from fortune.geometry import Point
+from fortune.io import random_sites, read_sites, write_csv, write_json
+
+
+def test_coordinate_parser_and_error(tmp_path):
+    path = tmp_path / "sites.txt"
+    path.write_text("# comment\n1 2\n3,4 # note\n", encoding="utf-8")
+    assert read_sites(path) == [Point(1, 2), Point(3, 4)]
+    path.write_text("1 2 3", encoding="utf-8")
+    with pytest.raises(ValueError, match="line 1"):
+        read_sites(path)
+
+
+def test_export_preserves_order_duplicates_and_infinite_edges(tmp_path):
+    d = construct([(0, 0), (1, 0), (0, 1), (0, 0)])
+    write_csv(d, tmp_path / "cells.csv")
+    write_json(d, tmp_path / "diagram.json")
+    payload = json.loads((tmp_path / "diagram.json").read_text())
+    assert payload["cells"][0]["input_indices"] == [0, 3]
+    assert any(e["kind"] == "ray" and e["direction"] for e in payload["edges"])
+    rows = list(csv.DictReader((tmp_path / "cells.csv").open()))
+    first = [r for r in rows if r["cell"] == "0"]
+    assert [int(r["vertex_order"]) for r in first] == list(range(len(first)))
+    assert (first[-1]["next_x"], first[-1]["next_y"]) == (first[0]["x"], first[0]["y"])
+
+
+def test_batch_cli_exports_and_seed(tmp_path, capsys):
+    assert random_sites(10, 19) == random_sites(10, 19)
+    image = tmp_path / "result.png"
+    assert (
+        main(
+            [
+                "--random",
+                "12",
+                "--seed",
+                "19",
+                "--output",
+                str(image),
+                "--csv",
+                str(tmp_path / "cells.csv"),
+            ]
+        )
+        == 0
+    )
+    assert image.read_bytes().startswith(b"\x89PNG")
+    assert json.loads(capsys.readouterr().out)["cells"] == 12
+    assert main(["--random", "0"]) == 2
+
+
+def test_interactive_callbacks_compute_clear_and_export(tmp_path):
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    from fortune.interactive import InteractiveController
+
+    fig = Figure()
+    FigureCanvasAgg(fig)
+    axes = fig.subplots()
+    ui = InteractiveController(fig, axes, output=str(tmp_path / "interactive.png"))
+    ui.compute()
+    for x, y in ((0.2, 0.2), (0.8, 0.2), (0.5, 0.8)):
+        ui.click(
+            SimpleNamespace(inaxes=axes, button=1, xdata=x, ydata=y, dblclick=False)
+        )
+    ui.click(
+        SimpleNamespace(inaxes=axes, button=1, xdata=0.5, ydata=0.8, dblclick=True)
+    )
+    assert ui.diagram is not None and len(ui.diagram.cells) == 3
+    ui.export()
+    assert (tmp_path / "interactive.csv").exists()
+    ui.clear()
+    assert not ui.sites and ui.diagram is None
+
+
+==============================================================================
+tests\validation.py
+==============================================================================
+"""Independent O(n) / O(n^2) validators; never imported by the algorithm."""
+
+import math
+import random
+
+from fortune.geometry import Point, polygon_area
+
+
+def contains(polygon, p, tolerance=2e-10):
+    if len(polygon) < 3:
+        return False
+    if (
+        p.x < min(v.x for v in polygon) - tolerance
+        or p.x > max(v.x for v in polygon) + tolerance
+        or p.y < min(v.y for v in polygon) - tolerance
+        or p.y > max(v.y for v in polygon) + tolerance
+    ):
+        return False
+    coordinate_ulp = math.ulp(max(max(abs(v.x), abs(v.y)) for v in polygon))
+    # Clipped cells are convex and ordered counterclockwise.
+    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+        cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+        # Very short exported edges suffer endpoint subtraction error; the
+        # cross-product uncertainty depends on coordinate ULP, not just length.
+        ulp = coordinate_ulp
+        uncertainty = 8 * ulp * (abs(p.x - a.x) + abs(p.y - a.y))
+        if cross < -tolerance * max(1e-30, a.distance(b)) - uncertainty:
+            return False
+    return True
+
+
+def validate_cells(diagram, queries=300, seed=42):
+    box, rng = diagram.box, random.Random(seed)
+    scale = max(box.xmax - box.xmin, box.ymax - box.ymin)
+    area = sum(polygon_area(c.vertices) for c in diagram.cells)
+    assert math.isclose(
+        area,
+        (box.xmax - box.xmin) * (box.ymax - box.ymin),
+        rel_tol=2e-8,
+        abs_tol=1e-11 * scale**2,
+    ), ("area", area)
+    for _ in range(queries):
+        p = Point(rng.uniform(box.xmin, box.xmax), rng.uniform(box.ymin, box.ymax))
+        owners = [
+            c.site for c in diagram.cells if contains(c.vertices, p, 1e-10 * scale)
+        ]
+        distances = [p.distance(s) for s in diagram.sites]
+        nearest = min(distances)
+        assert owners, ("hole", p)
+        assert all(distances[i] <= nearest + 1e-8 * scale for i in owners), (
+            "owner",
+            p,
+            owners,
+        )
+
+
+def validate_empty_circles(diagram):
+    for vertex in diagram.vertices:
+        ds = [vertex.point.distance(p) for p in diagram.sites]
+        defining = [ds[i] for i in vertex.defining]
+        r = defining[0]
+        # Exporting normalized results back near 1e9 necessarily rounds to a
+        # world-coordinate ULP (~1e-7). Include that representational error.
+        coordinate_ulp = math.ulp(max(abs(vertex.point.x), abs(vertex.point.y)))
+        tolerance = 1e-8 * max(1, r) + 8 * coordinate_ulp
+        assert max(defining) - min(defining) <= tolerance, ("equidistance", vertex)
+        assert min(ds) >= r - tolerance, ("nonempty", vertex, min(ds), r)
+
+
+==============================================================================
+tools\benchmark.py
+==============================================================================
+"""Reproducible timing plus isolated Python-allocation/Windows RSS measurements."""
+
+import argparse
+import csv
+import ctypes
+import gc
+import json
+from pathlib import Path
+import platform
+import statistics
+import subprocess
+import sys
+import time
+import tracemalloc
+from datetime import datetime, timezone, timedelta
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from fortune import construct, Box
+from fortune.io import random_sites
+
+
+def windows_memory():
+    if sys.platform != "win32":
+        return {}
+    from ctypes import wintypes
+
+    class Counters(ctypes.Structure):
+        _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
+            (name, ctypes.c_size_t)
+            for name in (
+                "PeakWorkingSetSize",
+                "WorkingSetSize",
+                "QuotaPeakPagedPoolUsage",
+                "QuotaPagedPoolUsage",
+                "QuotaPeakNonPagedPoolUsage",
+                "QuotaNonPagedPoolUsage",
+                "PagefileUsage",
+                "PeakPagefileUsage",
+            )
+        ]
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    psapi.GetProcessMemoryInfo.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(Counters),
+        wintypes.DWORD,
+    ]
+    counters = Counters()
+    counters.cb = ctypes.sizeof(counters)
+    if not psapi.GetProcessMemoryInfo(
+        kernel.GetCurrentProcess(), ctypes.byref(counters), counters.cb
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return dict(
+        process_peak_rss_bytes=counters.PeakWorkingSetSize,
+        process_working_set_bytes=counters.WorkingSetSize,
+    )
+
+
+def memory_sample(n, seed):
+    points = random_sites(n, seed)
+    gc.collect()
+    tracemalloc.start()
+    d = construct(points, Box(0, 0, 1, 1))
+    current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    return dict(
+        n=n,
+        python_peak_bytes=peak,
+        python_retained_bytes=current,
+        cells=len(d.cells),
+        **windows_memory(),
+    )
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--sizes", type=int, nargs="+", default=[100, 1000, 10000])
+    p.add_argument("--repeat", type=int, default=3)
+    p.add_argument("--seed", type=int, default=2026)
+    p.add_argument("--memory-child", type=int)
+    p.add_argument("--out", default=str(ROOT / "results"))
+    args = p.parse_args()
+    if args.memory_child:
+        print(json.dumps(memory_sample(args.memory_child, args.seed)))
+        return
+    if args.repeat < 1 or min(args.sizes) < 1:
+        p.error("Sizes and repetition count must be positive")
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    rows, raw = [], []
+    construct(random_sites(40, args.seed), Box(0, 0, 1, 1))
+    for n in args.sizes:
+        points = random_sites(n, args.seed)
+        elapsed = []
+        for repetition in range(args.repeat):
+            gc.collect()
+            started = time.perf_counter()
+            d = construct(points, Box(0, 0, 1, 1))
+            seconds = time.perf_counter() - started
+            elapsed.append(seconds)
+            raw.append(
+                dict(
+                    n=n,
+                    repetition=repetition,
+                    seconds=seconds,
+                    sweep_seconds=d.statistics["sweep_seconds"],
+                    vertices=len(d.vertices),
+                    edges=len(d.edges),
+                )
+            )
+            del d
+        memory = json.loads(
+            subprocess.check_output(
+                [
+                    sys.executable,
+                    __file__,
+                    "--memory-child",
+                    str(n),
+                    "--seed",
+                    str(args.seed),
+                ],
+                text=True,
+            )
+        )
+        row = dict(
+            median_seconds=statistics.median(elapsed),
+            min_seconds=min(elapsed),
+            max_seconds=max(elapsed),
+            **memory,
+        )
+        rows.append(row)
+        print(json.dumps(row), flush=True)
+    meta = dict(
+        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        python=sys.version,
+        platform=platform.platform(),
+        machine=platform.machine(),
+        processor=platform.processor(),
+        seed=args.seed,
+        repetitions=args.repeat,
+        timing_scope="deduplication, normalization, Fortune sweep, clipping, cell/edge assembly; excludes input generation, plotting, validation and export",
+        memory_method="fresh subprocess per size; tracemalloc starts after input generation; process RSS includes interpreter and tracing overhead",
+        results=rows,
+        raw_timings=raw,
+    )
+    (out / "benchmark.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    with (out / "benchmark.csv").open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
+tools\build_report.py
+==============================================================================
+"""Build the editable Markdown report as a searchable A4 Times New Roman PDF.
+
+Supports the small, explicit Markdown subset used by report/report.md. Emits
+page budgets for layout review; does not silently shrink body text to fit.
+"""
+
+from pathlib import Path
+import os
+import re
+from xml.sax.saxutils import escape
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    PageBreak,
+    Image,
+    Preformatted,
+    Table,
+    TableStyle,
+)
+from reportlab.lib.utils import ImageReader
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "report" / "report.md"
+OUT = ROOT / "report" / "report.pdf"
+WIDTH = A4[0] - 5 * cm - 12
+HEIGHT = A4[1] - 5 * cm - 12
+
+
+def register_fonts():
+    directory = Path(os.environ.get("FORTUNE_TNR_DIR", r"C:\Windows\Fonts"))
+    for name, filename in [
+        ("TNR", "times.ttf"),
+        ("TNR-Bold", "timesbd.ttf"),
+        ("TNR-Italic", "timesi.ttf"),
+    ]:
+        pdfmetrics.registerFont(TTFont(name, str(directory / filename)))
+    pdfmetrics.registerFontFamily(
+        "TNR", normal="TNR", bold="TNR-Bold", italic="TNR-Italic", boldItalic="TNR-Bold"
+    )
+
+
+def markup(text):
+    return re.sub(r"`([^`]+)`", r'<font name="Courier">\1</font>', escape(text))
+
+
+def page_flowables(text, cover=False):
+    normal = ParagraphStyle(
+        "Body",
+        fontName="TNR",
+        fontSize=12,
+        leading=18,
+        spaceAfter=7,
+        splitLongWords=True,
+    )
+    heading = ParagraphStyle(
+        "Heading",
+        parent=normal,
+        fontName="TNR-Bold",
+        fontSize=16,
+        leading=21,
+        spaceAfter=12,
+        keepWithNext=True,
+    )
+    sub = ParagraphStyle(
+        "Sub", parent=heading, fontSize=13, leading=18, spaceBefore=3, spaceAfter=8
+    )
+    caption = ParagraphStyle("Caption", parent=normal, spaceBefore=3, spaceAfter=10)
+    centre = ParagraphStyle("Cover", parent=normal, alignment=TA_CENTER, spaceAfter=22)
+    title = ParagraphStyle(
+        "Title",
+        parent=centre,
+        fontName="TNR-Bold",
+        fontSize=23,
+        leading=29,
+        spaceAfter=36,
+    )
+    code = ParagraphStyle(
+        "Code", fontName="Courier", fontSize=9, leading=12, spaceBefore=4, spaceAfter=10
+    )
+    elements = []
+    lines = text.strip().splitlines()
+    i = 0
+    if cover:
+        elements.append(Spacer(1, 110))
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+        if line.startswith("```"):
+            block = []
+            i += 1
+            while i < len(lines) and not lines[i].startswith("```"):
+                block.append(lines[i])
+                i += 1
+            elements.append(Preformatted("\n".join(block), code))
+            i += 1
+            continue
+        if line.startswith("|"):
+            rows = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                parts = [p.strip() for p in lines[i].strip().strip("|").split("|")]
+                if not all(re.fullmatch(r"[-: ]+", p) for p in parts):
+                    rows.append([Paragraph(markup(p), normal) for p in parts])
+                i += 1
+            count = len(rows[0])
+            widths = (
+                [WIDTH * 0.38, WIDTH * 0.62]
+                if count == 2
+                else [WIDTH * 0.62, WIDTH * 0.15, WIDTH * 0.23]
+                if count == 3
+                else [WIDTH / count] * count
+            )
+            table = Table(rows, colWidths=widths, repeatRows=1, hAlign="LEFT")
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EBF0")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            elements.extend([table, Spacer(1, 5)])
+            continue
+        image = re.fullmatch(r"!\[([^]]+)\]\(([^)]+)\)", line)
+        if image:
+            path = (SOURCE.parent / image.group(2)).resolve()
+            w, h = ImageReader(str(path)).getSize()
+            target = min(WIDTH, 420)
+            elements.append(Image(str(path), width=target, height=target * h / w))
+            elements.append(Paragraph(markup(image.group(1)), caption))
+            i += 1
+            continue
+        if line.startswith("# "):
+            elements.append(Paragraph(markup(line[2:]), title if cover else heading))
+            i += 1
+            continue
+        if line.startswith("## "):
+            elements.append(Paragraph(markup(line[3:]), sub))
+            i += 1
+            continue
+        paragraph = [line]
+        i += 1
+        while (
+            i < len(lines)
+            and lines[i].strip()
+            and not lines[i].startswith(("#", "|", "```", "!["))
+        ):
+            paragraph.append(lines[i].strip())
+            i += 1
+        elements.append(
+            Paragraph(markup(" ".join(paragraph)), centre if cover else normal)
+        )
+    return elements
+
+
+def footer(canvas, doc):
+    if doc.page == 1:
+        return
+    canvas.saveState()
+    canvas.setFont("TNR", 10)
+    canvas.drawCentredString(A4[0] / 2, 1.3 * cm, str(doc.page - 1))
+    canvas.restoreState()
+
+
+def main():
+    register_fonts()
+    pages = SOURCE.read_text(encoding="utf-8").split("<!-- PAGE -->")
+    story = []
+    budgets = []
+    for number, text in enumerate(pages):
+        items = page_flowables(text, cover=number == 0)
+        height = sum(
+            f.wrap(WIDTH, 100000)[1]
+            + getattr(f, "getSpaceBefore", lambda: 0)()
+            + getattr(f, "getSpaceAfter", lambda: 0)()
+            for f in items
+        )
+        # Modest figure resizing is allowed; body text always stays 12/18.
+        images = [f for f in items if isinstance(f, Image)]
+        if height > HEIGHT and images:
+            reduction = min(
+                height - HEIGHT + 8, sum(im.drawHeight for im in images) * 0.25
+            )
+            for im in images:
+                factor = 1 - reduction / sum(item.drawHeight for item in images)
+                im.drawWidth *= factor
+                im.drawHeight *= factor
+            height = sum(
+                f.wrap(WIDTH, 100000)[1]
+                + getattr(f, "getSpaceBefore", lambda: 0)()
+                + getattr(f, "getSpaceAfter", lambda: 0)()
+                for f in items
+            )
+        budgets.append(
+            dict(
+                source_page=number + 1,
+                height_points=round(height, 1),
+                available=round(HEIGHT, 1),
+            )
+        )
+        if height > HEIGHT + 1:
+            raise RuntimeError(
+                f"Page {number + 1} exceeds budget: {height:.1f} > {HEIGHT:.1f}; edit prose/layout"
+            )
+        if number:
+            story.append(PageBreak())
+        story.extend(items)
+    doc = SimpleDocTemplate(
+        str(OUT),
+        pagesize=A4,
+        topMargin=2.5 * cm,
+        bottomMargin=2.5 * cm,
+        leftMargin=2.5 * cm,
+        rightMargin=2.5 * cm,
+        title="Fortune Sweep Line Voronoi Diagrams",
+        author="broccolize",
+    )
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    import json
+
+    (ROOT / "evidence" / "report-layout.json").write_text(
+        json.dumps(budgets, indent=2), encoding="utf-8"
+    )
+    listing = []
+    sources = []
+    for name in ("src", "tests", "tools"):
+        sources.extend((ROOT / name).rglob("*.py"))
+    sources.extend(ROOT.glob("*.bat"))
+    sources.extend(ROOT.glob("*.sh"))
+    sources.extend(
+        [
+            ROOT / "pyproject.toml",
+            ROOT / "requirements.txt",
+            ROOT / ".github" / "workflows" / "tests.yml",
+        ]
+    )
+    for path in sorted(sources):
+        listing.extend(
+            [
+                "=" * 78,
+                str(path.relative_to(ROOT)),
+                "=" * 78,
+                path.read_text(encoding="utf-8"),
+                "",
+            ]
+        )
+    (ROOT / "report" / "source_listing.txt").write_text(
+        "\n".join(listing), encoding="utf-8"
+    )
+    print(f"Wrote {OUT}; {len(pages)} pages including cover and appendix")
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
+tools\clean_check.py
+==============================================================================
+"""Install and verify a clean Windows source copy without sharing its environment."""
+
+from pathlib import Path
+import json
+import os
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone, timedelta
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main():
+    target = (ROOT / "tmp" / "clean-check-final").resolve()
+    assert target.is_relative_to(ROOT / "tmp")
+    target.mkdir(parents=True, exist_ok=True)
+    for name in ("src", "tests", "examples"):
+        shutil.copytree(
+            ROOT / name,
+            target / name,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+    for name in (
+        "pyproject.toml",
+        "requirements.txt",
+        "install.bat",
+        "run.bat",
+        "test.bat",
+    ):
+        shutil.copy2(ROOT / name, target / name)
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    temporary = target / "temporary"
+    temporary.mkdir(exist_ok=True)
+    env["TEMP"] = env["TMP"] = str(temporary)
+    env["MPLBACKEND"] = "Agg"
+    env["MPLCONFIGDIR"] = str(target / "mplconfig")
+    python = target / ".venv" / "Scripts" / "python.exe"
+
+    def run(*args):
+        subprocess.run(args, cwd=target, env=env, check=True)
+
+    if not python.exists():
+        run(sys.executable, "-m", "venv", str(target / ".venv"))
+    run(str(python), "-m", "pip", "install", "-r", "requirements.txt")
+    run(str(python), "-m", "pip", "install", "--no-deps", "--force-reinstall", ".")
+    run(
+        str(python),
+        "-I",
+        "-c",
+        'import fortune;print("Installed package:",fortune.__file__)',
+    )
+    run(
+        str(python),
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp",
+        "pytest-temp",
+        "--junitxml",
+        str(ROOT / "evidence" / "clean-install-tests.xml"),
+    )
+    run(
+        str(python),
+        "-I",
+        "-m",
+        "fortune",
+        "--input",
+        "examples/sites.txt",
+        "--bbox",
+        "0",
+        "0",
+        "1",
+        "1",
+        "--output",
+        "clean.png",
+        "--csv",
+        "clean.csv",
+        "--json",
+        "clean.json",
+    )
+    for name in ("clean.png", "clean.csv", "clean.json"):
+        assert (target / name).stat().st_size > 0
+    result = dict(
+        status="passed",
+        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        separate_environment=True,
+        wheel_install=True,
+        installed_import_isolated=True,
+        batch_outputs=["clean.png", "clean.csv", "clean.json"],
+    )
+    (ROOT / "evidence" / "clean-install-summary.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
+tools\commit_milestone.py
+==============================================================================
+"""Commit selected paths using the owner's personal-project milestone date.
+
+Usage: python tools/commit_milestone.py DATE MESSAGE -- path ...
+Repository identity must already be configured locally. No remote is contacted.
+"""
+
+from datetime import date
+import os
+import subprocess
+import sys
+
+
+def main():
+    day, message, separator, *paths = sys.argv[1:]
+    date.fromisoformat(day)
+    if separator != "--" or not paths:
+        raise SystemExit("Expected DATE MESSAGE -- path ...")
+    subprocess.run(["git", "add", "--", *paths], check=True)
+    env = os.environ.copy()
+    env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = day + "T12:00:00+08:00"
+    subprocess.run(["git", "commit", "-m", message], check=True, env=env)
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
+tools\make_figures.py
+==============================================================================
+"""Reproduce all original program and explanatory figures from recorded data."""
+
+import json
+import math
+import os
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+os.environ.setdefault("MPLCONFIGDIR", str(ROOT / "tmp" / "matplotlib"))
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+from fortune import construct, Box
+from fortune.geometry import Point, parabola_y
+from fortune.io import read_sites, random_sites, write_csv, write_json
+from fortune.visualize import draw, render
+
+OUT = ROOT / "figures"
+
+
+def main():
+    OUT.mkdir(exist_ok=True)
+    d = construct(read_sites(ROOT / "examples" / "sites.txt"), Box(0, 0, 1, 1))
+    render(d, OUT / "general.png")
+    render(d, ROOT / "examples" / "general.svg")
+    write_csv(d, ROOT / "examples" / "cells.csv")
+    write_json(d, ROOT / "examples" / "diagram.json")
+    large = construct(random_sites(1000, 2026), Box(0, 0, 1, 1))
+    render(large, OUT / "large.png", labels=False)
+    cases = [
+        ("Horizontal collinear", [(i, 0) for i in range(5)]),
+        ("Vertical collinear", [(0, i) for i in range(5)]),
+        ("Slanted collinear", [(i, 2 * i) for i in range(5)]),
+        ("Cocircular square", [(0, 0), (1, 0), (1, 1), (0, 1)]),
+        ("Duplicate index groups", [(0, 0), (1, 0), (0, 1), (0, 0)]),
+        (
+            "Near sites 1e-11 apart",
+            [(0, 0), (1e-11, 1e-11), (1, 0), (0.3, 0.7), (0, 1)],
+        ),
+        ("Single site", [(0, 0)]),
+        ("Two sites", [(0, 0), (1, 1)]),
+    ]
+    for half in range(2):
+        fig, axes = plt.subplots(2, 2, figsize=(10, 9))
+        for ax, (title, points) in zip(axes.flat, cases[half * 4 : half * 4 + 4]):
+            draw(construct(points), ax)
+            ax.set_title(title, fontsize=12)
+            ax.xaxis.set_major_locator(MaxNLocator(3))
+            ax.yaxis.set_major_locator(MaxNLocator(3))
+            width = ax.get_xlim()[1] - ax.get_xlim()[0]
+            height = ax.get_ylim()[1] - ax.get_ylim()[0]
+            if width / height < 0.3:
+                ax.set_xticks([points[0][0]])
+            if height / width < 0.3:
+                ax.set_yticks([points[0][1]])
+        fig.tight_layout()
+        fig.savefig(OUT / f"degenerate-{half + 1}.png", dpi=160)
+        plt.close(fig)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    boxes = [
+        (0.02, 0.6, "Input and exact duplicates"),
+        (0.35, 0.6, "Fortune sweep\nAVL arcs and event heap"),
+        (0.69, 0.6, "Adjacency and traced edges"),
+        (0.35, 0.12, "Angle sorted half planes\nBox clipping and ordered cells"),
+        (0.71, 0.12, "CLI and Matplotlib\nCSV JSON PNG SVG"),
+    ]
+    for x, y, label in boxes:
+        ax.add_patch(
+            plt.Rectangle((x, y), 0.27, 0.22, facecolor="#e9eff9", edgecolor="#355070")
+        )
+        ax.text(x + 0.135, y + 0.11, label, ha="center", va="center", fontsize=11)
+    for start, end in [
+        ((0.29, 0.71), (0.35, 0.71)),
+        ((0.62, 0.71), (0.69, 0.71)),
+        ((0.82, 0.6), (0.5, 0.34)),
+        ((0.62, 0.23), (0.71, 0.23)),
+    ]:
+        ax.annotate("", xy=end, xytext=start, arrowprops=dict(arrowstyle="->", lw=1.5))
+    ax.text(
+        0.02,
+        0.07,
+        "Independent tests validate output; no validator is used to build the diagram.",
+        fontsize=10,
+    )
+    ax.set(xlim=(0, 1), ylim=(0, 1))
+    ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(OUT / "architecture.png", dpi=160)
+    plt.close(fig)
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    points = [Point(-0.6, 0.8), Point(0.2, 0.6), Point(0.75, 1.0)]
+    ly = -0.2
+    xs = [-1.2 + i * 2.4 / 700 for i in range(701)]
+    curves = [[parabola_y(p, x, ly) for x in xs] for p in points]
+    for i, (p, ys) in enumerate(zip(points, curves)):
+        ax.plot(xs, ys, alpha=0.4)
+        ax.scatter(p.x, p.y, c="black")
+        ax.annotate(f"p{i}", (p.x, p.y), xytext=(5, 5), textcoords="offset points")
+    ax.plot(
+        xs,
+        [min(values) for values in zip(*curves)],
+        lw=2.5,
+        c="#1f4e79",
+        label="Beach line lower envelope",
+    )
+    ax.axhline(ly, c="#b42318", ls="--", label="Sweep directrix")
+    ax.set(xlim=(-1.2, 1.2), ylim=(-0.4, 1.5), xlabel="x", ylabel="y")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(OUT / "beachline.png", dpi=160)
+    plt.close(fig)
+    data = json.loads((ROOT / "results" / "benchmark.json").read_text())["results"]
+    ns = [row["n"] for row in data]
+    ts = [row["median_seconds"] for row in data]
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].loglog(ns, ts, "o-", label="Measured median, 3 runs")
+    axes[0].loglog(
+        ns,
+        [ts[0] * n * math.log2(n) / (ns[0] * math.log2(ns[0])) for n in ns],
+        "--",
+        label="n log2 n, anchored at 100",
+    )
+    axes[0].set(
+        xlabel="Sites n", ylabel="Construction time (seconds)", title="Time scaling"
+    )
+    axes[0].legend(fontsize=9)
+    axes[1].loglog(
+        ns,
+        [r["python_peak_bytes"] / 2**20 for r in data],
+        "o-",
+        label="Traced Python peak",
+    )
+    axes[1].loglog(
+        ns,
+        [r["process_peak_rss_bytes"] / 2**20 for r in data],
+        "s-",
+        label="Process peak with tracer",
+    )
+    axes[1].set(
+        xlabel="Sites n",
+        ylabel="Peak memory (MiB)",
+        title="Memory in isolated processes",
+    )
+    axes[1].legend(fontsize=9)
+    for ax in axes:
+        ax.grid(True, which="both", alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(OUT / "scaling.png", dpi=180)
+    plt.close(fig)
+    print("Wrote original figures, SVG example, CSV and JSON exports")
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
+tools\package_project.py
+==============================================================================
+"""Assemble the requested review ZIP without including environments or credentials."""
+
+from datetime import datetime, timezone, timedelta
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+from zipfile import ZipFile, ZIP_DEFLATED
+
+ROOT = Path(__file__).resolve().parents[1]
+
+ROOT_README = r"""FORTUNE SWEEP VORONOI
+Personal project, evaluated against the supplied course specification.
+
+WINDOWS QUICK START
+Install Python 3.12+ x64 (3.14.7 was tested) with Python on PATH.
+Open 02_SourceCode and run install.bat once, then:
+  run.bat --input examples\sites.txt --bbox 0 0 1 1 --output output\demo.png --csv output\cells.csv --json output\diagram.json
+  run.bat --interactive
+  test.bat -q
+The launcher 03_Executable\run.bat calls the same source implementation.
+Internet is required for the first pinned dependency installation.
+
+REPRODUCE RESULTS FROM 02_SourceCode
+  .venv\Scripts\python tools\stress.py
+  .venv\Scripts\python tools\benchmark.py --sizes 100 1000 10000 --repeat 3 --seed 2026
+  .venv\Scripts\python tools\make_figures.py
+To rebuild the report, install report\requirements.txt and run tools\build_report.py.
+The report builder uses the Windows Times New Roman fonts.
+See 02_SourceCode\README.md for Linux/WSL instructions, output schema and limits.
+
+PACKAGE CONTENTS
+01_Report: searchable PDF, editable Markdown, source listing, report dependencies.
+02_SourceCode: complete source, build/run files, docs, tests and measured evidence.
+03_Executable: Windows run-script entry point and pinned dependency list.
+04_Demo: input/output examples, narrated script and recording checklist.
+tests: independent test suite (also included inside the self-contained source tree).
+devlog.md: actual verification process and corrections.
+completeness.json: required files, owner evidence and source revision.
+
+REVIEW STATUS
+The AI-produced software and report have executable evidence. Owner review,
+subscription-plan confirmation, two authentic AI interaction screenshots and the
+personally narrated video remain required unless completeness.json says present.
+No video or AI conversation screenshot has been fabricated. Read REVIEW_CHECKLIST.md.
+PERSONAL in the ZIP name is a personal-project identifier, not a student number.
+For a real course submission replace it with the actual required identity and
+follow that course's submission rules. No email is sent by these scripts.
+"""
+
+
+def main():
+    stage = ROOT / "submission"
+    stage.mkdir(exist_ok=True)
+    files = set()
+
+    def copy(source, relative):
+        destination = stage / relative
+        assert destination.resolve().is_relative_to(stage.resolve())
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        files.add(destination)
+
+    def write(relative, text):
+        destination = stage / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(text, encoding="utf-8")
+        files.add(destination)
+
+    def tree(source, relative):
+        for path in sorted(source.rglob("*")):
+            if path.is_file() and not any(
+                p in ("__pycache__", ".pytest_cache", ".venv", "tmp")
+                for p in path.parts
+            ):
+                copy(path, Path(relative) / path.relative_to(source))
+
+    for directory in (
+        "src",
+        "tests",
+        "tools",
+        "docs",
+        "report",
+        "figures",
+        "results",
+        "evidence",
+        "examples",
+        "demo",
+        ".github",
+    ):
+        tree(ROOT / directory, Path("02_SourceCode") / directory)
+    for name in (
+        "README.md",
+        "REVIEW_CHECKLIST.md",
+        "devlog.md",
+        "owner-metadata.json",
+        "pyproject.toml",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "install.bat",
+        "run.bat",
+        "test.bat",
+        "run.sh",
+        ".gitignore",
+        ".gitattributes",
+    ):
+        copy(ROOT / name, Path("02_SourceCode") / name)
+    for name in ("report.pdf", "report.md", "source_listing.txt", "requirements.txt"):
+        copy(ROOT / "report" / name, Path("01_Report") / name)
+    tree(ROOT / "tests", "tests")
+    tree(ROOT / "examples", "04_Demo/examples")
+    tree(ROOT / "demo", "04_Demo")
+    copy(ROOT / "devlog.md", "devlog.md")
+    copy(ROOT / "REVIEW_CHECKLIST.md", "REVIEW_CHECKLIST.md")
+    copy(ROOT / "requirements.txt", "03_Executable/requirements.txt")
+    write("README.txt", ROOT_README)
+    write(
+        "03_Executable/run.bat",
+        '@echo off\nsetlocal\npushd "%~dp0..\\02_SourceCode"\ncall run.bat %*\nset "task_exit=%errorlevel%"\npopd\nexit /b %task_exit%\n',
+    )
+    write(
+        "03_Executable/README.txt",
+        "Windows entry point: run.bat --interactive or run.bat --input examples\\sites.txt --output output\\demo.png --csv output\\cells.csv. Dependencies install into 02_SourceCode/.venv on first use. Read the root README.txt.\n",
+    )
+    try:
+        revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+        gitlog = subprocess.check_output(
+            ["git", "log", "--date=iso-strict", "--pretty=fuller", "--stat"],
+            cwd=ROOT,
+            text=True,
+            encoding="utf-8",
+        )
+    except (OSError, subprocess.CalledProcessError):
+        revision = "unavailable"
+        gitlog = "Git unavailable; see included development log.\n"
+    write("02_SourceCode/git_log.txt", gitlog)
+    write(
+        "02_SourceCode/SOURCE_REVISION.json",
+        json.dumps({"git_commit": revision}, indent=2),
+    )
+    metadata = json.loads((ROOT / "owner-metadata.json").read_text(encoding="utf-8"))
+    required = [
+        "01_Report/report.pdf",
+        "01_Report/report.md",
+        "02_SourceCode/src/fortune/sweep.py",
+        "03_Executable/run.bat",
+        "04_Demo/script.md",
+        "tests/test_diagram.py",
+        "README.txt",
+        "devlog.md",
+    ]
+    missing = [p for p in required if not (stage / p).is_file()]
+    owner = dict(
+        subscription_plan=bool(metadata.get("subscription_plan")),
+        ai_screenshot_1=(ROOT / "evidence" / "ai-interaction-1.png").is_file(),
+        ai_screenshot_2=(ROOT / "evidence" / "ai-interaction-2.png").is_file(),
+        narrated_recording=(ROOT / "demo" / "walkthrough.mp4").is_file(),
+    )
+    manifest = dict(
+        generated_at=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        source_revision=revision,
+        missing_required_files=missing,
+        ai_artifacts_present=not missing,
+        owner_evidence_present=owner,
+        owner_review_required=not metadata.get("owner_review_complete", False),
+        complete_against_reference=not missing
+        and all(owner.values())
+        and metadata.get("owner_review_complete", False),
+        note="Review copy; file presence alone does not verify video duration, narration or screenshot authenticity.",
+    )
+    write("completeness.json", json.dumps(manifest, indent=2) + "\n")
+    dist = ROOT / "dist"
+    dist.mkdir(exist_ok=True)
+    archive = dist / "CG_Assignment_PERSONAL_broccolize.zip"
+    with ZipFile(archive, "w", compression=ZIP_DEFLATED, compresslevel=9) as out:
+        for path in sorted(files):
+            out.write(path, path.relative_to(stage).as_posix())
+    with ZipFile(archive) as check:
+        assert check.testzip() is None
+        assert all(
+            not p.startswith("/") and ".." not in Path(p).parts
+            for p in check.namelist()
+        )
+    audit = dict(
+        archive=archive.name,
+        bytes=archive.stat().st_size,
+        files=len(files),
+        sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        source_revision=revision,
+        required_files_present=not missing,
+        zip_crc_check="passed",
+        owner_evidence_present=owner,
+    )
+    (ROOT / "evidence" / "package-audit.json").write_text(
+        json.dumps(audit, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(audit, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
+tools\stress.py
+==============================================================================
+"""Independent stress validation, including every 10,000-site circle vertex.
+
+NumPy is used only as a validation utility to accelerate brute-force distance
+scans. It is not imported by the Fortune construction engine.
+"""
+
+import argparse
+import json
+from pathlib import Path
+import random
+import sys
+import time
+import traceback
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
+import numpy as np
+from fortune import construct, Box
+from validation import validate_cells, validate_empty_circles
+
+
+def check_all_vertices(diagram):
+    sites = np.array([(p.x, p.y) for p in diagram.sites])
+    for vertex in diagram.vertices:
+        distances = np.hypot(sites[:, 0] - vertex.point.x, sites[:, 1] - vertex.point.y)
+        defining = distances[list(vertex.defining)]
+        r = float(defining[0])
+        tol = 1e-8 * max(1, r)
+        assert float(defining.max() - defining.min()) <= tol, "equidistance"
+        assert float(distances.min()) >= r - tol, "nonempty circle"
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--seeds", type=int, default=300)
+    p.add_argument("--largest", type=int, default=10000)
+    args = p.parse_args()
+    started = time.perf_counter()
+    failures = []
+    checked = 0
+    for seed in range(args.seeds):
+        rng = random.Random(seed)
+        d = construct(
+            [(rng.random(), rng.random()) for _ in range(10 + seed % 80)],
+            Box(0, 0, 1, 1),
+        )
+        validate_cells(d, queries=25, seed=seed)
+        validate_empty_circles(d)
+        checked += 1
+    # More than one cluster seed prevents a fortunate single example from
+    # masquerading as a broad near-coincidence check.
+    for exponent in (10, 12):
+        for seed in range(20):
+            rng = random.Random(seed)
+            points = [(0, 0), (1, 0), (1, 1), (0, 1)] + [
+                (0.4 + 10**-exponent * rng.random(), 0.6 + 10**-exponent * rng.random())
+                for _ in range(6)
+            ]
+            try:
+                d = construct(points, debug=True)
+                validate_cells(d, queries=50, seed=seed)
+                validate_empty_circles(d)
+                checked += 1
+            except Exception as exc:
+                failures.append(
+                    dict(
+                        exponent=exponent,
+                        seed=seed,
+                        input=points,
+                        error=repr(exc),
+                        traceback=traceback.format_exc(),
+                    )
+                )
+    large = []
+    for n in (100, 1000, args.largest):
+        rng = random.Random(2026)
+        d = construct([(rng.random(), rng.random()) for _ in range(n)], Box(0, 0, 1, 1))
+        validate_cells(d, queries=100, seed=2026)
+        check_all_vertices(d)
+        large.append(dict(n=n, vertices_checked=len(d.vertices), cell_queries=100))
+    result = dict(
+        status="passed" if not failures else "failed",
+        random_configurations=args.seeds,
+        cluster_cases=40,
+        checked_configurations=checked,
+        queries_per_random=25,
+        largest_cases=large,
+        failures=failures,
+        seconds=time.perf_counter() - started,
+    )
+    (ROOT / "evidence" / "stress-final.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
+    print(json.dumps(result, indent=2))
+    return bool(failures)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

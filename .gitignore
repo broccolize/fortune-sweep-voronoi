@@ -12,6 +12,7 @@ __pycache__/
 # Build output and temporary working files
 build/
 dist/
+submission/
 tmp/
 .coverage
 htmlcov/
@@ -22,3 +23,5 @@ htmlcov/
 !.env.example
 
 # Final measured results, figures and evidence should be deliberately tracked.
+demo/*.mp4
+demo/*.gif

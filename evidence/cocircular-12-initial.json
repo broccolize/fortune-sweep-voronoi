@@ -1,0 +1,11 @@
+{
+  "observed_date": "2026-11-10",
+  "method": "manual construct and validation command, before hull-adjacency filtering",
+  "input_file": "examples/cocircular-12.txt",
+  "observed_vertices": 1,
+  "observed_clipped_edges": 17,
+  "expected_vertices": 1,
+  "expected_positive_length_edges": 12,
+  "source_state": "local working tree before the output-topology fix",
+  "note": "Area and sampled ownership passed, but five microscopic diagonals were incorrectly counted as edges. A regression assertion was added with the fix."
+}

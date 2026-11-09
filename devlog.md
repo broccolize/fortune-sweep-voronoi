@@ -56,3 +56,43 @@ limitations. Preserve raw outputs where they matter.
 - Report draft: all nine sections, actual plots/results and five problems;
   generated searchable PDF and inspected every initial rendered page. Layout
   revisions and final report/package verification are still being completed.
+
+## 10 November 2026 Stricter tiny-cell review and final measurements
+
+- Review added a requirement that every distinct in-box site retain a positive
+  cell containing that site. Two additional cluster cases failed despite earlier
+  sampled checks. The failing tiny-cell-initial.xml is retained.
+- Root causes: a distance cutoff deleted genuine short edges and rounded-centre
+  hashing merged distinct circle vertices. Replaced cleanup with exact rational
+  concurrence and vertex grouping with exact input-circle identities. Uncertain
+  half-plane order/membership also uses rational signs.
+- Added a fail-fast postcondition: construction cannot silently return a zero-area
+  cell for an in-box distinct site. Outside sites may legitimately clip away.
+- Current suite: 82 passing tests. Repeated 340-configuration stress and all
+  19,978 vertices at n=10000 passed. A fresh isolated package import, installed
+  wheel, 82-test suite and batch exports passed in the clean environment.
+- A transient isolated-build dependency resolution failure was retried successfully;
+  no claim is made that the failed attempt passed. Earlier fixture/path failures
+  are separately retained. Current clean summary is evidence/clean-install-summary.json.
+- Remeasured final code after the stronger checks; results/benchmark.json is the
+  current result, and benchmark-initial.json preserves the earlier version.
+- Desktop package metadata read from Windows: OpenAI.Codex 26.1029.7803.0;
+  the displayed app is ChatGPT and the owner reports model GPT-6.1. Plan is pending.
+- GitHub's first two CI runs completed successfully on Windows and Linux with
+  Python 3.12 and 3.14. The final revision will be pushed and checked as well.
+
+## 10 November 2026 Final topology and presentation checks
+
+- An exact twelve-site integer circle revealed 17 output edges instead of 12;
+  the manual count evidence is retained. Hull adjacency now identifies true
+  unbounded rays and removes redundant cocircular diagonals before clipping.
+  Exact circle keys also provide world-coordinate vertex centres directly.
+- The square regression additionally checks the exact twelve-site ring: one
+  vertex and twelve rays. The suite remains 82 parametrized tests and passes.
+- Reran full stress and performance after the final numerical/topology changes;
+  only the current benchmark.json values are used by the report and plots.
+- Formatted 27 Python files with Ruff 0.17.4 and checked format-only AST
+  equivalence. A separate safe import cleanup passed the configured lint rules
+  and the full 82-test suite. Runtime dependencies were not changed by formatting.
+- Prepared a personal narration script, recording checklist and code walkthrough.
+  Model metadata is recorded as owner-reported GPT-6.1, plan pending.

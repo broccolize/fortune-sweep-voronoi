@@ -9,7 +9,7 @@ project using the supplied course specification as its quality benchmark.
 
 ## Status
 
-- 81 automated tests pass on native Windows 11 / Python 3.14.7.
+- 82 automated tests pass on native Windows 11 / Python 3.14.7.
 - A separate clean environment installed all pinned dependencies, built the
   package, passed the same suite and produced batch PNG/CSV/JSON output.
 - 300 seeded random and 40 tight-cluster configurations passed independent checks.
@@ -89,8 +89,8 @@ test.bat --junitxml=evidence\tests-current.xml
 ```
 
 The benchmark uses separate timing and memory runs. The recorded medians are
-0.03265 / 0.38583 / 4.26340 seconds at 100 / 1,000 / 10,000 sites. Traced Python
-peaks are 0.69 / 7.37 / 65.08 MiB. Process RSS includes interpreter and tracing
+0.03294 / 0.40641 / 4.35665 seconds at 100 / 1,000 / 10,000 sites. Traced Python
+peaks are 0.70 / 7.38 / 65.08 MiB. Process RSS includes interpreter and tracing
 overhead. See results/benchmark.json for raw runs, exact scope and environment.
 Measurements vary by machine; these values are observations, not promised speed.
 
@@ -111,6 +111,10 @@ Figures are original generated outputs/diagrams. The native GUI capture is real.
 AI-interaction screenshots and the personal narration must be supplied by the owner.
 
 ## Architecture and limits
+
+Optional formatting tools are pinned in requirements-dev.txt. Run
+`python -m ruff format --check src tests tools` after installing that file.
+The final formatting pass was checked for abstract-syntax equivalence.
 
 The core imports no existing Voronoi/Delaunay implementation. Brute-force distance
 scans live only in tests and stress validation. Sweep-generated neighbours alone
