@@ -1,0 +1,17 @@
+{
+  "archive": "CG_Assignment_PERSONAL_broccolize.zip",
+  "bytes": 4108359,
+  "files": 134,
+  "sha256": "d3a242013d4dde1bbcbe13a906f1184970237fe1108676ff609fb4544566a101",
+  "source_revision": "73336949b7f28b78c3a55b345d05bdd36fdc53dc",
+  "required_files_present": true,
+  "zip_crc_check": "passed",
+  "owner_evidence_present": {
+    "subscription_plan": false,
+    "ai_screenshot_1": false,
+    "ai_screenshot_2": false,
+    "narrated_recording": false
+  },
+  "extracted_zip_launcher": "passed: first-run environment bootstrap and PNG/CSV/JSON generation",
+  "extracted_zip_tests": "82 passed"
+}

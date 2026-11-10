@@ -96,3 +96,22 @@ limitations. Preserve raw outputs where they matter.
   and the full 82-test suite. Runtime dependencies were not changed by formatting.
 - Prepared a personal narration script, recording checklist and code walkthrough.
   Model metadata is recorded as owner-reported GPT-6.1, plan pending.
+
+## 10 November 2026 Final artifact audit
+
+- Report: 19 searchable A4 pages, comprising cover, 16 body pages and two
+  appendix pages. Inspected every rendered page. Two crowded plot axes were
+  corrected; the other seventeen page images remained byte-identical and the
+  two revised pages were reinspected. PDF structure/font setup and page budgets
+  were checked. The raw audits are retained in evidence/.
+- Review ZIP: 134 files, 4,108,359 bytes, required folders present and CRC check
+  passed. SHA-256 and source revision are in evidence/package-audit.json.
+- Extracted that ZIP to a separate folder. Its 03_Executable launcher performed
+  first-run environment creation and pinned installation and generated PNG,
+  CSV and JSON. The extracted suite then passed all 82 tests in 3.95 seconds.
+- GitHub revision 7333694 passed all four Windows/Ubuntu Python 3.12/3.14 jobs.
+  See evidence/ci-final.json for the run and job conclusions.
+- AI production work is complete for owner review. Remaining personal items:
+  actual subscription-plan disclosure, two genuine prompt/response screenshots,
+  personal review and understanding, and an audible narrated recording under
+  five minutes. No placeholder screenshot or recording is presented as real.

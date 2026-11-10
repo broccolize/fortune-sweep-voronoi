@@ -1,0 +1,25 @@
+{
+  "run_id": 42794350532,
+  "head_sha": "73336949b7f28b78c3a55b345d05bdd36fdc53dc",
+  "status": "completed",
+  "conclusion": "success",
+  "url": "https://github.com/broccolize/fortune-sweep-voronoi/actions/runs/42794350532",
+  "jobs": [
+    {
+      "name": "test (windows-latest, 3.14)",
+      "conclusion": "success"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.12)",
+      "conclusion": "success"
+    },
+    {
+      "name": "test (windows-latest, 3.12)",
+      "conclusion": "success"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.14)",
+      "conclusion": "success"
+    }
+  ]
+}
