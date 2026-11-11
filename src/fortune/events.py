@@ -37,5 +37,18 @@ class EventQueue:
     def pop(self):
         return heapq.heappop(self._heap)[-1]
 
+    def peek(self):
+        """Inspect the next event without changing its heap priority."""
+        return self._heap[0][-1] if self._heap else None
+
+    def preview(self, limit=8):
+        """Read a bounded, priority-ordered view, including stale entries."""
+        if limit < 0:
+            raise ValueError("Preview limit must be nonnegative")
+        return [item[-1] for item in heapq.nsmallest(limit, self._heap)]
+
+    def __len__(self):
+        return len(self._heap)
+
     def __bool__(self):
         return bool(self._heap)

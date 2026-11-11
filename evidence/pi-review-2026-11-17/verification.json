@@ -1,0 +1,40 @@
+{
+  "pages": 19,
+  "body_pages": 16,
+  "changed_pages": [
+    1,
+    2,
+    4,
+    9,
+    16,
+    17,
+    19
+  ],
+  "pixel_identical_pages": [
+    3,
+    5,
+    6,
+    7,
+    8,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    18
+  ],
+  "a4_all_pages": true,
+  "searchable_text_and_disclosure_checked": true,
+  "layout_budgets_passed": true,
+  "pi_proposal_adopted_with_only_formatting": true,
+  "full_suite_tests": 86,
+  "failures": 0,
+  "errors": 0,
+  "visual_inspection": "Passed: all seven changed pages inspected; twelve unchanged pages pixel-identical to the previously reviewed PDF.",
+  "targeted_tests": 4,
+  "targeted_console_seconds": 0.33,
+  "full_suite_console_seconds": 5.43,
+  "ruff_check_src_tests": "passed",
+  "ruff_format_new_module": "passed"
+}

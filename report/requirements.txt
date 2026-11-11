@@ -1,3 +1,3 @@
-reportlab==4.4.9
+# Optional Python dependencies for PDF auditing; LaTeX compilation uses stdlib.
 pypdf==6.21.4
 Pillow==13.0.0

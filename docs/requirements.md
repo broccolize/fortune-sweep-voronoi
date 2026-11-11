@@ -2,7 +2,8 @@
 
 Source: official assignment specification supplied by the student. Checked items have implementation or artifact evidence. Unchecked items are
 optional, personal, or await final packaging/owner review. This is a personal
-project; student identity and actual email submission are not applicable.
+project evaluated against the specification. The owner supplied cover identity
+on 17 November 2026; no email submission has been made.
 
 ## Algorithm — Sections 3 and 4.1
 
@@ -60,22 +61,30 @@ project; student identity and actual email submission are not applicable.
 ## AI evidence — Section 5
 
 - [x] At least one mainstream/approved tool, no more than two tools.
-- [ ] Actual product/version/model/access mode and subscription or plan disclosed.
+- [x] Actual product/version/model/access mode and subscription or plan disclosed.
+  Owner-confirmed ChatGPT Plus and GPT-6.1; Pi 0.86.0 uses
+  openai-codex/gpt-6.1-sol with existing OAuth authentication. Its 17 November
+  contribution is separately recorded in the report and evidence register.
 - [x] Credible record of prompts, generated work, checks, corrections and decisions.
-- [ ] At least two authentic, legible substantive prompt-and-response screenshots.
+- [x] At least two authentic, legible substantive prompt-and-response screenshots.
+  Owner-supplied ChatGPT and Pi captures appear in Appendix B. Originals and
+  checksums are retained in evidence/; test/search outcomes are distinguished.
 - [x] Five genuine substantive problems, each with symptom, investigation,
   root cause, solution with excerpt/patch, verification and prevention/lesson.
-- [ ] Personal critical reflection grounded in actual experience.
+- [x] Personal critical reflection grounded in owner-supplied observations.
+  Notes and clarification are retained in docs/personal-reflection-notes.md;
+  owner review of the final report wording remains pending.
 
 ## Report — Section 6
 
-- [ ] Supplied cover adapted with real student details.
+- [x] Supplied cover fields adapted using the owner's name, student ID and course.
 - [x] English searchable PDF and editable `.md`, `.tex` or `.docx` source.
 - [x] A4, 2.5 cm margins, Times New Roman 12 pt, 1.5 line spacing.
 - [x] Numbered sections, figures/tables and captions; consistent cited references.
 - [x] At least ten body pages, excluding cover and appendices.
-- [x] At least six original figures/tables; include program screenshots,
-  architecture, AI evidence, test results and performance visuals.
+- [x] At least six original figures/tables: eight original technical figures and
+  five tables, plus six numbered evidence figures containing seven genuine
+  ChatGPT/Pi screenshots in Appendix B.
 - [x] 1 Introduction and theoretical background.
 - [x] 2 AI tools and development methodology.
 - [x] 3 Algorithm design and data structures.

@@ -1,252 +1,83 @@
-"""Build the editable Markdown report as a searchable A4 Times New Roman PDF.
+"""Compile editable LaTeX with native TeX or an existing WSL installation.
 
-Supports the small, explicit Markdown subset used by report/report.md. Emits
-page budgets for layout review; does not silently shrink body text to fit.
+LaTeX section files are authoritative; Markdown is never regenerated or read.
+Shell escape is disabled and actual compiler logs are retained.
 """
 
-from pathlib import Path
+import argparse
+import json
 import os
 import re
-from xml.sax.saxutils import escape
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import cm
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    PageBreak,
-    Image,
-    Preformatted,
-    Table,
-    TableStyle,
-)
-from reportlab.lib.utils import ImageReader
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "report" / "report.md"
-OUT = ROOT / "report" / "report.pdf"
-WIDTH = A4[0] - 5 * cm - 12
-HEIGHT = A4[1] - 5 * cm - 12
+REPORT = ROOT / "report"
+BUILD = ROOT / "tmp" / "latex-build"
 
 
-def register_fonts():
-    directory = Path(os.environ.get("FORTUNE_TNR_DIR", r"C:\Windows\Fonts"))
-    for name, filename in [
-        ("TNR", "times.ttf"),
-        ("TNR-Bold", "timesbd.ttf"),
-        ("TNR-Italic", "timesi.ttf"),
-    ]:
-        pdfmetrics.registerFont(TTFont(name, str(directory / filename)))
-    pdfmetrics.registerFontFamily(
-        "TNR", normal="TNR", bold="TNR-Bold", italic="TNR-Italic", boldItalic="TNR-Bold"
+def checked(command, *, cwd=None, timeout=300):
+    return subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        check=False,
     )
 
 
-def markup(text):
-    return re.sub(r"`([^`]+)`", r'<font name="Courier">\1</font>', escape(text))
+def select_engine(requested, distro):
+    names = [requested] if requested != "auto" else ["lualatex", "xelatex"]
+    if distro is None:
+        for name in names:
+            executable = shutil.which(name)
+            if (
+                executable
+                and checked([executable, "--version"], timeout=20).returncode == 0
+            ):
+                return executable, None
+        if os.name != "nt":
+            raise RuntimeError("Install LuaLaTeX or XeLaTeX, or specify --engine.")
+        distro = "Debian"
+    for name in names:
+        probe = checked(["wsl.exe", "-d", distro, "--", "which", name], timeout=30)
+        if probe.returncode == 0:
+            return name, distro
+    raise RuntimeError(f"No working LuaLaTeX/XeLaTeX found in WSL {distro}.")
 
 
-def page_flowables(text, cover=False):
-    normal = ParagraphStyle(
-        "Body",
-        fontName="TNR",
-        fontSize=12,
-        leading=18,
-        spaceAfter=7,
-        splitLongWords=True,
+def wsl_path(path, distro):
+    result = checked(
+        ["wsl.exe", "-d", distro, "--", "wslpath", "-u", str(path)], timeout=30
     )
-    heading = ParagraphStyle(
-        "Heading",
-        parent=normal,
-        fontName="TNR-Bold",
-        fontSize=16,
-        leading=21,
-        spaceAfter=12,
-        keepWithNext=True,
-    )
-    sub = ParagraphStyle(
-        "Sub", parent=heading, fontSize=13, leading=18, spaceBefore=3, spaceAfter=8
-    )
-    caption = ParagraphStyle("Caption", parent=normal, spaceBefore=3, spaceAfter=10)
-    centre = ParagraphStyle("Cover", parent=normal, alignment=TA_CENTER, spaceAfter=22)
-    title = ParagraphStyle(
-        "Title",
-        parent=centre,
-        fontName="TNR-Bold",
-        fontSize=23,
-        leading=29,
-        spaceAfter=36,
-    )
-    code = ParagraphStyle(
-        "Code", fontName="Courier", fontSize=9, leading=12, spaceBefore=4, spaceAfter=10
-    )
-    elements = []
-    lines = text.strip().splitlines()
-    i = 0
-    if cover:
-        elements.append(Spacer(1, 110))
-    while i < len(lines):
-        line = lines[i].strip()
-        if not line:
-            i += 1
-            continue
-        if line.startswith("```"):
-            block = []
-            i += 1
-            while i < len(lines) and not lines[i].startswith("```"):
-                block.append(lines[i])
-                i += 1
-            elements.append(Preformatted("\n".join(block), code))
-            i += 1
-            continue
-        if line.startswith("|"):
-            rows = []
-            while i < len(lines) and lines[i].strip().startswith("|"):
-                parts = [p.strip() for p in lines[i].strip().strip("|").split("|")]
-                if not all(re.fullmatch(r"[-: ]+", p) for p in parts):
-                    rows.append([Paragraph(markup(p), normal) for p in parts])
-                i += 1
-            count = len(rows[0])
-            widths = (
-                [WIDTH * 0.38, WIDTH * 0.62]
-                if count == 2
-                else [WIDTH * 0.62, WIDTH * 0.15, WIDTH * 0.23]
-                if count == 3
-                else [WIDTH / count] * count
-            )
-            table = Table(rows, colWidths=widths, repeatRows=1, hAlign="LEFT")
-            table.setStyle(
-                TableStyle(
-                    [
-                        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EBF0")),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 4),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ]
-                )
-            )
-            elements.extend([table, Spacer(1, 5)])
-            continue
-        image = re.fullmatch(r"!\[([^]]+)\]\(([^)]+)\)", line)
-        if image:
-            path = (SOURCE.parent / image.group(2)).resolve()
-            w, h = ImageReader(str(path)).getSize()
-            target = min(WIDTH, 420)
-            elements.append(Image(str(path), width=target, height=target * h / w))
-            elements.append(Paragraph(markup(image.group(1)), caption))
-            i += 1
-            continue
-        if line.startswith("# "):
-            elements.append(Paragraph(markup(line[2:]), title if cover else heading))
-            i += 1
-            continue
-        if line.startswith("## "):
-            elements.append(Paragraph(markup(line[3:]), sub))
-            i += 1
-            continue
-        paragraph = [line]
-        i += 1
-        while (
-            i < len(lines)
-            and lines[i].strip()
-            and not lines[i].startswith(("#", "|", "```", "!["))
-        ):
-            paragraph.append(lines[i].strip())
-            i += 1
-        elements.append(
-            Paragraph(markup(" ".join(paragraph)), centre if cover else normal)
-        )
-    return elements
+    if result.returncode:
+        raise RuntimeError(result.stdout)
+    return result.stdout.strip()
 
 
-def footer(canvas, doc):
-    if doc.page == 1:
-        return
-    canvas.saveState()
-    canvas.setFont("TNR", 10)
-    canvas.drawCentredString(A4[0] / 2, 1.3 * cm, str(doc.page - 1))
-    canvas.restoreState()
-
-
-def main():
-    register_fonts()
-    pages = SOURCE.read_text(encoding="utf-8").split("<!-- PAGE -->")
-    story = []
-    budgets = []
-    for number, text in enumerate(pages):
-        items = page_flowables(text, cover=number == 0)
-        height = sum(
-            f.wrap(WIDTH, 100000)[1]
-            + getattr(f, "getSpaceBefore", lambda: 0)()
-            + getattr(f, "getSpaceAfter", lambda: 0)()
-            for f in items
-        )
-        # Modest figure resizing is allowed; body text always stays 12/18.
-        images = [f for f in items if isinstance(f, Image)]
-        if height > HEIGHT and images:
-            reduction = min(
-                height - HEIGHT + 8, sum(im.drawHeight for im in images) * 0.25
-            )
-            for im in images:
-                factor = 1 - reduction / sum(item.drawHeight for item in images)
-                im.drawWidth *= factor
-                im.drawHeight *= factor
-            height = sum(
-                f.wrap(WIDTH, 100000)[1]
-                + getattr(f, "getSpaceBefore", lambda: 0)()
-                + getattr(f, "getSpaceAfter", lambda: 0)()
-                for f in items
-            )
-        budgets.append(
-            dict(
-                source_page=number + 1,
-                height_points=round(height, 1),
-                available=round(HEIGHT, 1),
-            )
-        )
-        if height > HEIGHT + 1:
-            raise RuntimeError(
-                f"Page {number + 1} exceeds budget: {height:.1f} > {HEIGHT:.1f}; edit prose/layout"
-            )
-        if number:
-            story.append(PageBreak())
-        story.extend(items)
-    doc = SimpleDocTemplate(
-        str(OUT),
-        pagesize=A4,
-        topMargin=2.5 * cm,
-        bottomMargin=2.5 * cm,
-        leftMargin=2.5 * cm,
-        rightMargin=2.5 * cm,
-        title="Fortune Sweep Line Voronoi Diagrams",
-        author="broccolize",
-    )
-    doc.build(story, onFirstPage=footer, onLaterPages=footer)
-    import json
-
-    (ROOT / "evidence" / "report-layout.json").write_text(
-        json.dumps(budgets, indent=2), encoding="utf-8"
-    )
-    listing = []
-    sources = []
-    for name in ("src", "tests", "tools"):
-        sources.extend((ROOT / name).rglob("*.py"))
-    sources.extend(ROOT.glob("*.bat"))
-    sources.extend(ROOT.glob("*.sh"))
-    sources.extend(
+def source_listing():
+    paths = []
+    for directory in ("src", "tests", "tools"):
+        paths.extend((ROOT / directory).rglob("*.py"))
+    paths.extend(ROOT.glob("*.bat"))
+    paths.extend(ROOT.glob("*.sh"))
+    paths.extend((ROOT / "tools").rglob("*.sh"))
+    paths.extend(REPORT.glob("*.bat"))
+    paths.extend(
         [
             ROOT / "pyproject.toml",
             ROOT / "requirements.txt",
-            ROOT / ".github" / "workflows" / "tests.yml",
+            ROOT / ".github/workflows/tests.yml",
         ]
     )
-    for path in sorted(sources):
+    listing = []
+    for path in sorted(paths):
         listing.extend(
             [
                 "=" * 78,
@@ -256,11 +87,130 @@ def main():
                 "",
             ]
         )
-    (ROOT / "report" / "source_listing.txt").write_text(
-        "\n".join(listing), encoding="utf-8"
+    (REPORT / "source_listing.txt").write_text("\n".join(listing), encoding="utf-8")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--engine", choices=["auto", "lualatex", "xelatex"], default="auto"
     )
-    print(f"Wrote {OUT}; {len(pages)} pages including cover and appendix")
+    parser.add_argument(
+        "--wsl", metavar="DISTRO", help="Compile in this WSL distribution"
+    )
+    args = parser.parse_args(argv)
+    BUILD.mkdir(parents=True, exist_ok=True)
+    engine, distro = select_engine(args.engine, args.wsl)
+    if distro:
+        report_path, build_path = wsl_path(REPORT, distro), wsl_path(BUILD, distro)
+        command = ["wsl.exe", "-d", distro, "--cd", report_path, "--"]
+        local_tex = ROOT / "tmp/tex-deps/tree/usr/share/texlive/texmf-dist"
+        cached_paths = ROOT / "tmp/tex-deps/wsl-paths.json"
+        if cached_paths.is_file():
+            local_paths = json.loads(cached_paths.read_text(encoding="utf-8"))
+            command.extend(
+                [
+                    "env",
+                    f"TEXMFHOME={local_paths['texmf_home']}",
+                    f"TEXMFVAR={local_paths['font_cache']}",
+                    f"TEXMFCACHE={local_paths['font_cache']}",
+                ]
+            )
+        elif local_tex.is_dir():
+            font_cache = ROOT / "tmp/latex-font-cache"
+            font_cache.mkdir(exist_ok=True)
+            local_path = wsl_path(local_tex, distro)
+            cache_path = wsl_path(font_cache, distro)
+            command.extend(
+                [
+                    "env",
+                    f"TEXMFHOME={local_path}",
+                    f"TEXMFVAR={cache_path}",
+                    f"TEXMFCACHE={cache_path}",
+                ]
+            )
+        command.append(engine)
+        bib_command = [
+            "wsl.exe",
+            "-d",
+            distro,
+            "--cd",
+            build_path,
+            "--",
+            "bibtex",
+            "report",
+        ]
+        build_option = build_path
+    else:
+        command = [engine]
+        bibtex = shutil.which("bibtex")
+        if not bibtex:
+            raise RuntimeError("BibTeX is required for the numbered references.")
+        bib_command = [bibtex, "report"]
+        build_option = str(BUILD)
+    command.extend(
+        [
+            "-interaction=nonstopmode",
+            "-halt-on-error",
+            "-file-line-error",
+            "-no-shell-escape",
+            "-synctex=1",
+            f"-output-directory={build_option}",
+            "report.tex",
+        ]
+    )
+    shutil.copy2(REPORT / "references.bib", BUILD / "references.bib")
+    logs = []
+
+    def run_stage(name, stage_command, cwd):
+        result = checked(stage_command, cwd=cwd)
+        (BUILD / f"{name}.log").write_text(result.stdout, encoding="utf-8")
+        logs.append(f"=== {name} ===\n{result.stdout}")
+        (ROOT / "evidence/report-build.log").write_text(
+            "\n".join(logs), encoding="utf-8"
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"{name} failed:\n" + "\n".join(result.stdout.splitlines()[-45:])
+            )
+        return result.stdout
+
+    run_stage("latex-pass-1", command, REPORT)
+    run_stage("bibtex", bib_command, BUILD)
+    run_stage("latex-pass-2", command, REPORT)
+    final_output = run_stage("latex-pass-3", command, REPORT)
+    if re.search(
+        r"(?:Citation .* undefined|There were undefined references)", final_output
+    ):
+        raise RuntimeError(
+            "Unresolved citations or references; see evidence/report-build.log"
+        )
+    pdf = BUILD / "report.pdf"
+    if not pdf.is_file():
+        raise RuntimeError("LaTeX did not produce report.pdf")
+    shutil.copy2(pdf, REPORT / "report.pdf")
+    source_listing()
+    summary = {
+        "source": "report/report.tex",
+        "editable_sections": "report/sections/",
+        "engine": Path(engine).name,
+        "wsl_distribution": distro,
+        "bibliography_style": "ieeetr",
+        "latex_passes": 3,
+        "shell_escape": False,
+        "overfull_box_warnings": len(re.findall(r"Overfull \\[hv]box", final_output)),
+        "pdf_bytes": pdf.stat().st_size,
+        "output": "report/report.pdf",
+    }
+    (ROOT / "evidence/report-build.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(1) from error

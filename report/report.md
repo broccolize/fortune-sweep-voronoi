@@ -1,12 +1,15 @@
 # Fortune Sweep Line Voronoi Diagrams
 
+> Legacy Markdown draft. The current editable report is report.tex and the
+> files under sections/. This file is no longer used to build report.pdf.
+
 Personal computational geometry project
 
 Author broccolize
 
 Implementation and validation report
 
-10 November 2026
+17 November 2026 revision
 
 Quality benchmark Northwestern Polytechnical University Computational Geometry major assignment specification
 
@@ -14,7 +17,7 @@ Quality benchmark Northwestern Polytechnical University Computational Geometry m
 
 # 1 Introduction and theoretical background
 
-This project constructs planar Voronoi diagrams from a finite set of point sites using a from-scratch Fortune sweep. The implementation includes a balanced beach line, event queue, circle-event invalidation, traced vertices and edges, clipped ordered cells, batch commands and a graphical interface. Independent tests check the geometry of the output rather than judging diagrams by appearance. At the time of this report, 82 automated tests pass and construction has been measured up to 10,000 sites on native Windows.
+This project constructs planar Voronoi diagrams from a finite set of point sites using a from-scratch Fortune sweep. The implementation includes a balanced beach line, event queue, circle-event invalidation, traced vertices and edges, clipped ordered cells, batch commands and a graphical interface. Independent tests check the geometry of the output rather than judging diagrams by appearance. At the time of this report, 86 automated tests pass and construction has been measured up to 10,000 sites on native Windows.
 
 For a site p, its cell contains every query q whose Euclidean distance to p is no greater than its distance to any other site. Each pairwise comparison defines a half-plane bounded by a perpendicular bisector. The intersection is convex and can extend to infinity. A rectangle turns its visible portion into a finite polygon, without changing which site owns any query inside that rectangle.
 
@@ -40,9 +43,9 @@ Degeneracies need explicit policies. Exact duplicates share one cell and retain 
 
 # 2 AI tools and development methodology
 
-The owner identifies the selected model as GPT-6.1 in the ChatGPT desktop app, Windows package OpenAI.Codex version 26.1029.7803.0. The subscription plan has not been supplied and must be completed before this report is treated as final disclosure. The actual coding work documented here was produced through this desktop assistant session. Pi 0.86.0 was inspected in Debian 13.7 on WSL 2; no Pi model session generated project code during the recorded work. This distinction avoids attributing contributions to a tool that was merely installed.
+The owner reports GPT-6.1 in the ChatGPT desktop app on ChatGPT Plus, confirmed on 17 November 2026. Windows metadata identifies package OpenAI.Codex 26.1029.7803.0. The initial implementation was generated through this desktop session. On 17 November, Pi 0.86.0 in Debian 13.7 / WSL 2 reviewed event invariants and generated four regression tests using openai-codex/gpt-6.1-sol with OAuth authentication. Its session metadata confirms the model. The desktop assistant reviewed and executed those tests; Pi had no tools. The genuine prompt, response and results are in evidence/pi-review-2026-11-17/.
 
-The AI contribution covered specification extraction, architecture choices, source generation, test design, diagnosis of genuine failures, performance measurements and report drafting. The owner supplied the project objectives, clarified the personal-project scope, selected the milestone schedule and provided the Git identity. The assignment is used as a quality benchmark rather than represented as an enrolled course submission.
+The AI work covered specification extraction, architecture, implementation, tests, debugging, measurements and report drafting. The owner defined the personal-project scope and milestone schedule, supplied the Git identity, ran the program and confirmed 82 passing tests before Pi's additions. The supplied assignment is a quality benchmark.
 
 | Development activity | Verification used |
 | --- | --- |
@@ -56,7 +59,7 @@ Table 1 Verification attached to AI generated work
 
 Prompts were followed by executable checks. The first complete cell suite had three failures. Tight-cluster stress cases then exposed further defects. These were investigated using actual inputs and raw error records; passing pictures were not accepted as sufficient evidence. The development log and problem register preserve what changed and why.
 
-Two authentic prompt-and-response screenshots remain owner-supplied evidence. None has been fabricated. The report source, raw tests and numeric results are already available; the screenshot requirement and personally narrated recording remain separate completion items. Git dates follow the owner's requested milestone schedule, while experiment files record actual execution metadata.
+Two genuine prompt-and-response screenshots and a personally narrated video remain owner tasks. The Pi transcript is authentic machine-readable evidence; it does not replace screenshots. Git dates follow the owner's milestone schedule; experiment files retain actual execution metadata.
 
 <!-- PAGE -->
 
@@ -149,13 +152,14 @@ Each CSV row gives one ordered vertex and the next endpoint, so closure is expli
 
 # 5 Testing and validation
 
-The automated suite contains 82 passing tests. A fixed seed and explicit inputs make failures reproducible. The tests use a different computation from the constructor: sample queries are located in constructed polygons and their owners are compared with a linear nearest-site scan. Merely returning a brute-force nearest neighbour from a diagram method would not validate the cells, so that shortcut is not used.
+The automated suite contains 86 passing tests, including four generated by Pi on 17 November 2026. Fixed seeds and explicit inputs make failures reproducible. Sample queries are located in constructed polygons and their owners are compared with an independent linear nearest-site scan. Returning a brute-force nearest neighbour from a diagram method would not validate the cells, so that shortcut is not used.
 
 | Test family | Cases | Result |
 | --- | --- | --- |
 | Geometry and singular limits | 11 | Pass |
 | AVL structure and search | 7 | Pass |
 | Queue and circle-event examples | 4 | Pass |
+| Pi event, identity and queue regressions | 4 | Pass |
 | Random cell configurations | 25 | Pass |
 | Degenerate and clipping families | 12 | Pass |
 | Repeatability, scale and invalid data | 5 | Pass |
@@ -166,7 +170,7 @@ Table 4 Automated results from evidence/tests-current.xml
 
 For every emitted circle vertex in the validation cases, distances to its defining sites are compared and all sites are checked for a strict interior point. Clipping corners are excluded from this property because they need not be centres of empty circles. The tests also compare total cell area with box area; this complements ownership sampling but cannot replace it, as the initial failures demonstrated.
 
-An additional 300 seeded configurations of 10 to 89 sites passed 25 ownership queries each and empty-circle checks; forty more clustered cases also passed. For 100, 1,000 and 10,000 sites, one hundred queries and every emitted circle vertex were independently checked, including 19,978 vertices at the largest size. A separate clean Windows environment installed the pinned dependencies, built the package, passed all 82 tests and generated batch exports. No external Voronoi implementation was used for validation. A separated reference comparison would strengthen future work.
+An additional 300 seeded configurations of 10 to 89 sites passed 25 ownership queries each and empty-circle checks; forty more clustered cases also passed. For 100, 1,000 and 10,000 sites, one hundred queries and every emitted circle vertex were independently checked, including 19,978 vertices at the largest size. On 10 November, a separate clean Windows environment installed the dependencies, built the package, passed the original 82 tests and generated batch exports. No external Voronoi implementation was used for validation. A separated reference comparison would strengthen future work.
 
 <!-- PAGE -->
 
@@ -279,13 +283,13 @@ Tenfold input increases produced time ratios about 12.34 and 10.72. The allocati
 
 # 8 Critical reflection on AI assisted programming
 
-The assistant was useful for translating the long specification into a concrete checklist, separating modules and rapidly producing executable tests. The AVL choice illustrates a productive interaction: the requirement was not merely to store arcs, but to justify logarithmic operations. Explicit tree and neighbour-link invariants made the proposed structure reviewable and produced tests that inspect actual state after thousands of mutations.
+The assistant helped translate the specification into modules and executable tests. The AVL choice required explicit tree and neighbour-link invariants to justify logarithmic operations and inspect state after thousands of mutations. Pi later contributed four targeted regressions for stale events, removed arcs, successor identity and exact queue ties. Its tests were reviewed and executed by the desktop assistant; Pi did not execute them.
 
 The first plausible output was not reliable enough. Later per-site checks also found missing microscopic cells that area and sampling had missed; exact concurrency and circle identities repaired that loss. Geometry and small sweep examples passed before full cells were tested. A later 59-pass, three-failure result exposed defects invisible in ordinary plots. Still later, tight clusters defeated numerical policies that seemed reasonable on normal-scale input. The assistant's initial treatment of a determinant filter as sufficient for centre accuracy was particularly misleading because the code returned finite, convincing coordinates. This is why code generation and correctness evidence must remain separate activities.
 
 Effective prompts paired a specific invariant with the actual failing input and output. Broad requests for robust geometry tended to produce unexplained tolerances. Relaxing validation did not cure the cluster holes; inspecting a corner beyond the box led to a construction fix. Executable evidence was more useful than an untested, polished explanation.
 
-Verification also needed independence. Nearest-site comparison would be circular if the tested operation simply performed the same brute-force scan as its oracle. Here the test derives ownership from output polygons and compares it with distances calculated separately. Empty-circle, area and structural checks cover different failure modes, and their disagreements helped isolate causes. None is claimed to establish universal correctness alone.
+Verification also needed independence. Nearest-site comparison would be circular if the tested operation performed the same brute-force scan as its oracle. Here the test derives ownership from output polygons and compares it with separately calculated distances. Empty-circle, area and structural checks cover different failure modes. Both AI tools used the GPT-6.1 family, so Pi's review is not an independent correctness oracle. None of these checks establishes universal correctness alone.
 
 For future work, the next priorities are certified predicates or interval error bounds, stronger randomized campaigns, a separated reference comparison and explicit tests for precision limits. Human review remains necessary: the owner should trace the code, reproduce results, add personal observations to this reflection and record the demonstration in their own words. AI can draft explanations and scripts; it cannot substitute its understanding for the author's ability to defend the implementation.
 
@@ -293,9 +297,9 @@ For future work, the next priorities are certified predicates or interval error 
 
 # 9 Conclusion
 
-The project now contains a working, from-scratch Fortune sweep with an AVL beach line, event invalidation, traced edges and clipped ordered cells. It provides reproducible input modes, machine-readable exports, static visualization and a native interactive window. Eighty-two automated tests and additional seeded checks pass. Actual benchmarks reach 10,000 sites with time and allocation growth consistent with the intended O(n log n) and O(n) targets.
+The project now contains a working, from-scratch Fortune sweep with an AVL beach line, event invalidation, traced edges and clipped ordered cells. It provides reproducible input modes, machine-readable exports, static visualization and a native interactive window. Eighty-six automated tests and additional seeded checks pass. Actual benchmarks reach 10,000 sites with time and allocation growth consistent with the intended O(n log n) and O(n) targets.
 
-The principal limitations are finite-precision topology beyond the tested regimes, the absence of external reference cross-validation and the need for broader platform verification. Windows 11 was exercised; Windows 10 compatibility is a target, not a tested claim. The report's remaining evidence items are the exact subscription disclosure, two authentic AI interaction screenshots and the owner's narrated walkthrough. These should be completed without inventing a history, result or recording.
+The principal limitations are finite-precision topology beyond the tested regimes, the absence of external reference cross-validation and the need for broader platform verification. Windows 11 was exercised; Windows 10 compatibility is a target, not a tested claim. The remaining evidence items are two authentic AI interaction screenshots and the owner's narrated walkthrough. Personal report review and reflection also remain necessary.
 
 The software and report are designed to be explained as well as run. The strongest contribution is the combination of a genuine sweep implementation with independent checks and retained failure evidence. The final demonstration should focus on those mechanisms and their practical limits.
 
@@ -325,6 +329,6 @@ This dense example uses seed 2026 and the unit square. Labels are intentionally 
 
 Capture two real screenshots showing both a substantive prompt and its response. Suitable interactions concern the beach-line invariant and an actual numerical failure/fix. Use the genuine app view and preserve originals; do not turn this report's prose into a supposed conversation screenshot. Add the image filenames and captions to docs/evidence.md, then update the report layout.
 
-Record a narrated demonstration no longer than five minutes using the script in 04_Demo/. Show batch input/export, interactive input, architecture, both invariants and three concrete design decisions. Supply the subscription plan and confirm the displayed model as GPT-6.1. Pi should remain described as inspected only unless its actual contribution changes.
+Record a narrated demonstration no longer than five minutes using the script in 04_Demo/. Show batch input/export, interactive input, architecture, both invariants and three concrete design decisions. The owner confirmed ChatGPT Plus and GPT-6.1. Pi's actual 17 November review and four generated regression tests are documented in Section 2 and retained evidence.
 
 The report has sixteen main-body pages, from Section 1 through the references, before this appendix. Figures are original program outputs or original explanatory diagrams. No interaction screenshot or personal narration has been fabricated.

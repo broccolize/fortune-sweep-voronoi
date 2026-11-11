@@ -1,0 +1,17 @@
+{
+  "received_on_gmt8": "2026-11-17",
+  "provided_by": "owner",
+  "topic": "Current code review: AVL arc ordering and stale circle-event rejection",
+  "file": "evidence/ai-interaction-1.png",
+  "pixel_dimensions": [
+    813,
+    803
+  ],
+  "sha256": "bbd0451041979c053e06c0d4d8516af5970c7a15b3070f9a70716efab1de0ba4",
+  "original_bytes_preserved": true,
+  "visible_selected_model_label": "GPT-6.1 Sol Max",
+  "original_prompt_and_response_visible": true,
+  "report_insertion_status": "Embedded and visually reviewed",
+  "report_figure": 9,
+  "pdf_physical_page": 21
+}

@@ -1,0 +1,50 @@
+{
+  "report_engine": "LuaLaTeX",
+  "pages": 22,
+  "main_body_pages": 16,
+  "section_pages": {
+    "sec:1": 1,
+    "sec:2": 3,
+    "sec:3": 4,
+    "sec:4": 6,
+    "sec:5": 8,
+    "sec:6": 11,
+    "sec:7": 13,
+    "sec:8": 15,
+    "sec:9": 16,
+    "sec:a": 17,
+    "sec:b": 18
+  },
+  "counts": {
+    "fig": 8,
+    "tab": 5,
+    "eq": 4,
+    "lst": 2
+  },
+  "author": "Mineth Lohiru Ariyarathna",
+  "student_id": "2024380145",
+  "course": "Computer Geometry",
+  "a4_all_pages": true,
+  "body_font": "Times New Roman, 12 pt in LaTeX",
+  "code_font": "Courier New, 9.5 pt",
+  "body_spacing": "onehalfspacing",
+  "fonts": [
+    "/ASYHFZ+CourierNewPS-BoldMT",
+    "/IAMTLY+CMSY10",
+    "/IHRGGZ+CMMI12",
+    "/NSWVPN+TimesNewRomanPSMT",
+    "/PFPBHO+CMMI8",
+    "/QDTWCG+MSBM10",
+    "/QJXSGC+CMR8",
+    "/TFGGMO+CMEX10",
+    "/TMCDBM+CMSY8",
+    "/UDWHAC+CourierNewPSMT",
+    "/UVJIWH+TimesNewRomanPS-ItalicMT",
+    "/XQARFG+TimesNewRomanPS-BoldMT",
+    "/ZASXBD+CMR12"
+  ],
+  "overflow_warnings": 0,
+  "searchable_text": true,
+  "unresolved_citations": false,
+  "visual_review": "pending"
+}

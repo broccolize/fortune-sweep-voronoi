@@ -1,0 +1,14 @@
+{
+  "changed_on_gmt8": "2026-11-17",
+  "environment": "Debian WSL, user mines",
+  "settings_file": "/home/mines/.pi/agent/settings.json",
+  "backup_file": "/home/mines/.pi/agent/settings.before-fortune-gpt61-2026-11-17.json",
+  "previous_default_provider": "openai-codex",
+  "previous_default_model": "gpt-5.6-luna",
+  "default_provider": "openai-codex",
+  "default_model": "gpt-6.1-sol",
+  "other_settings_preserved": true,
+  "readback_verified": true,
+  "review_session_model_verified": true,
+  "credential_values_recorded": false
+}

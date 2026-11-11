@@ -1,17 +1,16 @@
 {
-  "archive": "CG_Assignment_PERSONAL_broccolize.zip",
-  "bytes": 4108359,
-  "files": 134,
-  "sha256": "d3a242013d4dde1bbcbe13a906f1184970237fe1108676ff609fb4544566a101",
-  "source_revision": "73336949b7f28b78c3a55b345d05bdd36fdc53dc",
+  "archive": "CG_Assignment_2024380145_Mineth_Lohiru_Ariyarathna.zip",
+  "bytes": 9378271,
+  "files": 238,
+  "sha256": "830c5a5d4b109387adccb821b53070769ac3d95b23c2dc6d9ca8e45b69d7c08d",
+  "source_revision": "56114548410702721fee3d689e05f51555507543",
+  "source_worktree_dirty": true,
   "required_files_present": true,
   "zip_crc_check": "passed",
   "owner_evidence_present": {
-    "subscription_plan": false,
-    "ai_screenshot_1": false,
-    "ai_screenshot_2": false,
+    "subscription_plan": true,
+    "ai_screenshot_1": true,
+    "ai_screenshot_2": true,
     "narrated_recording": false
-  },
-  "extracted_zip_launcher": "passed: first-run environment bootstrap and PNG/CSV/JSON generation",
-  "extracted_zip_tests": "82 passed"
+  }
 }

@@ -9,15 +9,17 @@ project using the supplied course specification as its quality benchmark.
 
 ## Status
 
-- 82 automated tests pass on native Windows 11 / Python 3.14.7.
+- 86 automated tests pass on native Windows 11 / Python 3.14.7, including four
+  Pi-generated regressions added on 17 November 2026.
 - A separate clean environment installed all pinned dependencies, built the
-  package, passed the same suite and produced batch PNG/CSV/JSON output.
+  package, passed the original 82-test suite and produced batch PNG/CSV/JSON output.
 - 300 seeded random and 40 tight-cluster configurations passed independent checks.
 - At n=10,000, all 19,978 emitted circle vertices and 100 cell queries were checked.
 - Native Windows GUI display and Export were observed; real screenshot retained.
 - Report PDF and editable source, genuine failure records and measured results included.
-- Owner review, subscription-plan disclosure, two AI-interaction screenshots and
-  the owner's narrated video remain pending. See REVIEW_CHECKLIST.md.
+- Genuine ChatGPT and Pi screenshots are included, with unaltered originals and
+  provenance records. Pi's separate captured run reports 86 passed in 7.09s.
+- Owner review and the owner's narrated video remain pending. See REVIEW_CHECKLIST.md.
 
 ## Windows quick start
 
@@ -96,17 +98,20 @@ Measurements vary by machine; these values are observations, not promised speed.
 
 ## Report
 
-Read report/report.pdf and edit report/report.md. There are 16 main-body pages,
-plus cover and appendices. A source listing is report/source_listing.txt.
-On Windows with Times New Roman installed, reproduce the PDF with:
+Read report/report.pdf. The editable LaTeX source is report/report.tex, with
+separate files under report/sections/. Change shared formatting in
+report/preamble.tex and references in report/references.bib.
+On this Windows computer, build using the existing Debian LaTeX installation:
 
 ```bat
-.venv\Scripts\python -m pip install -r report\requirements.txt
-.venv\Scripts\python tools\build_report.py
+.venv\Scripts\python tools\build_report.py --wsl Debian
 ```
 
-The builder uses A4, 2.5 cm margins, Times New Roman 12 pt and 18 pt leading.
-It refuses overflowing page budgets instead of silently shrinking the text.
+With a complete native MiKTeX/TeX Live installation, omit --wsl Debian.
+See report/README.md for one-time font-support preparation and editing guidance.
+The document uses A4, 2.5 cm margins, Times New Roman 12 pt and 1.5 spacing,
+numbered equations, highlighted code listings, automatic contents and IEEE-style
+numbered references. report/report.md is retained only as the legacy draft.
 Figures are original generated outputs/diagrams. The native GUI capture is real.
 AI-interaction screenshots and the personal narration must be supplied by the owner.
 
@@ -132,8 +137,12 @@ comparison has been performed. See docs/problems.md for five actual failures/fix
 
 The actual verification log is devlog.md. Design, tolerances and evidence are in
 docs/. Git follows the owner's requested milestone dates; measurements are stored
-with their own actual execution metadata. GPT-6.1 was reported by the owner;
-Pi 0.86.0 was inspected but did not generate project code in this session.
+with their own actual execution metadata. The owner confirmed GPT-6.1 with
+ChatGPT Plus. On 17 November 2026, Pi 0.86.0 in Debian WSL used
+openai-codex/gpt-6.1-sol to review event invariants and generate four additional
+pytest regressions. The desktop assistant reviewed and executed those tests;
+the production algorithm was unchanged. The real prompt, response and results
+are retained in evidence/pi-review-2026-11-17/.
 
 The review package is prepared by tools/package_project.py. It includes the
 specified report/source/run-script/demo/tests folders and a completeness manifest.

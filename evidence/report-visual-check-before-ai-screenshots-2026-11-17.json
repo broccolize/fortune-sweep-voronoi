@@ -1,0 +1,15 @@
+{
+  "pages": 21,
+  "body_pages": 16,
+  "all_pages_visually_reviewed": true,
+  "review_date_gmt8": "2026-11-17",
+  "render_dpi": 105,
+  "changed_pages_after_personal_reflection": [
+    6,
+    18,
+    19
+  ],
+  "changed_pages_visually_inspected": true,
+  "unchanged_pages_verified_by_pixel_equality": 18,
+  "method": "Changed-page full PNG inspection plus pixel comparison with prior 21-page visual review."
+}

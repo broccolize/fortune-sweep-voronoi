@@ -1,0 +1,10 @@
+{
+  "pages": 19,
+  "body_pages": 16,
+  "all_pages_visually_reviewed": true,
+  "changed_pages_after_tick_label_fix": [
+    10,
+    11
+  ],
+  "unchanged_pages_verified_by_pixel_file_equality": 17
+}

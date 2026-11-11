@@ -1,0 +1,121 @@
+{
+  "received_on_gmt8": "2026-11-17",
+  "provided_by": "owner",
+  "files": [
+    {
+      "file": "evidence/pi-environment.png",
+      "original_filename": "codex-clipboard-d6f24678-f627-42d2-bd71-9fa358c9e406.png",
+      "topic": "Pi startup in the project directory",
+      "pixel_dimensions": [
+        1535,
+        682
+      ],
+      "bytes": 98283,
+      "sha256": "772e2913d7928db7c28b1b8a875a10c7c184af4103280b0fb7aeae89df223c95",
+      "original_bytes_preserved": true,
+      "original_prompt_and_response_visible": false
+    },
+    {
+      "file": "evidence/pi-interaction-invariants.png",
+      "original_filename": "codex-clipboard-321f38e5-bd62-4032-a74e-c8c22f914074.png",
+      "topic": "AVL sequence ordering and generation-based event invalidation",
+      "pixel_dimensions": [
+        1535,
+        862
+      ],
+      "bytes": 190995,
+      "sha256": "e165019fe11a48c27b0279fbfac00ac7dc6a25fbfde91c79ebb43215bab10e7d",
+      "original_bytes_preserved": true,
+      "original_prompt_and_response_visible": true
+    },
+    {
+      "file": "evidence/ai-interaction-2.png",
+      "original_filename": "codex-clipboard-a6120e8a-903b-4946-a63d-9a24de9cd35d.png",
+      "topic": "Retained tiny-cell failure, exact-topology correction and regression",
+      "pixel_dimensions": [
+        1525,
+        786
+      ],
+      "bytes": 214529,
+      "sha256": "00bd402fcc388ba52d050a00d42cd1e9909f30b9a6f2587957e9379a8bc7615b",
+      "original_bytes_preserved": true,
+      "original_prompt_and_response_visible": true
+    },
+    {
+      "file": "evidence/pi-tiny-cell-code-continuation.png",
+      "original_filename": "codex-clipboard-121f42da-5919-4f0d-b9f9-ae1689f730cc.png",
+      "topic": "Code continuation of the tiny-cell review",
+      "pixel_dimensions": [
+        637,
+        87
+      ],
+      "bytes": 23277,
+      "sha256": "8271a6a3b31e2f4ee67aa37a07b57c0693c94b8b8212cfd3265536110dc90c3a",
+      "original_bytes_preserved": true,
+      "original_prompt_and_response_visible": false
+    },
+    {
+      "file": "evidence/pi-interaction-tests.png",
+      "original_filename": "codex-clipboard-2106a48a-acd5-497b-8c40-e65bf5a38b88.png",
+      "topic": "Actual pytest execution and subsequent inspection-command error",
+      "pixel_dimensions": [
+        1535,
+        862
+      ],
+      "bytes": 146967,
+      "sha256": "4fc404969194e0d593230504377ca02bb76988af25912078b6a9c014f029d9f6",
+      "original_bytes_preserved": true,
+      "original_prompt_and_response_visible": true
+    },
+    {
+      "file": "evidence/pi-tests-summary.png",
+      "original_filename": "codex-clipboard-bf568dab-4ce4-40a1-a905-a4120a53f4f4.png",
+      "topic": "Continuation: test result and scope of geometric validation",
+      "pixel_dimensions": [
+        1532,
+        396
+      ],
+      "bytes": 78231,
+      "sha256": "1bbc0bf64bbbc395d771b62d00f88b29360f69dfdf312c41697255c8ff6d79c3",
+      "original_bytes_preserved": true,
+      "original_prompt_and_response_visible": false
+    }
+  ],
+  "observed_pi_version": "0.86.0",
+  "observed_provider": "openai-codex",
+  "observed_model": "gpt-6.1-sol",
+  "observed_thinking_level": "xhigh",
+  "test_execution": {
+    "command": "cmd.exe /c test.bat -q",
+    "passed": 86,
+    "pytest_seconds": 7.09,
+    "evidence": [
+      "evidence/pi-interaction-tests.png",
+      "evidence/pi-tests-summary.png"
+    ],
+    "scope": "Owner-supplied screenshots of a separate Pi tool-enabled run; not a newly generated JUnit record or benchmark."
+  },
+  "inspection_failure": {
+    "command_type": "Follow-up rg search",
+    "exit_code": 2,
+    "subsequent_action": "Read tests/validation.py; final summary supplied",
+    "note": "Visible red inspection failure preserved; pytest had already passed."
+  },
+  "source_comparison": {
+    "compared_with": "CG_Assignment_2024380145_Mineth_Lohiru_Ariyarathna.zip",
+    "python_files_compared": 21,
+    "changed_files": [],
+    "scope": "Current src and tests Python bytes equal the previous review archive; not an audit of every owner activity.",
+    "archive_sha256": "b7563ad10b52d2467bf4405b3bc3930dc5508e7c738c5664f1ec386190cce5ba"
+  },
+  "report_insertion_status": "All six Pi originals embedded and visually reviewed; seven originals including ChatGPT",
+  "pdf_physical_pages": {
+    "evidence/pi-environment.png": 22,
+    "evidence/pi-interaction-invariants.png": 23,
+    "evidence/ai-interaction-2.png": 24,
+    "evidence/pi-tiny-cell-code-continuation.png": 24,
+    "evidence/pi-interaction-tests.png": 25,
+    "evidence/pi-tests-summary.png": 26
+  },
+  "embedded_screenshot_pixels_match_originals": true
+}

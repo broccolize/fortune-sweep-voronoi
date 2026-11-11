@@ -134,5 +134,6 @@ and corrected during this session; raw failing evidence is retained.
 The DOCX extraction initially failed to print Unicode under the terminal's
 default encoding and was rerun successfully using UTF-8. Restricted WSL access
 initially failed; the read-only inspection succeeded with approved access.
-Windows runtime dependencies are not yet installed. These observations belong
-to the real log, but are not automatically five substantive algorithm problems.
+Windows runtime dependencies were not yet installed at that initial inspection;
+they were installed and exercised later. These observations belong to the real
+log, but are not automatically five substantive algorithm problems.

@@ -1,0 +1,141 @@
+% Shared formatting: edit this file to change the whole report.
+% Required: A4; 25 mm margins; Times New Roman 12 pt; 1.5 body spacing.
+\usepackage[margin=25mm,headheight=14pt,headsep=7mm,footskip=12mm]{geometry}
+\usepackage{fontspec}
+\IfFontExistsTF{Times New Roman}{
+  \setmainfont{Times New Roman}
+}{
+  \setmainfont{times.ttf}[
+    Path=/mnt/c/Windows/Fonts/,
+    BoldFont=timesbd.ttf,
+    ItalicFont=timesi.ttf,
+    BoldItalicFont=timesbi.ttf
+  ]
+}
+\IfFontExistsTF{Courier New}{
+  \setmonofont{Courier New}
+}{
+  \setmonofont{cour.ttf}[
+    Path=/mnt/c/Windows/Fonts/,
+    BoldFont=courbd.ttf,
+    ItalicFont=couri.ttf,
+    BoldItalicFont=courbi.ttf
+  ]
+}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{pdflscape}
+\usepackage{amsmath,amssymb}
+\usepackage{array,tabularx,booktabs}
+\usepackage{color}
+\usepackage{caption}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage[unicode,hidelinks]{hyperref}
+\usepackage{bookmark}
+
+\definecolor{inkblue}{RGB}{35,57,78}
+\definecolor{rulegray}{RGB}{164,173,182}
+\definecolor{codegray}{RGB}{247,248,250}
+\definecolor{commentgreen}{RGB}{57,100,79}
+\definecolor{stringred}{RGB}{142,62,53}
+\definecolor{numbergray}{RGB}{93,105,116}
+\hypersetup{
+  pdftitle={Fortune's Sweep-Line Algorithm for Planar Voronoi Diagrams},
+  pdfauthor={Mineth Lohiru Ariyarathna},
+  pdfsubject={Implementation, validation and AI-assisted development},
+  pdfkeywords={Fortune algorithm, Voronoi diagram, computational geometry}
+}
+\graphicspath{{figures/}{../figures/}{../evidence/}}
+\urlstyle{same}
+\DeclareUrlCommand\path{\def\UrlFont{\ttfamily\fontsize{10}{12}\selectfont}}
+\Urlmuskip=0mu plus 1mu\relax
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlength{\emergencystretch}{2em}
+\setlength{\textfloatsep}{14pt plus 2pt minus 2pt}
+\setlength{\intextsep}{12pt plus 2pt minus 2pt}
+\setlength{\floatsep}{12pt plus 2pt minus 2pt}
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.80}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.72}
+\raggedbottom
+\widowpenalty=10000
+\clubpenalty=10000
+\displaywidowpenalty=10000
+
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{\z@}
+  {-2.2ex\@plus -0.8ex\@minus -0.2ex}
+  {1.0ex\@plus 0.2ex}{\normalfont\fontsize{15}{19}\selectfont\bfseries}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}
+  {-1.8ex\@plus -0.5ex\@minus -0.2ex}
+  {0.7ex\@plus 0.2ex}{\normalfont\fontsize{12}{18}\selectfont\bfseries}}
+\renewcommand{\@seccntformat}[1]{\csname the#1\endcsname.\quad}
+\makeatother
+
+\captionsetup{
+  font={normalsize},labelfont=bf,labelsep=period,
+  justification=raggedright,singlelinecheck=false,skip=6pt
+}
+\captionsetup[table]{position=top}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{5pt}
+
+\lstdefinestyle{reportcode}{
+  language=Python,
+  basicstyle=\ttfamily\fontsize{9.5}{12}\selectfont,
+  keywordstyle=\color{inkblue}\bfseries,
+  commentstyle=\color{commentgreen}\itshape,
+  stringstyle=\color{stringred},
+  showstringspaces=false,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  numbers=left,
+  numberstyle=\ttfamily\fontsize{9}{11}\selectfont\color{numbergray},
+  numbersep=9pt,
+  xleftmargin=16pt,
+  xrightmargin=2pt,
+  frame=single,
+  framerule=0.3pt,
+  rulecolor=\color{rulegray},
+  backgroundcolor=\color{codegray},
+  framesep=6pt,
+  aboveskip=12pt,
+  belowskip=12pt,
+  lineskip=1pt,
+  captionpos=t
+}
+\lstset{style=reportcode}
+\newcommand{\code}[1]{{\ttfamily\fontsize{10}{12}\selectfont #1}}
+
+\newcommand{\ReportPageStyle}{
+  \fancyhf{}
+  \fancyhead[L]{\fontsize{9}{11}\selectfont Fortune's Sweep-Line Algorithm}
+  \fancyhead[R]{\fontsize{9}{11}\selectfont Computer Geometry}
+  \fancyfoot[C]{\fontsize{10}{12}\selectfont\thepage}
+  \renewcommand{\headrulewidth}{0.3pt}
+  \renewcommand{\footrulewidth}{0pt}
+}
+\fancypagestyle{reportbody}{\ReportPageStyle}
+\fancypagestyle{plain}{\ReportPageStyle}
+\pagestyle{reportbody}
+
+% Wide, unaltered terminal captures use the full landscape text area.
+\newcommand{\EvidenceLandscape}[4]{
+  \clearpage
+  \begin{landscape}
+  \thispagestyle{empty}
+  \captionsetup{hypcap=false}
+  \centering
+  \vspace*{\fill}
+  \includegraphics[width=\linewidth,height=132mm,keepaspectratio]{#1}
+  \captionof{figure}[#2]{#3}\label{#4}
+  \vspace*{\fill}
+  {\fontsize{10}{12}\selectfont\thepage\par}
+  \end{landscape}
+}

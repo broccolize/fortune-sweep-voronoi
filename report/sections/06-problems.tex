@@ -1,0 +1,89 @@
+% Editable report section: Problems and Solutions
+\section{Problems and Solutions}
+\label{sec:6}
+
+\subsection{Rounded Zero-Length Edges}
+
+\textbf{Symptom.} The diagonal two-site and nine-site cocircular examples reported holes during cell-ownership sampling, while their total-area checks passed.
+
+\textbf{Investigation.} Consecutive polygon endpoints and their cross products were inspected. Three concurrent constraints had created nearly equal output vertices and a tiny boundary segment.
+
+\textbf{Root cause.} Subtracting rounded equal endpoints gave an arbitrary segment direction. The convex-containment check then treated that segment as an additional, incorrect boundary constraint.
+
+\textbf{Solution.} The final cleanup removes a support only when \code{concurrent(p,q,r)} proves exact rational concurrence. An intermediate distance cutoff was rejected after per-site checks found missing tiny cells. Exact circle identities also replace rounded-centre grouping.
+
+\textbf{Verification.} The original failures and six new positive-cell regressions pass. The later failing cases are retained in \path{tiny-cell-initial.xml}.
+
+\textbf{Prevention and lesson.} Check that every site retains its cell; area and sampled ownership alone can miss microscopic missing cells.
+
+\subsection{Close-Site Half-Plane Coefficients}
+\label{prob:coefficients}
+
+\textbf{Symptom.} A seed-11 cluster at scale $10^{-11}$ produced area 1.439996905390856 for a box of area 1.44.
+
+\textbf{Investigation.} Cluster inputs and polygon intersections were compared with ordinary random cases. The problem appeared when almost parallel bisectors were intersected.
+
+\textbf{Root cause.} Unit-normal coefficients had already lost precision before division by a small intersection determinant. More precision applied only to those rounded coefficients could not recover the missing information.
+
+\textbf{Solution.} \code{HalfPlane} retains its defining focus pair. For \code{abs(det) < 1e-7}, coefficients are rebuilt from those binary coordinates and intersected using 80-digit Decimal arithmetic.
+
+\textbf{Verification.} The seed-11 cluster now passes area, ownership and empty-circle checks.
+
+\textbf{Prevention and lesson.} Preserve construction provenance and identify the conditioning of arithmetic operations, not just the final output's finiteness.
+
+\subsection{Predicate Reliability versus Construction Accuracy}
+
+\textbf{Symptom.} The initial exponent-15 cluster emitted a centre that failed equidistance to its defining sites. The original failure and input are saved in \path{adversarial-initial.json}.
+
+\textbf{Investigation.} The determinant used for the centre was compared with its product magnitudes. Its sign was plausible, but the calculated coordinates remained inaccurate.
+
+\textbf{Root cause.} The original relative fallback threshold of \(8\times 10^{-16}\) addressed severe sign cancellation. A sign filter does not provide an accuracy guarantee for the division used to construct a circumcentre.
+
+\textbf{Solution.} With translated vectors \(u=b-a\) and \(v=c-a\), the circumcentre is recomputed in Decimal when
+\begin{equation}
+  \lvert u_xv_y-u_yv_x\rvert
+  \leq 10^{-8}\bigl(\lvert u_xv_y\rvert+\lvert u_yv_x\rvert\bigr).
+  \label{eq:centre-filter}
+\end{equation}
+This construction policy is separate from the orientation predicate.
+
+\textbf{Verification.} All five tight-cluster exponents pass the circle tests.
+
+\textbf{Prevention and lesson.} Distinguish decisions about a determinant's sign from coordinate construction. The AI's first implementation conflated the two, and adversarial tests exposed the gap.
+
+\subsection{A Generous Epsilon Created Invalid Boundary Edges}
+\label{prob:epsilon}
+
+\textbf{Symptom.} After the precision changes, exponent-13 and exponent-14 clusters still reported a hole at \((0.783765456996815,\,0.7120393849074937)\).
+
+\textbf{Investigation.} A corner cell contained a vertex at \(y=1.100000000000123\) despite a clipping maximum of \(1.1\). A reversed edge about \(1.2\times 10^{-13}\) long excluded valid interior queries.
+
+\textbf{Root cause.} The original membership allowance of \(2\times 10^{-13}\) kept an inactive constraint and admitted a corner just outside the rectangle. Relaxing the validator did not repair that polygon.
+
+\textbf{Solution.} The first fix reduced the allowance to \(8\times 10^{-16}\); final \code{corner\_inside} uses exact rational signs when the floating result is uncertain.
+
+\textbf{Verification.} The two failures saved in \path{tests-adversarial.xml} pass afterward.
+
+\textbf{Prevention and lesson.} Increasing epsilon is not a universal repair; construction must be rechecked against independent geometric properties.
+
+\subsection{A Validator Omitted Output Representation Error}
+
+\textbf{Symptom.} Translating an otherwise small input near \(10^9\) caused an equidistance failure under the original fixed $10^{-8}$ validation allowance.
+
+\textbf{Investigation.} The spacing between representable output coordinates was measured. One double-precision ULP near \(10^9\) is about \(1.19\times 10^{-7}\), already larger than that validation bound. The constructor calculates locally but must round when it returns world coordinates.
+
+\textbf{Root cause.} The validator assumed that normalization eliminated all scale effects, including final coordinate representation. It also underestimated cross-product uncertainty for extremely short exported edges.
+
+\textbf{Solution.} The circle-distance tolerance is
+\begin{equation}
+  \tau_{\mathrm{circle}}
+  =10^{-8}\max(1,r)+8\,\operatorname{ulp}_{\mathrm{world}},
+  \label{eq:validation-tolerance}
+\end{equation}
+where \(\operatorname{ulp}_{\mathrm{world}}\) is the float spacing at the largest absolute vertex coordinate. Polygon containment also includes endpoint-subtraction uncertainty and a bounding-box rejection. These bounds describe representation error; they do not replace the ownership check with a direct site scan.
+
+\textbf{Verification.} The translation and scaling cases pass. Cluster tests still failed until the distinct construction defects in Sections~\ref{prob:coefficients}--\ref{prob:epsilon} were fixed, showing that the validator change alone did not hide those defects.
+
+\textbf{Prevention and lesson.} A validator is software with its own assumptions. Review its error model and preserve independent checks that can disagree with it. A passing tolerance-based test is evidence within a stated precision regime, not a universal proof.
+
+The five cases above were observed during actual development. Their symptoms, inputs, fixes and regression checks are retained in \path{docs/problems.md} and \path{evidence/}. Additional environment issues included pip bootstrapping into an unwritable temporary directory and a duplicate dictionary key in the first benchmark script. Those were corrected and are recorded as engineering issues rather than substituted for the five geometric analyses.

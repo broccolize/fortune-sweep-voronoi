@@ -28,7 +28,9 @@
 - [ ] Save as demo/walkthrough.mp4 in the repository, or
   04_Demo/walkthrough.mp4 in the package. Do not publish a large video to Git
   accidentally; it is excluded from Git and should be included in the ZIP.
-- [ ] Supply two real AI screenshots as evidence/ai-interaction-1.png and
+- [x] Supply two real AI screenshots as evidence/ai-interaction-1.png and
   evidence/ai-interaction-2.png, showing both substantive prompt and response.
-- [ ] Record screenshot dates/context and actual subscription plan in docs/evidence.md.
+  Owner supplied seven genuine ChatGPT/Pi originals, embedded in Appendix B.
+- [x] Record screenshot dates/context and actual subscription plan in docs/evidence.md.
+  Received 17 November 2026; ChatGPT Plus; observed Pi gpt-6.1-sol/xhigh.
 - [ ] Rebuild the package after adding evidence; inspect its completeness manifest.

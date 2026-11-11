@@ -1,0 +1,29 @@
+{
+  "actual_date_gmt8": "2026-11-17",
+  "pi_version": "0.86.0",
+  "provider": "openai-codex",
+  "model": "gpt-6.1-sol",
+  "stop_reason": "stop",
+  "usage": {
+    "input": 6692,
+    "output": 3887,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "reasoning": 1616,
+    "totalTokens": 10579,
+    "cost": {
+      "input": 0.013384,
+      "output": 0.03887,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0.052254
+    }
+  },
+  "generated_test_functions": [
+    "test_site_insertion_supersedes_live_prediction_without_topology_changes",
+    "test_duplicate_circle_delivery_after_arc_removal_is_harmless",
+    "test_two_child_deletion_preserves_queued_deep_successor_identity",
+    "test_exact_heap_priority_ties_are_fifo_across_interleaved_pushes"
+  ],
+  "pi_execution_scope": "Source review and test generation; no tool access or test execution in Pi invocation."
+}

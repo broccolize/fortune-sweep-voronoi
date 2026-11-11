@@ -1,0 +1,20 @@
+{
+  "file": "evidence/ai-interaction-2.png",
+  "original_filename": "codex-clipboard-a6120e8a-903b-4946-a63d-9a24de9cd35d.png",
+  "topic": "Retained tiny-cell failure, exact-topology correction and regression",
+  "pixel_dimensions": [
+    1525,
+    786
+  ],
+  "bytes": 214529,
+  "sha256": "00bd402fcc388ba52d050a00d42cd1e9909f30b9a6f2587957e9379a8bc7615b",
+  "original_bytes_preserved": true,
+  "original_prompt_and_response_visible": true,
+  "received_on_gmt8": "2026-11-17",
+  "provided_by": "owner",
+  "continuation": "evidence/pi-tiny-cell-code-continuation.png",
+  "provenance_record": "evidence/pi-screenshots-2026-11-17.json",
+  "report_insertion_status": "Embedded with code continuation and visually reviewed",
+  "report_figure": 12,
+  "pdf_physical_page": 24
+}

@@ -25,3 +25,16 @@ htmlcov/
 # Final measured results, figures and evidence should be deliberately tracked.
 demo/*.mp4
 demo/*.gif
+
+# LaTeX auxiliaries from direct editor builds; PDF and TeX sources are retained.
+report/**/*.aux
+report/**/*.bbl
+report/**/*.blg
+report/**/*.fls
+report/**/*.fdb_latexmk
+report/**/*.lof
+report/**/*.log
+report/**/*.lot
+report/**/*.out
+report/**/*.toc
+report/**/*.synctex.gz

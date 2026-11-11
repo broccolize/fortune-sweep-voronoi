@@ -1,11 +1,40 @@
 {
-  "author": "broccolize",
+  "author": "Mineth Lohiru Ariyarathna",
+  "student_id": "2024380145",
+  "course": "Computer Geometry",
+  "identity_confirmed_on": "2026-11-17",
+  "git_author": "broccolize",
   "project_scope": "personal project using a course specification as quality benchmark",
   "reported_model": "GPT-6.1",
-  "subscription_plan": null,
+  "observed_chatgpt_model_label": "GPT-6.1 Sol Max",
+  "observed_model_label_evidence": "evidence/ai-interaction-1.png",
+  "subscription_plan": "ChatGPT Plus",
+  "subscription_plan_confirmed_on": "2026-11-17",
   "owner_review_complete": false,
   "pi_version": "0.86.0",
-  "pi_used_for_code_generation": false,
+  "pi_used_for_code_generation": true,
+  "pi_code_generation_scope": "Retained session: four pytest regressions; no production changes in that session",
+  "owner_reported_pi_workflow": [
+    "inspect outputs",
+    "edit code",
+    "rerun tests"
+  ],
+  "owner_workflow_reported_on": "2026-11-17",
+  "pi_used_for_review": true,
+  "pi_provider": "openai-codex",
+  "pi_model": "gpt-6.1-sol",
+  "pi_authentication": "Existing OAuth sign-in",
+  "pi_contribution_date": "2026-11-17",
   "desktop_windows_package": "OpenAI.Codex",
-  "desktop_package_version": "26.1029.7803.0"
+  "desktop_package_version": "26.1029.7803.0",
+  "pi_observed_model_label": "gpt-6.1-sol",
+  "pi_observed_thinking_level": "xhigh",
+  "pi_observed_label_evidence": "evidence/pi-interaction-tests.png",
+  "pi_tool_enabled_review_captures_received_on": "2026-11-17",
+  "pi_captured_test_execution": {
+    "command": "cmd.exe /c test.bat -q",
+    "passed": 86,
+    "pytest_seconds": 7.09,
+    "provenance": "evidence/pi-screenshots-2026-11-17.json"
+  }
 }

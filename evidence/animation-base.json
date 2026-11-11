@@ -1,0 +1,29 @@
+{
+  "actual_preparation_date": "2026-11-17",
+  "branch": "codex/sweep-animation",
+  "base_commit": "56114548410702721fee3d689e05f51555507543",
+  "note": "Worktree starts with the current reviewed local project files. The primary working folder is unchanged.",
+  "source_file_hashes": {
+    "src/fortune/__init__.py": "03e78efb6bd2cf5aca4f076109d9faa2db6e4e57ee480d3e8a5a2da1cd0586e9",
+    "src/fortune/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/fortune/beachline.py": "70b22bb94f79e52f0178a0057b6ebe44a57b4e8ec1d2f80475359427a9a2e7fb",
+    "src/fortune/circle.py": "1ce3901fe07ec95e6c1beb40650850a31c95c57912e59280b0cf4dd295e331a5",
+    "src/fortune/cli.py": "e9cc48d40883cac7cbf76431e5e8480af9b7a99a891fa96662303951f47ab07b",
+    "src/fortune/clipping.py": "4cffaac762d7b37d40db2bff85082eb37f8d8aa19582e26cc96aee75e65d1f64",
+    "src/fortune/diagram.py": "3d62a6eb9f9fb12b72eea32ef11db4ac78b53ffbca94dbe6017bb73b8e991083",
+    "src/fortune/events.py": "106877750f6dfa99b2987bc253b56369a0ef2d757cdb6f86ddfd5b405313403d",
+    "src/fortune/geometry.py": "576ea98f5b9766b5ce77153d4fff289b1272fc16743c5e97c778b59261fc95f4",
+    "src/fortune/interactive.py": "690aaf20b1a8431750453ff8e128d6453f4961f4ef6d9404b4df79734f0e3aa1",
+    "src/fortune/io.py": "86276b7644d60247bc23ead2715dda6cac55cdd73602be744738e5b657170640",
+    "src/fortune/sweep.py": "cbb4fb04d7d85cba5776fe1b1492b81747467692774a21c9bafb5df81dbe77e8",
+    "src/fortune/visualize.py": "c5ee7737c14349c576c4b6e30f2aa9e281f043d279547395bbc8148058d2db17",
+    "tests/test_adversarial.py": "29eb4eb9ca02bba0180321d1d88923b972cd95eceb49b7b1e6d027308a084eb8",
+    "tests/test_beachline.py": "e06ff6b03475a71f432dbc54aa6ee239c5ae35b04f6cb4bfbca5098c6c34b932",
+    "tests/test_diagram.py": "7b920f59c5b93c94e22192da66eae4bf0df0628394b8c2e3a0dfe3228936370f",
+    "tests/test_events.py": "cadb966f15f33520a8ff5420402092d43edf8decb21831df4f1865a78063fd8d",
+    "tests/test_geometry.py": "903d4c3be353c11f98ec1050fdc42cb8e901660d6d19b2b9b950e0b0f0b238d3",
+    "tests/test_interfaces.py": "cc64409cd3abd0ed2ff3398c0179905577b69716ee15d8e3ca3da96d819f261f",
+    "tests/test_pi_regressions.py": "15b089dbe451f09de88b68a328f7e82079d39b39e827777df065e6ea511af9df",
+    "tests/validation.py": "5448694525b343f8fbf66ef3e19d8817f2b1a458a37268079b8b7c8b2d601f64"
+  }
+}

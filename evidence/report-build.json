@@ -1,0 +1,12 @@
+{
+  "source": "report/report.tex",
+  "editable_sections": "report/sections/",
+  "engine": "lualatex",
+  "wsl_distribution": "Debian",
+  "bibliography_style": "ieeetr",
+  "latex_passes": 3,
+  "shell_escape": false,
+  "overfull_box_warnings": 0,
+  "pdf_bytes": 2125701,
+  "output": "report/report.pdf"
+}

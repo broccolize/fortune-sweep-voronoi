@@ -1,0 +1,18 @@
+{
+  "pages": 19,
+  "body_pages": 16,
+  "all_pages_visually_reviewed": true,
+  "review_date_gmt8": "2026-11-17",
+  "changed_pages_after_pi_disclosure": [
+    1,
+    2,
+    4,
+    9,
+    16,
+    17,
+    19
+  ],
+  "changed_pages_visually_inspected": true,
+  "unchanged_pages_verified_by_pixel_equality": 12,
+  "prior_review": "evidence/report-visual-check-before-pi-2026-11-17.json"
+}

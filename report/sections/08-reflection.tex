@@ -1,0 +1,15 @@
+% Editable report section: Critical Reflection on AI-Assisted Programming
+\section{Critical Reflection on AI-Assisted Programming}
+\label{sec:8}
+
+The most difficult part of the project for me was understanding the concept of Fortune's algorithm. AI could help produce code, but I still needed to understand the geometric idea behind it. Online explanations were useful in this process. In particular, Jacques Heunis's intuitive explanation made the concept easier for me to understand~\cite{heunis2018}. I used it as a conceptual learning resource.
+
+AI was helpful in translating the basic concept into Python code and implementing the Fortune sweep, including event handling and the beach line. Debugging still required active checking. My workflow included inspecting outputs and using Pi to edit code and rerun tests. Generated code was therefore part of a cycle of inspection, correction and rechecking. I should be able to explain the resulting implementation, rather than treating the tool's response as sufficient evidence of correctness.
+
+A correct-looking diagram was not enough to give me confidence in the result. Checking the CSV export and running tests added evidence beyond the picture. During my review, I confirmed that an exported cell boundary closed and personally ran the suite that reported 82 passing tests. The expanded suite includes four Pi-generated regressions. I also supplied genuine captures of Pi reviewing the invariants and tiny-cell correction, and rerunning the suite: 86 tests passed in 7.09 seconds. This is separate from the desktop assistant's 5.43-second run.
+
+AI-generated documentation also needed review. The initial report did not meet my expectations for presentation, so I requested LaTeX source, properly typeset mathematics and clearer code formatting. This was a concrete example of why detailed requirements and review remained necessary even when the tool had produced a complete-looking document.
+
+The development records show more serious limits in generated numerical code. A reliable orientation sign did not ensure an accurate circumcentre, and sampled checks missed microscopic cells. Those failures required independent geometric checks and specific regression inputs. Prompts tied to an invariant, failing input and expected behaviour were more useful than broad requests for robust geometry. Both AI tools used the GPT-6.1 family, so using Pi did not provide an independent correctness oracle.
+
+My overall takeaway is that AI helped turn the concept into an implementation, while learning, debugging and verification remained essential. Further work should strengthen precision-limit tests and independent validation. The narrated demonstration is also important: it requires me to explain the architecture, invariants and numerical decisions in my own words.

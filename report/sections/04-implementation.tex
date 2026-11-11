@@ -1,0 +1,47 @@
+% Editable report section: Implementation and the AI-Assisted Coding Process
+\section{Implementation and the AI-Assisted Coding Process}
+\label{sec:4}
+
+The site handler first locates the live arc above the new site. For an ordinary split it keeps the left arc identity, inserts the new site's arc and a right copy of the original site's arc, records their separating edge, then reschedules affected neighbours. Equal-height sites use an adjacent limiting arc instead of dividing by a zero directrix gap.
+
+\begin{lstlisting}[caption={Local arc insertion during a site event.},label={lst:1}]
+new, right = Arc(site), Arc(old.site)
+self.beach.insert_after(old, new)
+self.beach.insert_after(new, right)
+self.edge(old.site, site)
+for arc in (before, old, new, right, after):
+    self.schedule(arc)
+\end{lstlisting}
+
+The circle handler verifies identity and generation before changing topology. It records the vertex on the two disappearing boundaries and on the newly created boundary, removes the middle arc and reschedules the surviving pair. These operations are local even though the output affects three cells.
+
+\begin{lstlisting}[caption={Boundary updates during a valid circle event.},label={lst:2}]
+self.edge(left.site, middle.site, vertex)
+self.edge(middle.site, right.site, vertex)
+self.edge(left.site, right.site, vertex)
+self.beach.remove(middle)
+self.statistics["circle_events"] += 1
+self.schedule(left)
+self.schedule(right)
+\end{lstlisting}
+
+AI-generated code was integrated incrementally. Geometry first passed ten tests, then geometry plus AVL operations passed seventeen. Queue, detection, triangle and cocircular-square checks raised the total to twenty-one. The larger validation suite then contradicted the apparent success of these examples. That failure prompted changes to clipping and numerical construction rather than a claim that the first implementation was complete.
+
+The snippets above are excerpts from the actual source. Complete editable modules and a companion source listing are included in the package. No public implementation was copied into the algorithmic core.
+
+\subsection{Interfaces, Exports and Native Display}
+
+The file parser accepts one whitespace- or comma-separated pair per line, ignores blank lines and comments, and reports malformed line numbers. Seeded generation uses Python's random generator. Exact duplicates retain their input-index groups. Batch commands print counts and construction timing, then optionally write an image, CSV and JSON.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.92\linewidth,height=0.59\textheight,keepaspectratio]{gui-native.png}
+\caption{Native Windows interface after a successful five-site export.}
+\label{fig:4}
+\end{figure}
+
+The interface provides click insertion, double-click or Compute, Clear and Export. Callback tests exercise insertion, computation, clearing and output without relying on physical mouse timing. A native Tk window was also observed and its Export control produced PNG, CSV and JSON files. Figure~\ref{fig:4} is a real window capture, not a redrawn mockup. The five-site state in that capture is retained in \path{examples/interactive.json}.
+
+Each CSV row gives one ordered vertex and the next endpoint, so closure is explicit. It also identifies the neighbouring site or box boundary and records line/ray information. JSON includes defining sites for vertices and ray origins/directions. Static rendering can use an off-screen backend; interactive rendering needs a working GUI backend \cite{matplotlibbackends}.
+
+Genuine AI review captures in Appendix~\ref{sec:b} connect the arc/event invariants, the retained tiny-cell failure and its correction to the actual source. They also show a separate Pi test run.

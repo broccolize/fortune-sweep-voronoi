@@ -1,0 +1,49 @@
+% Owner-provided originals; their bytes are preserved in evidence/.
+\section{AI Interaction Evidence}
+\label{sec:b}
+
+The owner supplied these genuine captures on 17 November 2026. They record current reviews and verification. The originals are preserved unchanged, with SHA-256 provenance in \path{evidence/}. Landscape pages keep the terminal text readable. The startup view identifies the environment; the substantive exchanges show prompts and responses.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.94\linewidth,height=0.61\textheight,keepaspectratio]{ai-interaction-1.png}
+\caption[ChatGPT review of beach-line and event invariants.]{ChatGPT review of the AVL beach-line order and generation-based rejection guard. The owner's prompt, answer and selected model label are visible.}
+\label{fig:chatgpt-review}
+\end{figure}
+
+The personal narrated demonstration remains pending. Use \path{04_Demo/script.md} and the recording checklist, explain the architecture and both invariants, and discuss three real problems or design decisions within five minutes.
+
+\EvidenceLandscape{pi-environment.png}
+  {Pi environment opened in the project directory.}
+  {Owner-provided Pi startup view in the project directory. The installed version is 0.86.0; the visible update notice is not evidence that an update was installed.}
+  {fig:pi-environment}
+
+\EvidenceLandscape{pi-interaction-invariants.png}
+  {Pi review of AVL ordering and stale-event rejection.}
+  {Pi reads the beach-line, event and sweep modules, then explains sequence-preserving AVL rotations and the generation guard. This is a tool-enabled review, distinct from the earlier tool-disabled test-generation session.}
+  {fig:pi-invariants}
+
+\clearpage
+\begin{landscape}
+\thispagestyle{empty}
+\captionsetup{hypcap=false}
+\centering
+\vspace*{\fill}
+\includegraphics[width=\linewidth,height=116mm,keepaspectratio]{ai-interaction-2.png}
+\par\vspace{3pt}
+\includegraphics[width=0.42\linewidth,height=15mm,keepaspectratio]{pi-tiny-cell-code-continuation.png}
+\captionof{figure}[Pi review of the retained tiny-cell failure and correction.]{Pi reviews the recorded tiny-cell failures, exact-topology correction and positive-cell regression. The second original is the response's code continuation. Neither capture is an image of the original debugging date.}
+\label{fig:pi-tiny-cell}
+\vspace*{\fill}
+{\fontsize{10}{12}\selectfont\thepage\par}
+\end{landscape}
+
+\EvidenceLandscape{pi-interaction-tests.png}
+  {Pi executes the full test suite; a later search fails.}
+  {Pi's actual command reports 86 tests passed in 7.09 seconds. The red block is a subsequent inspection search that exited with code 2; the capture also shows recovery by reading the validation module. The model footer is visible.}
+  {fig:pi-tests}
+
+\EvidenceLandscape{pi-tests-summary.png}
+  {Pi summarizes the test result and validation scope.}
+  {Continuation of the test interaction: Pi repeats the real command and result, explains nearest-site and empty-circle checks, and states the limit of sampling. The current source and test Python files match the preceding review archive.}
+  {fig:pi-test-summary}

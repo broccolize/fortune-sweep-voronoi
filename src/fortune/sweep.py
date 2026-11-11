@@ -40,6 +40,7 @@ class FortuneSweep:
         self.vertices = []
         self._vertex_index = {}
         self.statistics = dict(site_events=0, circle_events=0, stale_events=0)
+        self._started = False
 
     def edge(self, a, b, vertex=None):
         if a == b:
@@ -136,24 +137,47 @@ class FortuneSweep:
         self.schedule(left)
         self.schedule(right)
 
-    def run(self):
-        for i, p in enumerate(self.points):
-            self.queue.push(Event(p.y, p.x, 0, site=i))
-        while self.queue:
-            event = self.queue.pop()
-            self.sweep_y = min(self.sweep_y, event.y)
-            if event.kind == 0:
-                self.site_event(event.site)
-            else:
-                self.circle_event(event)
-            if self.debug:
-                self.beach.validate()
+    def start(self):
+        """Queue sites once; replay and batch execution share this entry point."""
+        if not self._started:
+            for i, p in enumerate(self.points):
+                self.queue.push(Event(p.y, p.x, 0, site=i))
+            self._started = True
+        return self
+
+    def step(self):
+        """Process exactly one heap entry, including an invalidated prediction.
+
+        Return the processed event, or None after completion. The same handlers
+        and generation guard are used by ordinary construction and replay.
+        """
+        self.start()
+        if not self.queue:
+            self._finish_statistics()
+            return None
+        event = self.queue.pop()
+        self.sweep_y = min(self.sweep_y, event.y)
+        if event.kind == 0:
+            self.site_event(event.site)
+        else:
+            self.circle_event(event)
+        if self.debug:
+            self.beach.validate()
+        if not self.queue:
+            self._finish_statistics()
+        return event
+
+    def _finish_statistics(self):
         self.statistics.update(
             queue_peak=self.queue.peak_size,
             events_pushed=self.queue.pushed,
             beach_max_height=self.beach.max_height,
             trace_edges=len(self.edges),
         )
+
+    def run(self):
+        while self.step() is not None:
+            pass
         return self
 
 

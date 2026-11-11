@@ -77,6 +77,22 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 
 ==============================================================================
+report\build.bat
+==============================================================================
+@echo off
+setlocal
+pushd "%~dp0.."
+if exist ".venv\Scripts\python.exe" (
+  ".venv\Scripts\python.exe" tools\build_report.py %*
+) else (
+  py -3 tools\build_report.py %*
+)
+set "report_exit=%errorlevel%"
+popd
+exit /b %report_exit%
+
+
+==============================================================================
 requirements.txt
 ==============================================================================
 colorama==0.4.6
@@ -2057,6 +2073,275 @@ def test_interactive_callbacks_compute_clear_and_export(tmp_path):
 
 
 ==============================================================================
+tests\test_pi_regressions.py
+==============================================================================
+from fortune.beachline import Arc, BeachLine
+from fortune.events import Event, EventQueue
+from fortune.geometry import Point
+from fortune.sweep import FortuneSweep
+
+
+def _topology(sweep):
+    """Freeze topology, including arc identities and mutable edge contents."""
+    return (
+        sweep.beach.root,
+        sweep.beach.first,
+        sweep.beach.count,
+        tuple(
+            (
+                arc,
+                arc.site,
+                arc.left,
+                arc.right,
+                arc.parent,
+                arc.prev,
+                arc.next,
+                arc.height,
+                arc.generation,
+                arc.alive,
+            )
+            for arc in sweep.beach
+        ),
+        tuple(frozenset(group) for group in sweep.neighbours),
+        tuple(
+            sorted(
+                (key, edge.sites, tuple(edge.vertices))
+                for key, edge in sweep.edges.items()
+            )
+        ),
+        tuple((vertex.point, frozenset(vertex.defining)) for vertex in sweep.vertices),
+        dict(sweep._vertex_index),
+    )
+
+
+def _dispatch(sweep, event):
+    sweep.sweep_y = min(sweep.sweep_y, event.y)
+    if event.kind == 0:
+        sweep.site_event(event.site)
+    else:
+        sweep.circle_event(event)
+    sweep.beach.validate()
+
+
+def _pending_triangle():
+    # The clockwise triple (-2, 0), (0, 2), (2, 0) lies on
+    # the circle centred at (0, 0), with bottom y = -2.
+    sweep = FortuneSweep(
+        [Point(0, 2), Point(-2, 0), Point(2, 0)],
+        debug=True,
+    )
+    for site in range(3):
+        sweep.sweep_y = sweep.points[site].y
+        sweep.site_event(site)
+        sweep.beach.validate()
+
+    event = sweep.queue.pop()
+    assert not sweep.queue
+    assert event.defining == (1, 0, 2)
+    assert event.centre == Point(0, 0)
+    assert event.y == -2
+    assert event.arc.alive
+    return sweep, event
+
+
+def test_site_insertion_supersedes_live_prediction_without_topology_changes():
+    points = [
+        Point(0, 2),
+        Point(-2, 0),
+        Point(2, 0),
+        Point(-4, -1),
+    ]
+    sweep = FortuneSweep(points, debug=True)
+    for site, point in enumerate(points):
+        sweep.queue.push(Event(point.y, point.x, 0, site=site))
+
+    # Process the initial three sites through the real event queue.
+    for expected_site in range(3):
+        event = sweep.queue.pop()
+        assert event.kind == 0 and event.site == expected_site
+        _dispatch(sweep, event)
+
+    # Capture the prediction without removing it from the logical queue.
+    site_event = sweep.queue.pop()
+    assert site_event.kind == 0 and site_event.site == 3
+    pending = sweep.queue.pop()
+    assert not sweep.queue
+    assert pending.defining == (1, 0, 2)
+    assert pending.centre == Point(0, 0)
+    assert pending.y == -2
+    target = pending.arc
+    old_predecessor = target.prev
+    sweep.queue.push(pending)
+
+    _dispatch(sweep, site_event)
+
+    # The new site splits the left neighbour. The target survives, but its
+    # predecessor is now a different Arc carrying the same site ID.
+    assert target.alive
+    assert target.prev is not old_predecessor
+    assert target.prev.site == old_predecessor.site == 1
+    assert (target.prev.site, target.site, target.next.site) == pending.defining
+    assert target.generation != pending.generation
+    assert sweep.statistics["site_events"] == 4
+
+    # Dispatch any earlier replacement predictions normally. The old
+    # prediction must still be harmless when its actual heap turn arrives.
+    while True:
+        assert sweep.queue
+        event = sweep.queue.pop()
+        if event is pending:
+            break
+        _dispatch(sweep, event)
+
+    assert target.alive
+    assert (target.prev.site, target.site, target.next.site) == pending.defining
+    before = _topology(sweep)
+    statistics = sweep.statistics.copy()
+    _dispatch(sweep, event)
+
+    assert _topology(sweep) == before
+    assert sweep.statistics == {
+        **statistics,
+        "stale_events": statistics["stale_events"] + 1,
+    }
+
+
+def test_duplicate_circle_delivery_after_arc_removal_is_harmless():
+    sweep, prediction = _pending_triangle()
+    target = prediction.arc
+
+    # Deliberately duplicate delivery of a genuine scheduled prediction.
+    sweep.queue.push(prediction)
+    sweep.queue.push(prediction)
+    _dispatch(sweep, sweep.queue.pop())
+
+    assert not target.alive
+    assert all(arc is not target for arc in sweep.beach)
+    assert sweep.statistics["circle_events"] == 1
+    assert len(sweep.vertices) == 1
+    assert sweep.vertices[0].point == Point(0, 0)
+    assert sweep.vertices[0].defining == {0, 1, 2}
+    assert set(sweep.edges) == {(0, 1), (0, 2), (1, 2)}
+
+    before = _topology(sweep)
+    statistics = sweep.statistics.copy()
+    delayed = sweep.queue.pop()
+    assert delayed is prediction
+    _dispatch(sweep, delayed)
+
+    assert not sweep.queue
+    assert _topology(sweep) == before
+    assert sweep.statistics == {
+        **statistics,
+        "stale_events": statistics["stale_events"] + 1,
+    }
+
+
+def test_two_child_deletion_preserves_queued_deep_successor_identity():
+    beach = BeachLine()
+    arcs = [Arc(site) for site in range(16)]
+    previous = None
+    for arc in arcs[:15]:
+        beach.insert_after(previous, arc)
+        previous = arc
+    beach.insert_after(arcs[8], arcs[15])
+    beach.validate()
+
+    victim = arcs[7]
+    successor = arcs[8]
+    assert victim.left is not None and victim.right is not None
+    assert successor is victim.next
+    assert successor.parent is not victim
+    assert successor.left is None
+    assert successor.right is arcs[15]
+
+    queue = EventQueue()
+    prediction = Event(
+        -10,
+        0,
+        1,
+        arc=successor,
+        generation=successor.generation,
+        centre=Point(0, 0),
+        defining=(7, 8, 15),
+    )
+    queue.push(prediction)
+    survivors = [arc for arc in beach if arc is not victim]
+    payloads = [(arc, arc.site, arc.generation) for arc in survivors]
+
+    beach.remove(victim)
+    beach.validate()
+
+    assert not victim.alive
+    assert list(beach) == survivors
+    for arc, site, generation in payloads:
+        assert arc.alive
+        assert arc.site == site
+        assert arc.generation == generation
+
+    delivered = queue.pop()
+    assert delivered is prediction
+    assert delivered.arc is successor
+    assert delivered.arc.alive
+    assert delivered.arc.site == 8
+    assert delivered.arc.generation == delivered.generation
+    assert successor.prev is arcs[6]
+    assert successor.next is arcs[15]
+
+    # Use the retained handle, rather than searching for its site again.
+    # The old neighbourhood prediction is not dispatched as a valid circle.
+    beach.remove(delivered.arc)
+    beach.validate()
+    assert list(beach) == [arc for arc in survivors if arc is not successor]
+    assert arcs[6].next is arcs[15]
+    assert arcs[15].prev is arcs[6]
+
+
+def test_exact_heap_priority_ties_are_fifo_across_interleaved_pushes():
+    queue = EventQueue()
+    circle_a = Event(5, 0, 1, arc=Arc(10))
+    circle_b = Event(5, 0, 1, arc=Arc(11))
+    site_a = Event(5, 0, 0, site=20)
+    site_b = Event(5, 0, 0, site=21)
+    higher = Event(6, 100, 1, arc=Arc(12))
+    lower = Event(4, -100, 0, site=22)
+    left_circle = Event(5, -1, 1, arc=Arc(13))
+
+    for event in (
+        circle_a,
+        lower,
+        site_a,
+        circle_b,
+        higher,
+        left_circle,
+        site_b,
+    ):
+        queue.push(event)
+
+    assert queue.pop() is higher
+    assert queue.pop() is site_a
+
+    # New ties must follow older pending ties, even after partial draining.
+    site_c = Event(5, 0, 0, site=23)
+    circle_c = Event(5, 0, 1, arc=Arc(14))
+    queue.push(circle_c)
+    queue.push(site_c)
+
+    expected = [
+        site_b,
+        site_c,
+        left_circle,
+        circle_a,
+        circle_b,
+        circle_c,
+        lower,
+    ]
+    for event in expected:
+        assert queue.pop() is event
+    assert not queue
+
+
+==============================================================================
 tests\validation.py
 ==============================================================================
 """Independent O(n) / O(n^2) validators; never imported by the algorithm."""
@@ -2292,257 +2577,127 @@ if __name__ == "__main__":
 
 
 ==============================================================================
+tools\bootstrap_tex_debian.sh
+==============================================================================
+#!/usr/bin/env bash
+# Add missing LuaLaTeX font support locally, without sudo or system changes.
+set -eu
+report_script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+report_project_dir="$(CDPATH= cd -- "$report_script_dir/.." && pwd)"
+report_tex_deps="$report_project_dir/tmp/tex-deps"
+mkdir -p "$report_tex_deps/packages" "$report_tex_deps/tree"
+cd "$report_tex_deps/packages"
+set -- "$report_tex_deps"/packages/texlive-luatex_*.deb
+if [ ! -f "$1" ]; then
+  apt-get download texlive-luatex
+fi
+for report_tex_package in "$report_tex_deps"/packages/texlive-luatex_*.deb; do
+  dpkg-deb --extract "$report_tex_package" "$report_tex_deps/tree"
+done
+report_cache_base="$(printenv XDG_CACHE_HOME || true)"
+if [ -z "$report_cache_base" ]; then
+  report_cache_base="$HOME/.cache"
+fi
+report_cache_dir="$report_cache_base/fortune-sweep-latex"
+mkdir -p "$report_cache_dir/texmf" "$report_cache_dir/fonts"
+cp -a "$report_tex_deps/tree/usr/share/texlive/texmf-dist/." "$report_cache_dir/texmf/"
+mktexlsr "$report_cache_dir/texmf"
+python3 - "$report_tex_deps/wsl-paths.json" "$report_cache_dir" <<'PY'
+import json
+from pathlib import Path
+import sys
+cache = Path(sys.argv[2])
+Path(sys.argv[1]).write_text(json.dumps({
+    "texmf_home": str(cache / "texmf"),
+    "font_cache": str(cache / "fonts"),
+}, indent=2) + "\n", encoding="utf-8")
+PY
+printf '%s\n' "Local LuaLaTeX support prepared in the Debian user cache; no system packages changed."
+
+
+==============================================================================
 tools\build_report.py
 ==============================================================================
-"""Build the editable Markdown report as a searchable A4 Times New Roman PDF.
+"""Compile editable LaTeX with native TeX or an existing WSL installation.
 
-Supports the small, explicit Markdown subset used by report/report.md. Emits
-page budgets for layout review; does not silently shrink body text to fit.
+LaTeX section files are authoritative; Markdown is never regenerated or read.
+Shell escape is disabled and actual compiler logs are retained.
 """
 
-from pathlib import Path
+import argparse
+import json
 import os
 import re
-from xml.sax.saxutils import escape
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import cm
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    PageBreak,
-    Image,
-    Preformatted,
-    Table,
-    TableStyle,
-)
-from reportlab.lib.utils import ImageReader
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "report" / "report.md"
-OUT = ROOT / "report" / "report.pdf"
-WIDTH = A4[0] - 5 * cm - 12
-HEIGHT = A4[1] - 5 * cm - 12
+REPORT = ROOT / "report"
+BUILD = ROOT / "tmp" / "latex-build"
 
 
-def register_fonts():
-    directory = Path(os.environ.get("FORTUNE_TNR_DIR", r"C:\Windows\Fonts"))
-    for name, filename in [
-        ("TNR", "times.ttf"),
-        ("TNR-Bold", "timesbd.ttf"),
-        ("TNR-Italic", "timesi.ttf"),
-    ]:
-        pdfmetrics.registerFont(TTFont(name, str(directory / filename)))
-    pdfmetrics.registerFontFamily(
-        "TNR", normal="TNR", bold="TNR-Bold", italic="TNR-Italic", boldItalic="TNR-Bold"
+def checked(command, *, cwd=None, timeout=300):
+    return subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        check=False,
     )
 
 
-def markup(text):
-    return re.sub(r"`([^`]+)`", r'<font name="Courier">\1</font>', escape(text))
+def select_engine(requested, distro):
+    names = [requested] if requested != "auto" else ["lualatex", "xelatex"]
+    if distro is None:
+        for name in names:
+            executable = shutil.which(name)
+            if (
+                executable
+                and checked([executable, "--version"], timeout=20).returncode == 0
+            ):
+                return executable, None
+        if os.name != "nt":
+            raise RuntimeError("Install LuaLaTeX or XeLaTeX, or specify --engine.")
+        distro = "Debian"
+    for name in names:
+        probe = checked(["wsl.exe", "-d", distro, "--", "which", name], timeout=30)
+        if probe.returncode == 0:
+            return name, distro
+    raise RuntimeError(f"No working LuaLaTeX/XeLaTeX found in WSL {distro}.")
 
 
-def page_flowables(text, cover=False):
-    normal = ParagraphStyle(
-        "Body",
-        fontName="TNR",
-        fontSize=12,
-        leading=18,
-        spaceAfter=7,
-        splitLongWords=True,
+def wsl_path(path, distro):
+    result = checked(
+        ["wsl.exe", "-d", distro, "--", "wslpath", "-u", str(path)], timeout=30
     )
-    heading = ParagraphStyle(
-        "Heading",
-        parent=normal,
-        fontName="TNR-Bold",
-        fontSize=16,
-        leading=21,
-        spaceAfter=12,
-        keepWithNext=True,
-    )
-    sub = ParagraphStyle(
-        "Sub", parent=heading, fontSize=13, leading=18, spaceBefore=3, spaceAfter=8
-    )
-    caption = ParagraphStyle("Caption", parent=normal, spaceBefore=3, spaceAfter=10)
-    centre = ParagraphStyle("Cover", parent=normal, alignment=TA_CENTER, spaceAfter=22)
-    title = ParagraphStyle(
-        "Title",
-        parent=centre,
-        fontName="TNR-Bold",
-        fontSize=23,
-        leading=29,
-        spaceAfter=36,
-    )
-    code = ParagraphStyle(
-        "Code", fontName="Courier", fontSize=9, leading=12, spaceBefore=4, spaceAfter=10
-    )
-    elements = []
-    lines = text.strip().splitlines()
-    i = 0
-    if cover:
-        elements.append(Spacer(1, 110))
-    while i < len(lines):
-        line = lines[i].strip()
-        if not line:
-            i += 1
-            continue
-        if line.startswith("```"):
-            block = []
-            i += 1
-            while i < len(lines) and not lines[i].startswith("```"):
-                block.append(lines[i])
-                i += 1
-            elements.append(Preformatted("\n".join(block), code))
-            i += 1
-            continue
-        if line.startswith("|"):
-            rows = []
-            while i < len(lines) and lines[i].strip().startswith("|"):
-                parts = [p.strip() for p in lines[i].strip().strip("|").split("|")]
-                if not all(re.fullmatch(r"[-: ]+", p) for p in parts):
-                    rows.append([Paragraph(markup(p), normal) for p in parts])
-                i += 1
-            count = len(rows[0])
-            widths = (
-                [WIDTH * 0.38, WIDTH * 0.62]
-                if count == 2
-                else [WIDTH * 0.62, WIDTH * 0.15, WIDTH * 0.23]
-                if count == 3
-                else [WIDTH / count] * count
-            )
-            table = Table(rows, colWidths=widths, repeatRows=1, hAlign="LEFT")
-            table.setStyle(
-                TableStyle(
-                    [
-                        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E7EBF0")),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 4),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ]
-                )
-            )
-            elements.extend([table, Spacer(1, 5)])
-            continue
-        image = re.fullmatch(r"!\[([^]]+)\]\(([^)]+)\)", line)
-        if image:
-            path = (SOURCE.parent / image.group(2)).resolve()
-            w, h = ImageReader(str(path)).getSize()
-            target = min(WIDTH, 420)
-            elements.append(Image(str(path), width=target, height=target * h / w))
-            elements.append(Paragraph(markup(image.group(1)), caption))
-            i += 1
-            continue
-        if line.startswith("# "):
-            elements.append(Paragraph(markup(line[2:]), title if cover else heading))
-            i += 1
-            continue
-        if line.startswith("## "):
-            elements.append(Paragraph(markup(line[3:]), sub))
-            i += 1
-            continue
-        paragraph = [line]
-        i += 1
-        while (
-            i < len(lines)
-            and lines[i].strip()
-            and not lines[i].startswith(("#", "|", "```", "!["))
-        ):
-            paragraph.append(lines[i].strip())
-            i += 1
-        elements.append(
-            Paragraph(markup(" ".join(paragraph)), centre if cover else normal)
-        )
-    return elements
+    if result.returncode:
+        raise RuntimeError(result.stdout)
+    return result.stdout.strip()
 
 
-def footer(canvas, doc):
-    if doc.page == 1:
-        return
-    canvas.saveState()
-    canvas.setFont("TNR", 10)
-    canvas.drawCentredString(A4[0] / 2, 1.3 * cm, str(doc.page - 1))
-    canvas.restoreState()
-
-
-def main():
-    register_fonts()
-    pages = SOURCE.read_text(encoding="utf-8").split("<!-- PAGE -->")
-    story = []
-    budgets = []
-    for number, text in enumerate(pages):
-        items = page_flowables(text, cover=number == 0)
-        height = sum(
-            f.wrap(WIDTH, 100000)[1]
-            + getattr(f, "getSpaceBefore", lambda: 0)()
-            + getattr(f, "getSpaceAfter", lambda: 0)()
-            for f in items
-        )
-        # Modest figure resizing is allowed; body text always stays 12/18.
-        images = [f for f in items if isinstance(f, Image)]
-        if height > HEIGHT and images:
-            reduction = min(
-                height - HEIGHT + 8, sum(im.drawHeight for im in images) * 0.25
-            )
-            for im in images:
-                factor = 1 - reduction / sum(item.drawHeight for item in images)
-                im.drawWidth *= factor
-                im.drawHeight *= factor
-            height = sum(
-                f.wrap(WIDTH, 100000)[1]
-                + getattr(f, "getSpaceBefore", lambda: 0)()
-                + getattr(f, "getSpaceAfter", lambda: 0)()
-                for f in items
-            )
-        budgets.append(
-            dict(
-                source_page=number + 1,
-                height_points=round(height, 1),
-                available=round(HEIGHT, 1),
-            )
-        )
-        if height > HEIGHT + 1:
-            raise RuntimeError(
-                f"Page {number + 1} exceeds budget: {height:.1f} > {HEIGHT:.1f}; edit prose/layout"
-            )
-        if number:
-            story.append(PageBreak())
-        story.extend(items)
-    doc = SimpleDocTemplate(
-        str(OUT),
-        pagesize=A4,
-        topMargin=2.5 * cm,
-        bottomMargin=2.5 * cm,
-        leftMargin=2.5 * cm,
-        rightMargin=2.5 * cm,
-        title="Fortune Sweep Line Voronoi Diagrams",
-        author="broccolize",
-    )
-    doc.build(story, onFirstPage=footer, onLaterPages=footer)
-    import json
-
-    (ROOT / "evidence" / "report-layout.json").write_text(
-        json.dumps(budgets, indent=2), encoding="utf-8"
-    )
-    listing = []
-    sources = []
-    for name in ("src", "tests", "tools"):
-        sources.extend((ROOT / name).rglob("*.py"))
-    sources.extend(ROOT.glob("*.bat"))
-    sources.extend(ROOT.glob("*.sh"))
-    sources.extend(
+def source_listing():
+    paths = []
+    for directory in ("src", "tests", "tools"):
+        paths.extend((ROOT / directory).rglob("*.py"))
+    paths.extend(ROOT.glob("*.bat"))
+    paths.extend(ROOT.glob("*.sh"))
+    paths.extend((ROOT / "tools").rglob("*.sh"))
+    paths.extend(REPORT.glob("*.bat"))
+    paths.extend(
         [
             ROOT / "pyproject.toml",
             ROOT / "requirements.txt",
-            ROOT / ".github" / "workflows" / "tests.yml",
+            ROOT / ".github/workflows/tests.yml",
         ]
     )
-    for path in sorted(sources):
+    listing = []
+    for path in sorted(paths):
         listing.extend(
             [
                 "=" * 78,
@@ -2552,14 +2707,133 @@ def main():
                 "",
             ]
         )
-    (ROOT / "report" / "source_listing.txt").write_text(
-        "\n".join(listing), encoding="utf-8"
+    (REPORT / "source_listing.txt").write_text("\n".join(listing), encoding="utf-8")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--engine", choices=["auto", "lualatex", "xelatex"], default="auto"
     )
-    print(f"Wrote {OUT}; {len(pages)} pages including cover and appendix")
+    parser.add_argument(
+        "--wsl", metavar="DISTRO", help="Compile in this WSL distribution"
+    )
+    args = parser.parse_args(argv)
+    BUILD.mkdir(parents=True, exist_ok=True)
+    engine, distro = select_engine(args.engine, args.wsl)
+    if distro:
+        report_path, build_path = wsl_path(REPORT, distro), wsl_path(BUILD, distro)
+        command = ["wsl.exe", "-d", distro, "--cd", report_path, "--"]
+        local_tex = ROOT / "tmp/tex-deps/tree/usr/share/texlive/texmf-dist"
+        cached_paths = ROOT / "tmp/tex-deps/wsl-paths.json"
+        if cached_paths.is_file():
+            local_paths = json.loads(cached_paths.read_text(encoding="utf-8"))
+            command.extend(
+                [
+                    "env",
+                    f"TEXMFHOME={local_paths['texmf_home']}",
+                    f"TEXMFVAR={local_paths['font_cache']}",
+                    f"TEXMFCACHE={local_paths['font_cache']}",
+                ]
+            )
+        elif local_tex.is_dir():
+            font_cache = ROOT / "tmp/latex-font-cache"
+            font_cache.mkdir(exist_ok=True)
+            local_path = wsl_path(local_tex, distro)
+            cache_path = wsl_path(font_cache, distro)
+            command.extend(
+                [
+                    "env",
+                    f"TEXMFHOME={local_path}",
+                    f"TEXMFVAR={cache_path}",
+                    f"TEXMFCACHE={cache_path}",
+                ]
+            )
+        command.append(engine)
+        bib_command = [
+            "wsl.exe",
+            "-d",
+            distro,
+            "--cd",
+            build_path,
+            "--",
+            "bibtex",
+            "report",
+        ]
+        build_option = build_path
+    else:
+        command = [engine]
+        bibtex = shutil.which("bibtex")
+        if not bibtex:
+            raise RuntimeError("BibTeX is required for the numbered references.")
+        bib_command = [bibtex, "report"]
+        build_option = str(BUILD)
+    command.extend(
+        [
+            "-interaction=nonstopmode",
+            "-halt-on-error",
+            "-file-line-error",
+            "-no-shell-escape",
+            "-synctex=1",
+            f"-output-directory={build_option}",
+            "report.tex",
+        ]
+    )
+    shutil.copy2(REPORT / "references.bib", BUILD / "references.bib")
+    logs = []
+
+    def run_stage(name, stage_command, cwd):
+        result = checked(stage_command, cwd=cwd)
+        (BUILD / f"{name}.log").write_text(result.stdout, encoding="utf-8")
+        logs.append(f"=== {name} ===\n{result.stdout}")
+        (ROOT / "evidence/report-build.log").write_text(
+            "\n".join(logs), encoding="utf-8"
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"{name} failed:\n" + "\n".join(result.stdout.splitlines()[-45:])
+            )
+        return result.stdout
+
+    run_stage("latex-pass-1", command, REPORT)
+    run_stage("bibtex", bib_command, BUILD)
+    run_stage("latex-pass-2", command, REPORT)
+    final_output = run_stage("latex-pass-3", command, REPORT)
+    if re.search(
+        r"(?:Citation .* undefined|There were undefined references)", final_output
+    ):
+        raise RuntimeError(
+            "Unresolved citations or references; see evidence/report-build.log"
+        )
+    pdf = BUILD / "report.pdf"
+    if not pdf.is_file():
+        raise RuntimeError("LaTeX did not produce report.pdf")
+    shutil.copy2(pdf, REPORT / "report.pdf")
+    source_listing()
+    summary = {
+        "source": "report/report.tex",
+        "editable_sections": "report/sections/",
+        "engine": Path(engine).name,
+        "wsl_distribution": distro,
+        "bibliography_style": "ieeetr",
+        "latex_passes": 3,
+        "shell_escape": False,
+        "overfull_box_warnings": len(re.findall(r"Overfull \\[hv]box", final_output)),
+        "pdf_bytes": pdf.stat().st_size,
+        "output": "report/report.pdf",
+    }
+    (ROOT / "evidence/report-build.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(1) from error
 
 
 ==============================================================================
@@ -2702,12 +2976,14 @@ if __name__ == "__main__":
 tools\make_figures.py
 ==============================================================================
 """Reproduce all original program and explanatory figures from recorded data."""
+# ruff: noqa: E402
+# Standalone execution needs the source path and Agg backend before local imports.
 
 import json
 import math
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -2717,23 +2993,51 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from fortune import construct, Box
+
+from fortune import Box, construct
 from fortune.geometry import Point, parabola_y
-from fortune.io import read_sites, random_sites, write_csv, write_json
+from fortune.io import random_sites, read_sites, write_csv, write_json
 from fortune.visualize import draw, render
 
 OUT = ROOT / "figures"
 
 
+def report_diagram(diagram, path, *, labels=True):
+    """Render at the report's physical width so embedded labels stay legible."""
+    fig, ax = plt.subplots(figsize=(6.3, 5.8))
+    draw(diagram, ax, labels=labels)
+    for text in ax.texts:
+        text.set_fontsize(10)
+    if not labels:
+        ax.collections[-1].set_sizes([5])
+    ax.set_title(ax.get_title(), fontsize=11)
+    fig.tight_layout(pad=0.7)
+    fig.savefig(path, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "mathtext.fontset": "stix",
+            "font.serif": ["Times New Roman"],
+            "font.size": 11,
+            "axes.labelsize": 10,
+            "axes.titlesize": 11,
+            "xtick.labelsize": 9,
+            "ytick.labelsize": 9,
+            "legend.fontsize": 9,
+        }
+    )
     OUT.mkdir(exist_ok=True)
     d = construct(read_sites(ROOT / "examples" / "sites.txt"), Box(0, 0, 1, 1))
-    render(d, OUT / "general.png")
+    report_diagram(d, OUT / "general.png")
     render(d, ROOT / "examples" / "general.svg")
     write_csv(d, ROOT / "examples" / "cells.csv")
     write_json(d, ROOT / "examples" / "diagram.json")
     large = construct(random_sites(1000, 2026), Box(0, 0, 1, 1))
-    render(large, OUT / "large.png", labels=False)
+    report_diagram(large, OUT / "large.png", labels=False)
     cases = [
         ("Horizontal collinear", [(i, 0) for i in range(5)]),
         ("Vertical collinear", [(0, i) for i in range(5)]),
@@ -2741,17 +3045,19 @@ def main():
         ("Cocircular square", [(0, 0), (1, 0), (1, 1), (0, 1)]),
         ("Duplicate index groups", [(0, 0), (1, 0), (0, 1), (0, 0)]),
         (
-            "Near sites 1e-11 apart",
+            r"Near sites $10^{-11}$ apart",
             [(0, 0), (1e-11, 1e-11), (1, 0), (0.3, 0.7), (0, 1)],
         ),
         ("Single site", [(0, 0)]),
         ("Two sites", [(0, 0), (1, 1)]),
     ]
     for half in range(2):
-        fig, axes = plt.subplots(2, 2, figsize=(10, 9))
+        fig, axes = plt.subplots(2, 2, figsize=(6.3, 5.9))
         for ax, (title, points) in zip(axes.flat, cases[half * 4 : half * 4 + 4]):
             draw(construct(points), ax)
-            ax.set_title(title, fontsize=12)
+            ax.set_title(title, fontsize=10)
+            for text in ax.texts:
+                text.set_fontsize(9)
             ax.xaxis.set_major_locator(MaxNLocator(3))
             ax.yaxis.set_major_locator(MaxNLocator(3))
             width = ax.get_xlim()[1] - ax.get_xlim()[0]
@@ -2761,40 +3067,49 @@ def main():
             if height / width < 0.3:
                 ax.set_yticks([points[0][1]])
         fig.tight_layout()
-        fig.savefig(OUT / f"degenerate-{half + 1}.png", dpi=160)
+        fig.savefig(OUT / f"degenerate-{half + 1}.png", dpi=220, bbox_inches="tight")
         plt.close(fig)
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(6.3, 3.7))
     boxes = [
-        (0.02, 0.6, "Input and exact duplicates"),
-        (0.35, 0.6, "Fortune sweep\nAVL arcs and event heap"),
-        (0.69, 0.6, "Adjacency and traced edges"),
-        (0.35, 0.12, "Angle sorted half planes\nBox clipping and ordered cells"),
-        (0.71, 0.12, "CLI and Matplotlib\nCSV JSON PNG SVG"),
+        (0.02, 0.72, "Input validation\nExact duplicate groups"),
+        (0.56, 0.72, "Fortune sweep\nAVL arcs + event heap"),
+        (0.56, 0.40, "Voronoi topology\nAdjacency + vertices"),
+        (0.02, 0.40, "Clipped cell assembly\nOrdered half-plane intersection"),
+        (0.02, 0.08, "CLI, GUI and exports\nPNG / SVG / CSV / JSON"),
+        (0.56, 0.08, "Independent tests\nOwnership / empty circles"),
     ]
     for x, y, label in boxes:
         ax.add_patch(
-            plt.Rectangle((x, y), 0.27, 0.22, facecolor="#e9eff9", edgecolor="#355070")
+            plt.Rectangle(
+                (x, y),
+                0.42,
+                0.22,
+                facecolor="#f3f5f7",
+                edgecolor="#687481",
+                linewidth=0.8,
+            )
         )
-        ax.text(x + 0.135, y + 0.11, label, ha="center", va="center", fontsize=11)
+        ax.text(x + 0.21, y + 0.11, label, ha="center", va="center", fontsize=10.5)
     for start, end in [
-        ((0.29, 0.71), (0.35, 0.71)),
-        ((0.62, 0.71), (0.69, 0.71)),
-        ((0.82, 0.6), (0.5, 0.34)),
-        ((0.62, 0.23), (0.71, 0.23)),
+        ((0.44, 0.83), (0.56, 0.83)),
+        ((0.77, 0.72), (0.77, 0.62)),
+        ((0.56, 0.51), (0.44, 0.51)),
+        ((0.23, 0.40), (0.23, 0.30)),
+        ((0.44, 0.19), (0.56, 0.19)),
     ]:
-        ax.annotate("", xy=end, xytext=start, arrowprops=dict(arrowstyle="->", lw=1.5))
-    ax.text(
-        0.02,
-        0.07,
-        "Independent tests validate output; no validator is used to build the diagram.",
-        fontsize=10,
-    )
+        ax.annotate(
+            "",
+            xy=end,
+            xytext=start,
+            arrowprops=dict(arrowstyle="->", lw=1.0, color="#485563"),
+        )
     ax.set(xlim=(0, 1), ylim=(0, 1))
     ax.axis("off")
     fig.tight_layout()
-    fig.savefig(OUT / "architecture.png", dpi=160)
+    fig.savefig(OUT / "architecture.png", dpi=220, bbox_inches="tight")
+    fig.savefig(OUT / "architecture.svg", bbox_inches="tight")
     plt.close(fig)
-    fig, ax = plt.subplots(figsize=(9, 4.5))
+    fig, ax = plt.subplots(figsize=(6.3, 3.4))
     points = [Point(-0.6, 0.8), Point(0.2, 0.6), Point(0.75, 1.0)]
     ly = -0.2
     xs = [-1.2 + i * 2.4 / 700 for i in range(701)]
@@ -2814,23 +3129,23 @@ def main():
     ax.set(xlim=(-1.2, 1.2), ylim=(-0.4, 1.5), xlabel="x", ylabel="y")
     ax.legend()
     fig.tight_layout()
-    fig.savefig(OUT / "beachline.png", dpi=160)
+    fig.savefig(OUT / "beachline.png", dpi=220, bbox_inches="tight")
     plt.close(fig)
     data = json.loads((ROOT / "results" / "benchmark.json").read_text())["results"]
     ns = [row["n"] for row in data]
     ts = [row["median_seconds"] for row in data]
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    fig, axes = plt.subplots(1, 2, figsize=(6.3, 3.1))
     axes[0].loglog(ns, ts, "o-", label="Measured median, 3 runs")
     axes[0].loglog(
         ns,
         [ts[0] * n * math.log2(n) / (ns[0] * math.log2(ns[0])) for n in ns],
         "--",
-        label="n log2 n, anchored at 100",
+        label=r"$n\log_2 n$, scaled at $n=100$",
     )
     axes[0].set(
-        xlabel="Sites n", ylabel="Construction time (seconds)", title="Time scaling"
+        xlabel=r"Sites $n$", ylabel="Construction time (seconds)", title="Time scaling"
     )
-    axes[0].legend(fontsize=9)
+    axes[0].legend(fontsize=8)
     axes[1].loglog(
         ns,
         [r["python_peak_bytes"] / 2**20 for r in data],
@@ -2844,17 +3159,34 @@ def main():
         label="Process peak with tracer",
     )
     axes[1].set(
-        xlabel="Sites n",
+        xlabel=r"Sites $n$",
         ylabel="Peak memory (MiB)",
         title="Memory in isolated processes",
     )
-    axes[1].legend(fontsize=9)
+    axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(True, which="both", alpha=0.25)
     fig.tight_layout()
-    fig.savefig(OUT / "scaling.png", dpi=180)
+    fig.savefig(OUT / "scaling.png", dpi=220, bbox_inches="tight")
+    fig.savefig(OUT / "scaling.svg", bbox_inches="tight")
     plt.close(fig)
+    for path in (
+        ROOT / "examples/general.svg",
+        OUT / "architecture.svg",
+        OUT / "scaling.svg",
+    ):
+        normalize_svg_whitespace(path)
     print("Wrote original figures, SVG example, CSV and JSON exports")
+
+
+def normalize_svg_whitespace(path):
+    """Keep generated SVG paths unchanged while avoiding trailing-space noise."""
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        "\n".join(line.rstrip() for line in text.splitlines()) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 if __name__ == "__main__":
@@ -2866,13 +3198,14 @@ tools\package_project.py
 ==============================================================================
 """Assemble the requested review ZIP without including environments or credentials."""
 
-from datetime import datetime, timezone, timedelta
 import hashlib
 import json
-from pathlib import Path
+import re
 import shutil
 import subprocess
-from zipfile import ZipFile, ZIP_DEFLATED
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -2892,12 +3225,13 @@ REPRODUCE RESULTS FROM 02_SourceCode
   .venv\Scripts\python tools\stress.py
   .venv\Scripts\python tools\benchmark.py --sizes 100 1000 10000 --repeat 3 --seed 2026
   .venv\Scripts\python tools\make_figures.py
-To rebuild the report, install report\requirements.txt and run tools\build_report.py.
-The report builder uses the Windows Times New Roman fonts.
+To rebuild the LaTeX report, run tools\build_report.py with LuaLaTeX/XeLaTeX
+and BibTeX installed, or add --wsl Debian on this computer.
+Read report\README.md for font support and editing the modular .tex source.
 See 02_SourceCode\README.md for Linux/WSL instructions, output schema and limits.
 
 PACKAGE CONTENTS
-01_Report: searchable PDF, editable Markdown, source listing, report dependencies.
+01_Report: searchable PDF, editable LaTeX sections, bibliography, figures and guide.
 02_SourceCode: complete source, build/run files, docs, tests and measured evidence.
 03_Executable: Windows run-script entry point and pinned dependency list.
 04_Demo: input/output examples, narrated script and recording checklist.
@@ -2906,13 +3240,13 @@ devlog.md: actual verification process and corrections.
 completeness.json: required files, owner evidence and source revision.
 
 REVIEW STATUS
-The AI-produced software and report have executable evidence. Owner review,
-subscription-plan confirmation, two authentic AI interaction screenshots and the
-personally narrated video remain required unless completeness.json says present.
+The AI-produced software and report have executable evidence. Owner review
+and the personally narrated video remain required unless completeness.json
+says present. Genuine ChatGPT and Pi captures are included in the report.
+The actual owner-confirmed subscription plan is recorded in owner-metadata.json.
 No video or AI conversation screenshot has been fabricated. Read REVIEW_CHECKLIST.md.
-PERSONAL in the ZIP name is a personal-project identifier, not a student number.
-For a real course submission replace it with the actual required identity and
-follow that course's submission rules. No email is sent by these scripts.
+The cover and ZIP use the owner-provided name and student ID. No email is sent
+by these scripts; the review and missing-evidence flags still govern completeness.
 """
 
 
@@ -2936,6 +3270,25 @@ def main():
 
     def tree(source, relative):
         for path in sorted(source.rglob("*")):
+            # A ZIP cannot contain its own final hash; the audit is kept beside it.
+            if path == ROOT / "evidence/package-audit.json":
+                continue
+            if source == ROOT / "report" and (
+                path.suffix
+                in {
+                    ".aux",
+                    ".bbl",
+                    ".blg",
+                    ".log",
+                    ".toc",
+                    ".lof",
+                    ".lot",
+                    ".out",
+                    ".fls",
+                }
+                or path.name.endswith((".synctex.gz", ".fdb_latexmk"))
+            ):
+                continue
             if path.is_file() and not any(
                 p in ("__pycache__", ".pytest_cache", ".venv", "tmp")
                 for p in path.parts
@@ -2972,8 +3325,19 @@ def main():
         ".gitattributes",
     ):
         copy(ROOT / name, Path("02_SourceCode") / name)
-    for name in ("report.pdf", "report.md", "source_listing.txt", "requirements.txt"):
-        copy(ROOT / "report" / name, Path("01_Report") / name)
+    tree(ROOT / "report", "01_Report")
+    tree(ROOT / "figures", "01_Report/figures")
+    copy(ROOT / "evidence/gui-native.png", "01_Report/figures/gui-native.png")
+    for name in (
+        "ai-interaction-1.png",
+        "pi-environment.png",
+        "pi-interaction-invariants.png",
+        "ai-interaction-2.png",
+        "pi-tiny-cell-code-continuation.png",
+        "pi-interaction-tests.png",
+        "pi-tests-summary.png",
+    ):
+        copy(ROOT / "evidence" / name, Path("01_Report/figures") / name)
     tree(ROOT / "tests", "tests")
     tree(ROOT / "examples", "04_Demo/examples")
     tree(ROOT / "demo", "04_Demo")
@@ -2999,18 +3363,34 @@ def main():
             text=True,
             encoding="utf-8",
         )
+        source_worktree_dirty = bool(
+            subprocess.check_output(
+                ["git", "status", "--porcelain"], cwd=ROOT, text=True, encoding="utf-8"
+            ).strip()
+        )
     except (OSError, subprocess.CalledProcessError):
         revision = "unavailable"
+        source_worktree_dirty = None
         gitlog = "Git unavailable; see included development log.\n"
     write("02_SourceCode/git_log.txt", gitlog)
     write(
         "02_SourceCode/SOURCE_REVISION.json",
-        json.dumps({"git_commit": revision}, indent=2),
+        json.dumps(
+            {
+                "base_git_commit": revision,
+                "source_worktree_dirty": source_worktree_dirty,
+                "note": "The archive includes the current working files; the base commit alone does not identify uncommitted changes.",
+            },
+            indent=2,
+        ),
     )
     metadata = json.loads((ROOT / "owner-metadata.json").read_text(encoding="utf-8"))
     required = [
         "01_Report/report.pdf",
-        "01_Report/report.md",
+        "01_Report/report.tex",
+        "01_Report/preamble.tex",
+        "01_Report/references.bib",
+        "01_Report/sections/01-introduction.tex",
         "02_SourceCode/src/fortune/sweep.py",
         "03_Executable/run.bat",
         "04_Demo/script.md",
@@ -3028,6 +3408,7 @@ def main():
     manifest = dict(
         generated_at=datetime.now(timezone(timedelta(hours=8))).isoformat(),
         source_revision=revision,
+        source_worktree_dirty=source_worktree_dirty,
         missing_required_files=missing,
         ai_artifacts_present=not missing,
         owner_evidence_present=owner,
@@ -3040,7 +3421,13 @@ def main():
     write("completeness.json", json.dumps(manifest, indent=2) + "\n")
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)
-    archive = dist / "CG_Assignment_PERSONAL_broccolize.zip"
+    identifier = re.sub(
+        r"[^A-Za-z0-9_-]+", "_", str(metadata.get("student_id") or "PERSONAL")
+    )
+    author = re.sub(
+        r"[^A-Za-z0-9_-]+", "_", metadata.get("author", "broccolize")
+    ).strip("_")
+    archive = dist / f"CG_Assignment_{identifier}_{author}.zip"
     with ZipFile(archive, "w", compression=ZIP_DEFLATED, compresslevel=9) as out:
         for path in sorted(files):
             out.write(path, path.relative_to(stage).as_posix())
@@ -3056,6 +3443,7 @@ def main():
         files=len(files),
         sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
         source_revision=revision,
+        source_worktree_dirty=source_worktree_dirty,
         required_files_present=not missing,
         zip_crc_check="passed",
         owner_evidence_present=owner,

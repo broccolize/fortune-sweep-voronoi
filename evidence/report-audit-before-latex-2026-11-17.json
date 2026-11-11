@@ -1,0 +1,9 @@
+{
+  "pages": 19,
+  "main_body_pages": 16,
+  "a4_all_pages": true,
+  "searchable_text": true,
+  "mandatory_sections_present": true,
+  "visual_review": "Seven changed pages inspected on 17 November 2026; twelve pixel-identical pages retain prior visual verification.",
+  "pi_review_evidence": "evidence/pi-review-2026-11-17/verification.json"
+}

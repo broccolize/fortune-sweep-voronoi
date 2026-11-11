@@ -1,0 +1,27 @@
+{
+  "engine": "LuaLaTeX",
+  "paper": "A4",
+  "margins_mm": 25,
+  "body_font": "Times New Roman",
+  "body_font_tex_points": 12,
+  "body_spacing": 1.5,
+  "total_pages": 21,
+  "main_body_pages": 16,
+  "cover_pages": 1,
+  "navigation_pages": 2,
+  "appendix_pages": 2,
+  "overfull_boxes": 0,
+  "section_pages": {
+    "sec:1": 1,
+    "sec:2": 3,
+    "sec:3": 4,
+    "sec:4": 6,
+    "sec:5": 8,
+    "sec:6": 11,
+    "sec:7": 14,
+    "sec:8": 15,
+    "sec:9": 16,
+    "sec:a": 17,
+    "sec:b": 18
+  }
+}
