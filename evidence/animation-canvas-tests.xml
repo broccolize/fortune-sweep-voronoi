@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="22" time="11.728" timestamp="2026-11-17T23:23:31.883546+08:00" hostname="DESKTOP-6F1NTUQ"><testcase classname="tests.test_replay_canvas" name="test_canvas_snapshots_are_exact_records_of_the_python_engine[0]" time="0.033" /><testcase classname="tests.test_replay_canvas" name="test_canvas_snapshots_are_exact_records_of_the_python_engine[1]" time="0.032" /><testcase classname="tests.test_replay_canvas" name="test_canvas_snapshots_are_exact_records_of_the_python_engine[2]" time="0.032" /><testcase classname="tests.test_replay_canvas" name="test_canvas_snapshots_are_exact_records_of_the_python_engine[3]" time="0.030" /><testcase classname="tests.test_replay_canvas" name="test_canvas_snapshots_are_exact_records_of_the_python_engine[4]" time="0.033" /><testcase classname="tests.test_replay_canvas" name="test_canvas_minimal_collinear_cocircular_and_duplicate_inputs[points0]" time="0.001" /><testcase classname="tests.test_replay_canvas" name="test_canvas_minimal_collinear_cocircular_and_duplicate_inputs[points1]" time="0.003" /><testcase classname="tests.test_replay_canvas" name="test_canvas_minimal_collinear_cocircular_and_duplicate_inputs[points2]" time="0.002" /><testcase classname="tests.test_replay_canvas" name="test_canvas_minimal_collinear_cocircular_and_duplicate_inputs[points3]" time="0.002" /><testcase classname="tests.test_replay_canvas" name="test_canvas_minimal_collinear_cocircular_and_duplicate_inputs[points4]" time="0.003" /><testcase classname="tests.test_replay_canvas" name="test_canvas_export_is_self_contained_and_launch_opens_only_the_local_file" time="0.293" /><testcase classname="tests.test_replay_canvas" name="test_browser_presentation_geometry_matches_python" time="0.466"><failure message="subprocess.CalledProcessError: Command '['C:\\Program Files\\WindowsApps\\OpenAI.CodexPrimaryRuntime.v26-1111-570-0_26.1111.570.0_x64__3k8sg7r9htsxt\\dependencies\\node\\bin\\node.EXE', '-e', &quot;const f=require(process.argv[1]);const c=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(JSON.stringify(c.map(([a,b,d])=&gt;[f.breakpointX(a,b,d),f.parabolaY(a,.31,d)]))));&quot;, 'C:\\Users\\Mines\\Documents\\ChatGPT\\Computer Geometry\\tmp\\worktrees\\sweep-animation\\src\\fortune\\replay_canvas.js'...&#10;[truncated; full report in element text]">def test_browser_presentation_geometry_matches_python():
+        node = shutil.which("node")
+        if node is None:
+            pytest.skip("Node is only needed for the JavaScript presentation cross-check")
+        import fortune.replay_canvas as canvas
+    
+        script = str(canvas.Path(canvas.__file__).with_suffix(".js"))
+        # The JS file is a renderer, not a second Fortune implementation.
+        rng = random.Random(47)
+        cases = []
+        for _ in range(100):
+            a, b = Point(rng.random(), rng.random()), Point(rng.random(), rng.random())
+            d = min(a.y, b.y) - rng.uniform(0.01, 1)
+            cases.append(([a.x, a.y], [b.x, b.y], d))
+        command = "const f=require(process.argv[1]);const c=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(JSON.stringify(c.map(([a,b,d])=&gt;[f.breakpointX(a,b,d),f.parabolaY(a,.31,d)]))));"
+&gt;       result = subprocess.run(
+            [node, "-e", command, script],
+            input=json.dumps(cases),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+tests\test_replay_canvas.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+input = '[[[0.35184625582788265, 0.430186245990098], [0.4536708635895742, 0.3434697408782532], -0.17385018039691158], [[0.3924...5244743], [[0.9636458641891791, 0.6124666769345424], [0.5809449543849207, 0.023459964747764794], -0.7606144578713021]]'
+capture_output = True, timeout = None, check = True
+popenargs = (['C:\\Program Files\\WindowsApps\\OpenAI.CodexPrimaryRuntime.v26-1111-570-0_26.1111.570.0_x64__3k8sg7r9htsxt\\depende...sers\\Mines\\Documents\\ChatGPT\\Computer Geometry\\tmp\\worktrees\\sweep-animation\\src\\fortune\\replay_canvas.js'],)
+kwargs = {'text': True, 'stdin': -1, 'stdout': -1, 'stderr': -1}
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output &amp; stderr attributes if those streams
+        were captured.
+    
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+&gt;               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['C:\\Program Files\\WindowsApps\\OpenAI.CodexPrimaryRuntime.v26-1111-570-0_26.1111.570.0_x64__3k8sg7r9htsxt\\dependencies\\node\\bin\\node.EXE', '-e', "const f=require(process.argv[1]);const c=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(JSON.stringify(c.map(([a,b,d])=&gt;[f.breakpointX(a,b,d),f.parabolaY(a,.31,d)]))));", 'C:\\Users\\Mines\\Documents\\ChatGPT\\Computer Geometry\\tmp\\worktrees\\sweep-animation\\src\\fortune\\replay_canvas.js']' returned non-zero exit status 1.
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\subprocess.py:578: CalledProcessError</failure></testcase><testcase classname="tests.test_replay_view" name="test_play_pause_step_reset_keyboard_and_real_frame_export" time="1.914" /><testcase classname="tests.test_replay_view" name="test_complete_replay_restarts_and_collinear_input_is_explicit" time="0.828" /><testcase classname="tests.test_replay_view" name="test_last_valid_circle_stays_visible_and_stale_queue_is_labelled" time="0.446" /><testcase classname="tests.test_replay_view" name="test_drawing_failure_pauses_with_an_explicit_message" time="0.417" /><testcase classname="tests.test_replay_view" name="test_cli_animate_uses_seeded_sites_and_rejects_ambiguous_modes" time="0.020" /><testcase classname="tests.test_replay_view" name="test_animate_button_copies_input_without_modifying_the_current_diagram" time="0.064" /><testcase classname="tests.test_replay_view" name="test_movement_reuses_artists_and_does_not_redraw_the_figure" time="0.658" /><testcase classname="tests.test_replay_view" name="test_position_slider_dragging_and_backward_seek" time="0.538" /><testcase classname="tests.test_replay_view" name="test_resize_cache_export_and_fallback_rendering" time="1.491" /><testcase classname="tests.test_replay_view" name="test_fast_interface_text_keeps_svg_text_and_multiline_rendering" time="0.080" /></testsuite></testsuites>

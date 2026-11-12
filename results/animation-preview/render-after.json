@@ -1,0 +1,44 @@
+{
+  "actual_timestamp": "2026-11-17T22:59:58.031590+08:00",
+  "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "scope": "Same 1200x700 Agg canvas, inputs, 48-frame sequence and axes geometry as render-before.json; CPU rendering, not end-to-end desktop FPS. Nine-site measurements include cProfile overhead in both versions; 50-site measurements are unprofiled.",
+  "results": [
+    {
+      "sites": 9,
+      "frames": 48,
+      "median_geometry_ms": 0.0075499992817640305,
+      "median_redraw_ms": 14.747150009498,
+      "p95_redraw_ms": 37.31589997187257,
+      "median_frame_ms": 14.754400006495416
+    },
+    {
+      "sites": 50,
+      "frames": 48,
+      "median_geometry_ms": 0.006599992047995329,
+      "median_redraw_ms": 9.094300010474399,
+      "p95_redraw_ms": 26.15310001419857,
+      "median_frame_ms": 9.100249997572973
+    }
+  ],
+  "position_scrubbing": [
+    {
+      "sites": 9,
+      "samples": 10,
+      "median_ms": 29.405700013739988,
+      "max_ms": 43.80700003821403
+    },
+    {
+      "sites": 50,
+      "samples": 10,
+      "median_ms": 31.34499999578111,
+      "max_ms": 38.82239997619763
+    },
+    {
+      "sites": 200,
+      "samples": 10,
+      "median_ms": 44.26450002938509,
+      "max_ms": 50.67709996365011
+    }
+  ]
+}

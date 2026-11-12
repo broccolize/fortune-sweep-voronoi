@@ -32,8 +32,20 @@ def main(argv=None):
         dest="json_path",
         help="Complete diagram including rays and defining triples",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--interactive", action="store_true", help="Click-to-add interface"
+    )
+    mode.add_argument(
+        "--animate",
+        action="store_true",
+        help="Replay the sweep with Play/Pause and Next event (up to 200 sites)",
+    )
+    parser.add_argument(
+        "--animation-backend",
+        choices=("canvas", "matplotlib"),
+        default="canvas",
+        help="Canvas pointer replay (default), or the Matplotlib event inspector",
     )
     parser.add_argument(
         "--show", action="store_true", help="Display batch output on screen"
@@ -57,6 +69,35 @@ def main(argv=None):
             if args.random is not None
             else None
         )
+        if args.animate:
+            if args.csv or args.json_path:
+                parser.error(
+                    "Use batch mode for CSV/JSON; replay --output saves the current frame."
+                )
+            if args.animation_backend == "canvas":
+                from .replay_canvas import launch
+            else:
+                from .replay_view import launch
+
+            if not sites and args.input is None and args.random is None:
+                sites = random_sites(8, args.seed)
+                box = box or Box(0, 0, 1, 1)
+            if not sites:
+                raise ValueError("At least one finite site is required")
+            replay = launch(
+                sites,
+                box,
+                args.output
+                or (
+                    "replay.html"
+                    if args.animation_backend == "canvas"
+                    else "replay.png"
+                ),
+                labels=not args.no_labels,
+            )
+            if args.animation_backend == "canvas" and hasattr(replay, "path"):
+                print(f"Opened pointer replay: {replay.path}")
+            return 0
         if args.interactive or not argv:
             from .interactive import launch
 

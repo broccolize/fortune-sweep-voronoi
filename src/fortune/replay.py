@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from .diagram import construct
 from .geometry import Box, Point, breakpoint_x, parabola_y
+from .replay_state import clone_sweep
 from .sweep import FortuneSweep, all_collinear, collinear_neighbours
 
 MAX_REPLAY_SITES = 200
@@ -57,8 +58,18 @@ class SweepReplay:
             max(b.xmax, xmax),
             max(b.ymax, ymax),
         )
+        span = max(self.view.xmax - self.view.xmin, self.view.ymax - self.view.ymin)
+        self.top_y = self.view.ymax + 0.1 * span
+        self.bottom_y = self.view.ymin - 0.1 * span
         self.special_case = all_collinear(self.sites)
+        self._checkpoints = {}
+        self._final_checkpoint = None
         self.reset()
+        # Prepare the bounded seek index once, keeping pointer motion cheap.
+        if not self.special_case:
+            while not self.done:
+                self.step_event()
+            self.reset()
 
     def normalize(self, p):
         return Point((p.x - self.ox) / self.scale, (p.y - self.oy) / self.scale)
@@ -86,14 +97,13 @@ class SweepReplay:
             ).start()
         )
         self.processed = set(range(len(self.sites))) if self.special_case else set()
-        top = max(self.view.ymax, max(p.y for p in self.sites))
-        span = max(self.view.xmax - self.view.xmin, self.view.ymax - self.view.ymin)
-        self.display_y = (top + 0.1 * span - self.oy) / self.scale
+        self.display_y = (self.top_y - self.oy) / self.scale
         self.last_event = None
         self.last_stale = False
         self.event_count = 0
         self._subframe = 0
         self._segment_start = self.display_y
+        self._fraction = 0.0
 
     def step_event(self):
         if self.done:
@@ -108,7 +118,103 @@ class SweepReplay:
             self.processed.add(event.site)
         self._subframe = 0
         self._segment_start = self.display_y
+        self._fraction = 0.0
+        self._remember_checkpoint()
         return event
+
+    def _remember_checkpoint(self):
+        bucket = min(7, int(self.position * 8))
+        if self.done:
+            if self._final_checkpoint is None:
+                self._final_checkpoint = self._checkpoint()
+        elif bucket not in self._checkpoints:
+            self._checkpoints[bucket] = self._checkpoint()
+
+    def _checkpoint(self):
+        engine, event = clone_sweep(self.sweep, self.last_event)
+        return (
+            engine,
+            event,
+            frozenset(self.processed),
+            self.event_count,
+            self.last_stale,
+        )
+
+    def _restore(self, checkpoint):
+        engine, event, processed, count, last_stale = checkpoint
+        self.sweep, self.last_event = clone_sweep(engine, event)
+        self.processed = set(processed)
+        self.event_count = count
+        self.last_stale = last_stale
+        self.display_y = self.sweep.sweep_y
+        self._segment_start = self.display_y
+        self._subframe = 0
+        self._fraction = 0.0
+
+    @property
+    def position(self):
+        if self.done:
+            return 1.0
+        return min(
+            1.0, max(0.0, (self.top_y - self.sweep_y) / (self.top_y - self.bottom_y))
+        )
+
+    def seek_y(self, world_y):
+        """Seek using real event dispatch; upward motion replays from the start.
+
+        Up to eight height-bucket checkpoints and one final state keep storage
+        linear and avoid reconstructing the entire sweep on every pointer move.
+        """
+        if not math.isfinite(world_y):
+            raise ValueError("Sweep position must be finite")
+        if self.special_case:
+            return
+        target = (world_y - self.oy) / self.scale
+        candidates = [s for s in self._checkpoints.values() if s[0].sweep_y >= target]
+        best = max(candidates, key=lambda s: s[3]) if candidates else None
+        if target > self.display_y or (best and best[3] > self.event_count):
+            if best:
+                self._restore(best)
+            else:
+                self.reset()
+        while self.sweep.queue and self.sweep.queue.peek().y >= target:
+            self.step_event()
+        self.display_y = target
+        self._segment_start = target
+        self._subframe = 1
+        self._fraction = 0.0
+
+    def seek(self, position):
+        if not math.isfinite(position) or not 0 <= position <= 1:
+            raise ValueError("Replay position must be between 0 and 1")
+        if position == 0:
+            self.reset()
+        elif position == 1:
+            if self._final_checkpoint:
+                self._restore(self._final_checkpoint)
+            else:
+                while not self.done:
+                    self.step_event()
+        else:
+            self.seek_y(self.top_y + position * (self.bottom_y - self.top_y))
+
+    def advance(self, event_fraction):
+        """Advance a wall-time budget measured in events, independent of FPS."""
+        if not math.isfinite(event_fraction) or event_fraction < 0:
+            raise ValueError("Playback advance must be finite and nonnegative")
+        budget = self._fraction + event_fraction
+        while not self.done:
+            target = min(self.sweep.sweep_y, self.sweep.queue.peek().y)
+            if target == self._segment_start:
+                self.step_event()
+                continue
+            if budget < 1:
+                self._fraction = budget
+                self._subframe = int(budget > 0)
+                self.display_y = (1 - budget) * self._segment_start + budget * target
+                return
+            budget -= 1
+            self.step_event()
 
     def tick(self, substeps=8):
         """Move toward, never past, the next event before processing it.

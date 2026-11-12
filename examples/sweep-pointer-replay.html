@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fortune sweep — pointer replay</title>
+<style>
+:root{color-scheme:dark;font:14px 'Segoe UI',system-ui,sans-serif;background:#11151c;color:#e6eaf2}
+*{box-sizing:border-box}body{margin:0;padding:18px;max-width:1600px;margin-inline:auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}h1{font-size:21px;margin:0 0 6px}p{color:#9eacc0;line-height:1.5;margin:5px 0 14px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:20px}.stage{position:relative;background:#06080d;border:1px solid #303a4b;border-radius:8px;overflow:hidden}
+canvas{display:block;width:100%;height:64vh;min-height:360px;max-height:740px;cursor:ns-resize;touch-action:none}
+.hint{position:absolute;left:16px;bottom:14px;color:#a9b7ca;font-size:12px;pointer-events:none;background:#06080dcc;padding:5px 8px;border-radius:4px}
+aside{padding:5px 3px;min-width:0}h2{font-size:12px;letter-spacing:.09em;color:#aab6c9;margin:8px 0 12px}
+.queue{min-height:245px}.event{display:flex;justify-content:space-between;gap:6px;margin:0;padding:8px 0;border-bottom:1px solid #252d3a;font-variant-numeric:tabular-nums}.event.site{color:#ff647a}.event.circle{color:#65bfff}.event.stale{color:#738197}
+.numbers{line-height:1.9;font-variant-numeric:tabular-nums;color:#b3bfd1}.order{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px;line-height:1.7;color:#aeb9ca}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:13px 0}button{font:inherit;color:#e4eaf5;border:1px solid #38465b;background:#202a3a;padding:9px 13px;border-radius:5px;cursor:pointer}button:hover{background:#2c3b53}button.primary{background:#305b9b;border-color:#5783c3}button:focus-visible,input:focus-visible{outline:2px solid #9bc3ff;outline-offset:3px}label{display:flex;gap:7px;align-items:center;color:#bac6d8}input[type=range]{accent-color:#77aaff}.position{display:flex;align-items:center;gap:12px;margin:13px 0}.position input{flex:1}.position output{width:45px;text-align:right;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#aab6c8}.swatch{display:inline-block;width:19px;height:3px;vertical-align:middle;margin-right:6px}.status{font-size:13px;min-height:22px;color:#c0cbdb}
+.help{display:none;position:absolute;inset:12px;background:#0b111beF;padding:22px;line-height:1.7;border:1px solid #50637d;border-radius:6px;pointer-events:none}.help.visible{display:block}.help strong{color:#fff}.help p{color:#c5d0df}
+@media(max-width:800px){body{padding:10px}.layout{grid-template-columns:1fr}canvas{height:58vh}aside{display:none}header small{display:none}}
+</style>
+</head>
+<body>
+<header><h1>Fortune’s sweep</h1><small><output id="performance">Pointer ready</output> · Python event engine</small></header>
+<p>Move your pointer over the diagram. The white sweep line follows immediately. Click to freeze or resume following.</p>
+<main class="layout">
+<section>
+<div class="stage"><canvas id="view" aria-label="Interactive Fortune sweep replay" tabindex="0"></canvas>
+<div class="hint" id="hint">Pointer following is on · H for help</div>
+<div class="help" id="help"><strong>Pointer-controlled sweep</strong><p>Move the pointer to set the sweep height; no mouse button is needed. Click the plot to freeze or resume.</p><p>Red squares are sites. The white horizontal line is the sweep. White curves form the beach line. Purple segments are traced Voronoi edges.</p><p>Red horizontal markers show upcoming site events, blue markers show circle predictions, and gray markers show invalidated predictions.</p><p>Space: play/pause · Right: next event · R: reset · E: finish · H: help.</p></div></div>
+<div class="position"><label for="position">Position</label><input id="position" type="range" min="0" max="1000" value="0"><output id="positionValue">0%</output></div>
+<div class="controls"><button id="play" class="primary">Play</button><button id="follow">Follow pointer: on</button><button id="next">Next event</button><button id="reset">Reset</button><button id="finish">Finish</button><button id="save">Save PNG</button><label>Speed <input id="speed" type="range" min="1" max="20" value="6"></label><label><input id="markers" type="checkbox" checked>Events</label><label><input id="labels" type="checkbox">Labels</label></div>
+<div class="legend"><span><i class="swatch" style="background:#ff4962"></i>Sites</span><span><i class="swatch" style="background:#f6f8fc"></i>Beach / sweep</span><span><i class="swatch" style="background:#b17cf1"></i>Traced edges</span><span><i class="swatch" style="background:#55b4ff"></i>Circle event</span></div>
+<p class="status" id="status" aria-live="polite"></p>
+</section>
+<aside><h2>EVENT QUEUE</h2><p style="font-size:12px">Highest y first; top eight shown.</p><div class="queue" id="queue"></div><div class="numbers" id="counts"></div><h2>BEACH ORDER</h2><div class="order" id="order"></div></aside>
+</main>
+<script>window.FORTUNE_DATA={"generated_at":"2026-11-17T23:30:43.177714+08:00","source":"Python FortuneSweep.step; no browser Voronoi implementation","sites":[[-0.47435897435897434,-0.4230769230769231,"0"],[-0.08974358974358974,-0.5,"1"],[0.423076923076923,-0.3974358974358974,"2"],[-0.34615384615384615,-0.03846153846153849,"3"],[0.11538461538461534,-0.03846153846153849,"4"],[0.5,0.141025641025641,"5"],[-0.5,0.4487179487179487,"6"],[-0.03846153846153842,0.39743589743589736,"7"],[0.34615384615384615,0.5,"8"]],"vertices":[[-0.14278531925590748,1.561085972850678],[-0.28873348873348875,0.24755244755244754],[0.20953956437827415,0.23986765922249792],[0.22222222222222224,0.23443223443223438],[-0.11538461538461545,0.12518853695324275],[0.3864468864468864,-0.11747776033490318],[-0.11538461538461542,-0.2122507122507123],[-0.24679487179487178,-0.28525641025641024],[0.14227642276422758,-0.3267667292057536],[-1.088011088011088,-0.004851004851004925]],"edges":[{"sites":[6,8],"created":2,"ends":[[0,4]]},{"sites":[7,8],"created":3,"ends":[[0,4],[2,10]]},{"sites":[6,7],"created":4,"ends":[[0,4],[1,9]]},{"sites":[5,8],"created":5,"ends":[[3,11]]},{"sites":[3,6],"created":6,"ends":[[1,9],[9,25]]},{"sites":[4,7],"created":7,"ends":[[2,10],[4,14]]},{"sites":[3,7],"created":9,"ends":[[1,9],[4,14]]},{"sites":[4,8],"created":10,"ends":[[2,10],[3,11]]},{"sites":[4,5],"created":11,"ends":[[3,11],[5,17]]},{"sites":[3,4],"created":14,"ends":[[4,14],[6,20]]},{"sites":[2,5],"created":16,"ends":[[5,17]]},{"sites":[2,4],"created":17,"ends":[[5,17],[8,22]]},{"sites":[0,3],"created":18,"ends":[[7,21],[9,25]]},{"sites":[1,4],"created":19,"ends":[[6,20],[8,22]]},{"sites":[1,3],"created":20,"ends":[[6,20],[7,21]]},{"sites":[0,1],"created":21,"ends":[[7,21]]},{"sites":[1,2],"created":22,"ends":[[8,22]]},{"sites":[0,6],"created":25,"ends":[[9,25]]}],"events":{"8":{"kind":0,"y":0.5,"x":0.34615384615384615,"site":8,"defining":null,"centre":null},"6":{"kind":0,"y":0.4487179487179487,"x":-0.5,"site":6,"defining":null,"centre":null},"5":{"kind":0,"y":0.141025641025641,"x":0.5,"site":5,"defining":null,"centre":null},"7":{"kind":0,"y":0.39743589743589736,"x":-0.03846153846153842,"site":7,"defining":null,"centre":null},"2":{"kind":0,"y":-0.3974358974358974,"x":0.423076923076923,"site":2,"defining":null,"centre":null},"0":{"kind":0,"y":-0.4230769230769231,"x":-0.47435897435897434,"site":0,"defining":null,"centre":null},"3":{"kind":0,"y":-0.03846153846153849,"x":-0.34615384615384615,"site":3,"defining":null,"centre":null},"1":{"kind":0,"y":-0.5,"x":-0.08974358974358974,"site":1,"defining":null,"centre":null},"4":{"kind":0,"y":-0.03846153846153849,"x":0.11538461538461534,"site":4,"defining":null,"centre":null},"9":{"kind":1,"y":0.3927688287275353,"x":-0.14278531925590748,"site":null,"defining":[6,8,7],"centre":[-0.14278531925590748,1.561085972850678]},"10":{"kind":1,"y":-0.07121706203370151,"x":0.21214113521805839,"site":null,"defining":[7,8,5],"centre":[0.21214113521805839,0.23011176857330698]},"11":{"kind":1,"y":-0.04416847669175228,"x":-0.28873348873348875,"site":null,"defining":[3,6,7],"centre":[-0.28873348873348875,0.24755244755244754]},"14":{"kind":1,"y":-0.05395592169543639,"x":0.20953956437827415,"site":null,"defining":[4,7,8],"centre":[0.20953956437827415,0.23986765922249792]},"12":{"kind":1,"y":-0.04416847669175228,"x":-0.28873348873348875,"site":null,"defining":[3,6,7],"centre":[-0.28873348873348875,0.24755244755244754]},"15":{"kind":1,"y":-0.07121706203370151,"x":0.21214113521805839,"site":null,"defining":[7,8,5],"centre":[0.21214113521805839,0.23011176857330698]},"13":{"kind":1,"y":-0.37930439223895734,"x":-0.3099598813884528,"site":null,"defining":[6,7,4],"centre":[-0.3099598813884528,0.05651491365777089]},"16":{"kind":1,"y":-0.15771742808299702,"x":-0.11538461538461545,"site":null,"defining":[3,7,4],"centre":[-0.11538461538461545,0.12518853695324275]},"17":{"kind":1,"y":-0.058629679707056626,"x":0.22222222222222224,"site":null,"defining":[4,8,5],"centre":[0.22222222222222224,0.23443223443223438]},"18":{"kind":1,"y":-0.3998220857827097,"x":0.3864468864468864,"site":null,"defining":[4,5,2],"centre":[0.3864468864468864,-0.11747776033490318]},"19":{"kind":1,"y":-1.1066322916493667,"x":-0.11538461538461542,"site":null,"defining":[3,4,2],"centre":[-0.11538461538461542,-0.5476190476190474]},"21":{"kind":1,"y":-0.7001417665998702,"x":-0.11538461538461542,"site":null,"defining":[0,3,4],"centre":[-0.11538461538461542,-0.329059829059829]},"20":{"kind":1,"y":-0.7474692346741214,"x":-1.088011088011088,"site":null,"defining":[6,3,0],"centre":[-1.088011088011088,-0.004851004851004925]},"22":{"kind":1,"y":-1.1066322916493667,"x":-0.11538461538461542,"site":null,"defining":[3,4,2],"centre":[-0.11538461538461542,-0.5476190476190474]},"24":{"kind":1,"y":-0.5011401630725554,"x":-0.11538461538461542,"site":null,"defining":[3,4,1],"centre":[-0.11538461538461542,-0.2122507122507123]},"23":{"kind":1,"y":-0.7001417665998702,"x":-0.11538461538461542,"site":null,"defining":[0,3,4],"centre":[-0.11538461538461542,-0.329059829059829]},"25":{"kind":1,"y":-0.6163233770558771,"x":0.14227642276422758,"site":null,"defining":[1,4,2],"centre":[0.14227642276422758,-0.3267667292057536]},"26":{"kind":1,"y":-0.5513013585826555,"x":-0.24679487179487178,"site":null,"defining":[0,3,1],"centre":[-0.24679487179487178,-0.28525641025641024]}},"states":[{"y":0.7564102564102565,"arcs":[],"queue":[[8,false],[6,false],[7,false],[5,false],[3,false],[4,false],[2,false],[0,false]],"queued":9,"last":null,"discarded":false,"counts":[0,0,0],"done":false},{"y":0.5,"arcs":[8],"queue":[[6,false],[7,false],[5,false],[3,false],[4,false],[2,false],[0,false],[1,false]],"queued":8,"last":8,"discarded":false,"counts":[1,0,0],"done":false},{"y":0.4487179487179487,"arcs":[8,6,8],"queue":[[7,false],[5,false],[3,false],[4,false],[2,false],[0,false],[1,false]],"queued":7,"last":6,"discarded":false,"counts":[2,0,0],"done":false},{"y":0.39743589743589736,"arcs":[8,6,8,7,8],"queue":[[9,false],[5,false],[3,false],[4,false],[2,false],[0,false],[1,false]],"queued":7,"last":7,"discarded":false,"counts":[3,0,0],"done":false},{"y":0.3927688287275353,"arcs":[8,6,7,8],"queue":[[5,false],[3,false],[4,false],[2,false],[0,false],[1,false]],"queued":6,"last":9,"discarded":false,"counts":[3,1,0],"done":false},{"y":0.141025641025641,"arcs":[8,6,7,8,5,8],"queue":[[3,false],[4,false],[10,false],[2,false],[0,false],[1,false]],"queued":6,"last":5,"discarded":false,"counts":[4,1,0],"done":false},{"y":-0.03846153846153849,"arcs":[8,6,3,6,7,8,5,8],"queue":[[4,false],[11,false],[10,false],[2,false],[0,false],[1,false]],"queued":6,"last":3,"discarded":false,"counts":[5,1,0],"done":false},{"y":-0.03846153846153849,"arcs":[8,6,3,6,7,4,7,8,5,8],"queue":[[11,true],[12,false],[14,false],[10,true],[15,false],[13,false],[2,false],[0,false]],"queued":9,"last":4,"discarded":false,"counts":[6,1,0],"done":false},{"y":-0.04416847669175228,"arcs":[8,6,3,6,7,4,7,8,5,8],"queue":[[12,false],[14,false],[10,true],[15,false],[13,false],[2,false],[0,false],[1,false]],"queued":8,"last":11,"discarded":true,"counts":[6,1,1],"done":false},{"y":-0.04416847669175228,"arcs":[8,6,3,7,4,7,8,5,8],"queue":[[14,false],[10,true],[15,false],[16,false],[13,true],[2,false],[0,false],[1,false]],"queued":8,"last":12,"discarded":false,"counts":[6,2,1],"done":false},{"y":-0.05395592169543639,"arcs":[8,6,3,7,4,8,5,8],"queue":[[17,false],[10,true],[15,true],[16,false],[13,true],[2,false],[0,false],[1,false]],"queued":8,"last":14,"discarded":false,"counts":[6,3,1],"done":false},{"y":-0.058629679707056626,"arcs":[8,6,3,7,4,5,8],"queue":[[10,true],[15,true],[16,false],[13,true],[2,false],[0,false],[1,false]],"queued":7,"last":17,"discarded":false,"counts":[6,4,1],"done":false},{"y":-0.07121706203370151,"arcs":[8,6,3,7,4,5,8],"queue":[[15,true],[16,false],[13,true],[2,false],[0,false],[1,false]],"queued":6,"last":10,"discarded":true,"counts":[6,4,2],"done":false},{"y":-0.07121706203370151,"arcs":[8,6,3,7,4,5,8],"queue":[[16,false],[13,true],[2,false],[0,false],[1,false]],"queued":5,"last":15,"discarded":true,"counts":[6,4,3],"done":false},{"y":-0.15771742808299702,"arcs":[8,6,3,4,5,8],"queue":[[13,true],[2,false],[0,false],[1,false]],"queued":4,"last":16,"discarded":false,"counts":[6,5,3],"done":false},{"y":-0.37930439223895734,"arcs":[8,6,3,4,5,8],"queue":[[2,false],[0,false],[1,false]],"queued":3,"last":13,"discarded":true,"counts":[6,5,4],"done":false},{"y":-0.3974358974358974,"arcs":[8,6,3,4,5,2,5,8],"queue":[[18,false],[0,false],[1,false]],"queued":3,"last":2,"discarded":false,"counts":[7,5,4],"done":false},{"y":-0.3998220857827097,"arcs":[8,6,3,4,2,5,8],"queue":[[0,false],[1,false],[19,false]],"queued":3,"last":18,"discarded":false,"counts":[7,6,4],"done":false},{"y":-0.4230769230769231,"arcs":[8,6,3,0,3,4,2,5,8],"queue":[[1,false],[21,false],[20,false],[19,true],[22,false]],"queued":5,"last":0,"discarded":false,"counts":[8,6,4],"done":false},{"y":-0.5,"arcs":[8,6,3,0,3,4,1,4,2,5,8],"queue":[[24,false],[25,false],[21,true],[23,false],[20,false],[19,true],[22,true]],"queued":7,"last":1,"discarded":false,"counts":[9,6,4],"done":false},{"y":-0.5011401630725554,"arcs":[8,6,3,0,3,1,4,2,5,8],"queue":[[26,false],[25,false],[21,true],[23,true],[20,false],[19,true],[22,true]],"queued":7,"last":24,"discarded":false,"counts":[9,7,4],"done":false},{"y":-0.5513013585826555,"arcs":[8,6,3,0,1,4,2,5,8],"queue":[[25,false],[21,true],[23,true],[20,false],[19,true],[22,true]],"queued":6,"last":26,"discarded":false,"counts":[9,8,4],"done":false},{"y":-0.6163233770558771,"arcs":[8,6,3,0,1,2,5,8],"queue":[[21,true],[23,true],[20,false],[19,true],[22,true]],"queued":5,"last":25,"discarded":false,"counts":[9,9,4],"done":false},{"y":-0.7001417665998702,"arcs":[8,6,3,0,1,2,5,8],"queue":[[23,true],[20,false],[19,true],[22,true]],"queued":4,"last":21,"discarded":true,"counts":[9,9,5],"done":false},{"y":-0.7001417665998702,"arcs":[8,6,3,0,1,2,5,8],"queue":[[20,false],[19,true],[22,true]],"queued":3,"last":23,"discarded":true,"counts":[9,9,6],"done":false},{"y":-0.7474692346741214,"arcs":[8,6,0,1,2,5,8],"queue":[[19,true],[22,true]],"queued":2,"last":20,"discarded":false,"counts":[9,10,6],"done":false},{"y":-1.1066322916493667,"arcs":[8,6,0,1,2,5,8],"queue":[[22,true]],"queued":1,"last":19,"discarded":true,"counts":[9,10,7],"done":false},{"y":-1.1066322916493667,"arcs":[8,6,0,1,2,5,8],"queue":[],"queued":0,"last":22,"discarded":true,"counts":[9,10,8],"done":true}],"cells":[[[-0.24679487179487172,-0.2852564102564103],[-0.6282051282051282,-0.15811965811965806],[-0.6282051282051282,-0.6538461538461539],[-0.3205128205128205,-0.6538461538461539]],[[0.20769230769230773,-0.6538461538461539],[0.1422764227642276,-0.3267667292057536],[-0.11538461538461542,-0.2122507122507124],[-0.24679487179487178,-0.2852564102564103],[-0.3205128205128205,-0.6538461538461539]],[[0.6538461538461539,-0.6538461538461539],[0.6538461538461539,-0.15567765567765568],[0.38644688644688635,-0.11747776033490318],[0.1422764227642276,-0.3267667292057536],[0.20769230769230773,-0.6538461538461539]],[[-0.11538461538461542,-0.21225071225071232],[-0.11538461538461542,0.12518853695324283],[-0.2887334887334887,0.24755244755244754],[-0.6282051282051282,0.1403508771929824],[-0.6282051282051282,-0.15811965811965806],[-0.24679487179487178,-0.2852564102564103]],[[0.38644688644688635,-0.11747776033490318],[0.2222222222222222,0.23443223443223438],[0.20953956437827406,0.23986765922249784],[-0.11538461538461542,0.12518853695324283],[-0.11538461538461542,-0.21225071225071226],[0.14227642276422747,-0.3267667292057536]],[[0.6538461538461539,-0.15567765567765568],[0.6538461538461539,0.4194139194139194],[0.2222222222222222,0.23443223443223438],[0.38644688644688635,-0.11747776033490318]],[[-0.24643874643874644,0.6282051282051282],[-0.6282051282051282,0.6282051282051282],[-0.6282051282051282,0.1403508771929824],[-0.2887334887334887,0.2475524475524474]],[[0.2095395643782742,0.23986765922249784],[0.10598290598290598,0.6282051282051282],[-0.24643874643874644,0.6282051282051282],[-0.2887334887334887,0.24755244755244754],[-0.11538461538461542,0.12518853695324283]],[[0.6538461538461539,0.4194139194139194],[0.6538461538461539,0.6282051282051282],[0.10598290598290598,0.6282051282051282],[0.2095395643782742,0.23986765922249784],[0.2222222222222222,0.23443223443223438]]],"view":[-0.7564102564102564,-0.782051282051282,0.7820512820512822,0.7564102564102565],"box":[-0.6282051282051282,-0.6538461538461539,0.6538461538461539,0.6282051282051282],"world":[0.49,0.51,0.78],"labels":true,"special_case":false};</script>
+<script>/* Presentation geometry only. Python supplies every arc order and event state. */
+(function (root) {
+  "use strict";
+  function parabolaY(p, x, d) {
+    return (x-p[0])*(x-p[0])/(2*(p[1]-d))+(p[1]+d)/2;
+  }
+  function breakpointX(left, right, d) {
+    if (left[1]===right[1]) return left[0]+(right[0]-left[0])/2;
+    const dp=left[1]-d,dq=right[1]-d;
+    if (dp<=0) return left[0];
+    if (dq<=0) return right[0];
+    const dx=right[0]-left[0],a=right[1]-left[1],b=2*dp*dx;
+    const c=-dp*dx*dx-a*dp*dq;
+    let discriminant=b*b-4*a*c;
+    if (discriminant<0) {
+      if (discriminant < -2e-14*(b*b+Math.abs(4*a*c))) throw new Error("Breakpoint precision limit");
+      discriminant=0;
+    }
+    const q=-0.5*(b+((b<0||Object.is(b,-0))?-1:1)*Math.sqrt(discriminant));
+    const r1=q?q/a:-b/(2*a),r2=q?c/q:r1;
+    return left[0]+(left[1]>right[1]?Math.min(r1,r2):Math.max(r1,r2));
+  }
+  function stateAt(states, y) {
+    let lo=0,hi=states.length;
+    while (lo+1<hi) {
+      const mid=(lo+hi)>>1;
+      if (states[mid].y>=y) lo=mid; else hi=mid;
+    }
+    return lo;
+  }
+  if (typeof module!=="undefined" && module.exports) module.exports={parabolaY,breakpointX,stateAt};
+  if (typeof document==="undefined") return;
+
+  const D=root.FORTUNE_DATA,$=id=>document.getElementById(id);
+  const canvas=$("view"),ctx=canvas.getContext("2d",{alpha:false});
+  const range=$("position"),status=$("status"),queue=$("queue");
+  const siteColor="#ff4962",beachColor="#f4f6fb",edgeColor="#b17cf1",circleColor="#55b4ff";
+  let width=800,height=600,scale=1,xoff=0,yoff=0,dpr=1;
+  let progress=0,directrix=D.view[3],index=0,manual=null,complete=!!D.special_case;
+  let follow=!D.special_case,playing=false,pointerInside=false,pending=false,dirty=true,lastTime=0,lastDraw=0;
+  let panelIndex=-1,frames=0,fps=0,showFPS=true,statsAt=0;
+  const renderTimes=[],intervals=[];
+  $("labels").checked=D.labels;
+  function sx(x){return xoff+(x-D.view[0])*scale;}
+  function sy(y){return height-yoff-(y-D.view[1])*scale;}
+  function worldY(y){return D.world[1]+D.world[2]*y;}
+  function resize() {
+    const rect=canvas.getBoundingClientRect();
+    width=rect.width;height=rect.height;dpr=root.devicePixelRatio||1;
+    canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    scale=Math.min(width/(D.view[2]-D.view[0]),height/(D.view[3]-D.view[1]));
+    xoff=(width-(D.view[2]-D.view[0])*scale)/2;
+    yoff=(height-(D.view[3]-D.view[1])*scale)/2;
+    dirty=true;schedule();
+  }
+  function segment(a,b,color,lineWidth=1.4) {
+    if (!a||!b||!a.every(Number.isFinite)||!b.every(Number.isFinite)) return;
+    let t0=0,t1=1;
+    const dx=b[0]-a[0],dy=b[1]-a[1];
+    for (const [p,q] of [[-dx,a[0]-D.view[0]],[dx,D.view[2]-a[0]],[-dy,a[1]-D.view[1]],[dy,D.view[3]-a[1]]]) {
+      if (p===0) {if(q<0)return;continue;}
+      const r=q/p;
+      if(p<0)t0=Math.max(t0,r);else t1=Math.min(t1,r);
+      if(t0>t1)return;
+    }
+    ctx.strokeStyle=color;ctx.lineWidth=lineWidth;
+    ctx.beginPath();ctx.moveTo(sx(a[0]+t0*dx),sy(a[1]+t0*dy));ctx.lineTo(sx(a[0]+t1*dx),sy(a[1]+t1*dy));ctx.stroke();
+  }
+  function drawArc(focus,left,right,d) {
+    const gap=focus[1]-d;
+    if(gap<=0)return;
+    const vertexY=(focus[1]+d)/2;
+    if(vertexY>D.view[3])return;
+    const outer=Math.sqrt(Math.max(0,2*gap*(D.view[3]-vertexY)));
+    left=Math.max(left,focus[0]-outer,D.view[0]);right=Math.min(right,focus[0]+outer,D.view[2]);
+    if(left>=right)return;
+    const pieces=[];
+    if(vertexY<D.view[1]) {
+      const inner=Math.sqrt(2*gap*(D.view[1]-vertexY));
+      if(left<focus[0]-inner)pieces.push([left,Math.min(right,focus[0]-inner)]);
+      if(right>focus[0]+inner)pieces.push([Math.max(left,focus[0]+inner),right]);
+    } else pieces.push([left,right]);
+    ctx.strokeStyle=beachColor;ctx.lineWidth=1.7;
+    for(const [a,b] of pieces) {
+      if(a>=b)continue;
+      const mid=(a+b)/2,ya=parabolaY(focus,a,d),yb=parabolaY(focus,b,d);
+      const control=2*parabolaY(focus,mid,d)-(ya+yb)/2;
+      ctx.beginPath();ctx.moveTo(sx(a),sy(ya));ctx.quadraticCurveTo(sx(mid),sy(control),sx(b),sy(yb));ctx.stroke();
+    }
+  }
+  function eventName(e) {
+    return e.kind===0?"Site "+D.sites[e.site][2]:"Circle "+e.defining.map(i=>D.sites[i][2]).join("/");
+  }
+  function updatePanel(state) {
+    if(panelIndex===index)return;
+    panelIndex=index;
+    const fragment=document.createDocumentFragment();
+    for(const [id,stale] of state.queue) {
+      const e=D.events[id],row=document.createElement("div"),name=document.createElement("span"),value=document.createElement("span");
+      row.className="event "+(stale?"stale":e.kind===0?"site":"circle");
+      name.textContent=eventName(e)+(stale?" · stale":"");value.textContent=worldY(e.y).toPrecision(4);
+      row.append(name,value);fragment.append(row);
+    }
+    if(!state.queue.length) {const row=document.createElement("p");row.textContent=D.special_case?"Collinear special case: direct bisectors.":"Queue empty.";fragment.append(row);}
+    queue.replaceChildren(fragment);
+    $("counts").textContent=`${state.counts[0]} site events · ${state.counts[1]} circle events · ${state.counts[2]} stale discarded · ${state.queued} queued`;
+    $("order").textContent=state.arcs.map(i=>D.sites[i][2]).join(" | ")||"(empty)";
+  }
+  function draw() {
+    const start=performance.now();
+    index=complete?D.states.length-1:manual!==null?manual:stateAt(D.states,directrix);
+    const state=D.states[index],done=complete||state.done;
+    updatePanel(state);
+    ctx.fillStyle="#06080d";ctx.fillRect(0,0,width,height);
+    ctx.save();ctx.beginPath();ctx.rect(0,0,width,height);ctx.clip();
+    if(done) {
+      D.cells.forEach((cell,i)=>{
+        if(!cell.length)return;
+        ctx.beginPath();cell.forEach((p,j)=>j?ctx.lineTo(sx(p[0]),sy(p[1])):ctx.moveTo(sx(p[0]),sy(p[1])));ctx.closePath();
+        ctx.fillStyle=`hsla(${(i*137.508)%360},55%,47%,.14)`;ctx.fill();ctx.strokeStyle=edgeColor;ctx.lineWidth=1.3;ctx.stroke();
+      });
+    } else {
+      if($("markers").checked) for(const [id,invalid] of state.queue) {
+        const e=D.events[id],y=sy(e.y);
+        if(y<0||y>height)continue;
+        ctx.strokeStyle=invalid?"#495565":e.kind===0?"#a62c44":"#23699f";ctx.lineWidth=0.8;
+        ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();
+      }
+      const active=new Map(),breaks=[];
+      for(let k=0;k+1<state.arcs.length;k++) {
+        const ia=state.arcs[k],ib=state.arcs[k+1],a=D.sites[ia],b=D.sites[ib];
+        const x=breakpointX(a,b,directrix),f=a[1]>directrix?a:b;
+        if(f[1]<=directrix)continue;
+        const p=[x,parabolaY(f,x,directrix)],key=Math.min(ia,ib)+","+Math.max(ia,ib);
+        if(p.every(Number.isFinite)){if(!active.has(key))active.set(key,[]);active.get(key).push(p);breaks.push(p);}
+      }
+      const visibleVertices=new Set();
+      for(const edge of D.edges) {
+        if(edge.created>index)continue;
+        const ends=edge.ends.filter(e=>e[1]<=index).map(e=>{visibleVertices.add(e[0]);return D.vertices[e[0]];});
+        const moving=active.get(edge.sites.join(","))||[];
+        if(ends.length>=2)segment(ends[0],ends[1],edgeColor);
+        else if(ends.length)for(const p of moving)segment(ends[0],p,"#aeb9cc");
+        else if(moving.length>=2)segment(moving[0],moving[1],"#aeb9cc");
+        else if(moving.length&&D.sites[edge.sites[0]][1]===D.sites[edge.sites[1]][1])segment(moving[0],[moving[0][0],D.view[3]],"#aeb9cc");
+      }
+      for(let k=0;k<state.arcs.length;k++) {
+        const f=D.sites[state.arcs[k]];
+        if(f[1]===directrix) {
+          let top=D.view[3];
+          for(const neighbour of [state.arcs[k-1],state.arcs[k+1]])if(neighbour!==undefined&&D.sites[neighbour][1]>directrix)top=Math.min(top,parabolaY(D.sites[neighbour],f[0],directrix));
+          segment([f[0],f[1]],[f[0],top],beachColor);continue;
+        }
+        const left=k?breakpointX(D.sites[state.arcs[k-1]],f,directrix):D.view[0];
+        const right=k+1<state.arcs.length?breakpointX(f,D.sites[state.arcs[k+1]],directrix):D.view[2];
+        drawArc(f,left,right,directrix);
+      }
+      for(const v of visibleVertices){const p=D.vertices[v];ctx.fillStyle=edgeColor;ctx.fillRect(sx(p[0])-2,sy(p[1])-2,4,4);}
+      let circle=state.queue.find(([id,invalid])=>!invalid&&D.events[id].kind===1);
+      if(manual!==null&&state.last!==null&&!state.discarded&&D.events[state.last].kind===1)circle=[state.last,false];
+      if(circle) {
+        const e=D.events[circle[0]],radius=e.centre[1]-e.y;
+        if(radius>0&&radius*scale<1e7){ctx.strokeStyle=circleColor;ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.beginPath();ctx.arc(sx(e.centre[0]),sy(e.centre[1]),radius*scale,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+      }
+      const y=sy(directrix);ctx.strokeStyle=beachColor;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();
+    }
+    ctx.strokeStyle="#42516a";ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.strokeRect(sx(D.box[0]),sy(D.box[3]),(D.box[2]-D.box[0])*scale,(D.box[3]-D.box[1])*scale);ctx.setLineDash([]);
+    ctx.font="11px Segoe UI, sans-serif";
+    for(const p of D.sites) {
+      ctx.fillStyle=siteColor;ctx.fillRect(sx(p[0])-3,sy(p[1])-3,6,6);
+      if($("labels").checked){ctx.fillStyle="#dbe4f4";ctx.fillText(String(p[2]).slice(0,32),sx(p[0])+7,sy(p[1])-6);}
+    }
+    ctx.restore();
+    if(showFPS){ctx.fillStyle="#72e39c";ctx.font="12px ui-monospace, monospace";ctx.fillText(fps?`${Math.round(fps)} FPS`:"Pointer-ready",12,20);}
+    range.value=Math.round(progress*1000);$("positionValue").value=Math.round(progress*100)+"%";
+    status.textContent=D.special_case?"Collinear sites use direct bisectors; no sweep events are needed.":done?"Completed clipped diagram. Move upward to replay.":`Sweep y = ${worldY(directrix).toPrecision(6)} · ${index} heap entries processed`;
+    frames++;renderTimes.push(performance.now()-start);if(renderTimes.length>120)renderTimes.shift();
+    canvas.dataset.sweepY=String(worldY(directrix));canvas.dataset.stateIndex=String(index);canvas.dataset.frameCount=String(frames);
+    if(performance.now()-statsAt>250) {
+      statsAt=performance.now();
+      const median=[...renderTimes].sort((a,b)=>a-b)[Math.floor(renderTimes.length/2)];
+      canvas.dataset.medianRenderMs=String(median);canvas.dataset.rafFps=String(fps);
+      $("performance").textContent=(fps?Math.round(fps)+" fps · ":"")+median.toFixed(2)+" ms draw";
+    }
+  }
+  function setProgress(value) {
+    progress=Math.max(0,Math.min(1,value));complete=progress>=1||!!D.special_case;manual=null;
+    directrix=D.view[3]+progress*(D.view[1]-D.view[3]);dirty=true;
+  }
+  function syncButtons() {
+    $("play").textContent=playing?"Pause":"Play";$("follow").textContent="Follow pointer: "+(follow?"on":"off");
+    $("hint").textContent=follow?"Move the pointer · Click to freeze · H for help":"Frozen · Click to follow · H for help";
+  }
+  function schedule(){if(!pending){pending=true;requestAnimationFrame(tick);}}
+  function tick(now) {
+    pending=false;
+    const dt=lastTime?Math.min(.1,(now-lastTime)/1000):0;lastTime=now;
+    if(playing){setProgress(progress+dt*Number($("speed").value)/50);if(complete){playing=false;syncButtons();}}
+    if(dirty||pointerInside||playing) {
+      if(lastDraw&&now-lastDraw<200){intervals.push(now-lastDraw);if(intervals.length>90)intervals.shift();fps=1000/(intervals.reduce((a,b)=>a+b,0)/intervals.length);}
+      lastDraw=now;
+      try{draw();}catch(error){playing=false;status.textContent="Replay drawing limit: "+error.message;syncButtons();}
+      dirty=false;
+    }
+    if(playing||pointerInside)schedule();
+  }
+  function move(event) {
+    if(!follow||D.special_case)return;
+    playing=false;
+    const rect=canvas.getBoundingClientRect(),y=D.view[1]+(height-(event.clientY-rect.top)-yoff)/scale;
+    setProgress((D.view[3]-y)/(D.view[3]-D.view[1]));syncButtons();schedule();
+  }
+  canvas.addEventListener("pointerenter",e=>{pointerInside=true;move(e);schedule();});
+  canvas.addEventListener("pointermove",move);
+  canvas.addEventListener("pointerleave",()=>{pointerInside=false;});
+  canvas.addEventListener("click",()=>{follow=!follow;playing=false;syncButtons();dirty=true;schedule();});
+  $("follow").onclick=()=>{follow=!follow;playing=false;syncButtons();dirty=true;schedule();};
+  $("play").onclick=()=>{if(complete)setProgress(0);playing=!playing;follow=false;lastTime=0;syncButtons();dirty=true;schedule();};
+  range.oninput=()=>{playing=false;follow=false;setProgress(Number(range.value)/1000);syncButtons();schedule();};
+  function next(){playing=false;follow=false;manual=Math.min(D.states.length-1,index+1);directrix=D.states[manual].y;progress=Math.max(0,Math.min(1,(D.view[3]-directrix)/(D.view[3]-D.view[1])));complete=manual===D.states.length-1;syncButtons();dirty=true;schedule();}
+  $("next").onclick=next;
+  $("reset").onclick=()=>{playing=false;follow=!D.special_case;setProgress(0);syncButtons();schedule();};
+  $("finish").onclick=()=>{playing=false;follow=false;setProgress(1);syncButtons();schedule();};
+  for(const name of ["labels","markers"])$(name).onchange=()=>{dirty=true;schedule();};
+  $("save").onclick=()=>canvas.toBlob(blob=>{const link=document.createElement("a");link.download="fortune-replay.png";link.href=URL.createObjectURL(blob);link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);});
+  root.addEventListener("keydown",e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey||["INPUT","BUTTON","TEXTAREA"].includes(document.activeElement.tagName))return;
+    const key=e.key.toLowerCase();
+    if(key==="h")$("help").classList.toggle("visible");
+    else if(key===" "){$("play").click();e.preventDefault();}
+    else if(key==="arrowright"){next();e.preventDefault();}
+    else if(key==="r")$("reset").click();
+    else if(key==="e")$("finish").click();
+    else if(key==="f"){showFPS=!showFPS;dirty=true;schedule();}
+  });
+  new ResizeObserver(resize).observe(canvas);
+  root.fortuneReplay=Object.freeze({
+    inspect:()=>({index,worldY:worldY(directrix),progress,follow,playing,frames,
+      fps,medianRenderMs:renderTimes.length?[...renderTimes].sort((a,b)=>a-b)[Math.floor(renderTimes.length/2)]:0,
+      eventCounts:D.states[index].counts,beach:[...D.states[index].arcs]}),
+    setPosition:value=>{playing=false;follow=false;setProgress(value);syncButtons();schedule();},
+    breakpointX,parabolaY
+  });
+  syncButtons();resize();
+})(typeof window!=="undefined"?window:globalThis);
+</script>
+</body></html>

@@ -1,0 +1,25 @@
+{
+  "actual_timestamp": "2026-11-17T22:45:05.784848+08:00",
+  "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "scope": "Same 1200x700 Agg canvas, inputs, frame count and axes geometry as render-before.json; rendering CPU, not end-to-end desktop FPS",
+  "profiled_9_site_frames": true,
+  "results": [
+    {
+      "sites": 9,
+      "frames": 48,
+      "median_geometry_ms": 0.009350012987852097,
+      "median_redraw_ms": 29.35414999956265,
+      "p95_redraw_ms": 233.69409999577329,
+      "median_frame_ms": 29.36174999922514
+    },
+    {
+      "sites": 50,
+      "frames": 48,
+      "median_geometry_ms": 0.011549971532076597,
+      "median_redraw_ms": 22.618499991949648,
+      "p95_redraw_ms": 177.5906999828294,
+      "median_frame_ms": 22.62839998002164
+    }
+  ]
+}

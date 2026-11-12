@@ -1,0 +1,13 @@
+{
+  "actual_timestamp": "2026-11-17T23:00:22.963133+08:00",
+  "sites": 50,
+  "backend": "TkAgg",
+  "callbacks": 132,
+  "observed_window_seconds": 8.0,
+  "median_callback_interval_ms": 50.64900004072115,
+  "median_callback_rate_hz": 19.74372641505287,
+  "median_tick_render_ms": 31.086950009921566,
+  "p95_tick_render_ms": 62.198600033298135,
+  "scope": "Actual visible Tk window, timer callbacks and blit submission; not a measurement of display scanout.",
+  "event_count": 52
+}

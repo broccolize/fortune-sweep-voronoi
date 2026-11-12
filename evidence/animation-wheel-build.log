@@ -1,0 +1,16 @@
+Processing .\.
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: fortune-sweep
+  Building wheel for fortune-sweep (pyproject.toml): started
+  Building wheel for fortune-sweep (pyproject.toml): finished with status 'done'
+  Created wheel for fortune-sweep: filename=fortune_sweep-0.1.0-py3-none-any.whl size=44004 sha256=9369caf7c4eab395a23424a6a9118813f24683c897dcb8eda99763b5aba724a5
+  Stored in directory: C:\Users\Mines\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\AC\#!sandbox.{d8fca776-27d2-4a6a-a08b-9510be3806c5}\Temp\pip-ephem-wheel-cache-asq875oc\wheels\74\d5\94\c0b04d112e8bfaf39a9440cae79f3ba66da4646f720ce00e44
+Successfully built fortune-sweep
+
+[notice] A new release of pip is available: 26.2.1 -> 26.3
+[notice] To update, run: C:\Users\Mines\Documents\ChatGPT\Computer Geometry\tmp\worktrees\sweep-animation\.venv\Scripts\python.exe -m pip install --upgrade pip

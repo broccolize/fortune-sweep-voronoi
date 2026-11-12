@@ -18,6 +18,9 @@ voronoi = "fortune.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+fortune = ["replay_canvas.html", "replay_canvas.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

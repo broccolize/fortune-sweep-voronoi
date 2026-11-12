@@ -1,5 +1,10 @@
 # Evidence Register
 
+On the optional animation branch, current validation is 139 tests; Canvas
+measurements and screenshots are additional feature evidence. The copied report,
+AI captures, construction benchmarks and earlier CI records remain baseline
+artifacts. The primary working folder and review ZIP are unchanged.
+
 Initial implementation date 10 November 2026; owner review and Pi contribution
 continued on 16-17 November 2026, GMT+8. Project scope is personal, with the
 supplied assignment as a quality benchmark.
@@ -39,7 +44,7 @@ supplied assignment as a quality benchmark.
 | E04 | Substantive AI interaction 2 | Present and embedded: evidence/ai-interaction-2.png plus pi-tiny-cell-code-continuation.png; Pi tiny-cell review, Figure 12; provenance in ai-interaction-2.json |
 | E05 | General program output | figures/general.png, examples/batch.png |
 | E06 | Annotated degenerate outputs | figures/degenerate-1.png and degenerate-2.png |
-| E07 | Automated validation | evidence/tests-current.xml: 86 passing; original 82-test result preserved in evidence/tests-before-pi-2026-11-17.xml |
+| E07 | Automated validation | evidence/tests-current.xml: 139 passing on this feature branch; original 82-test result preserved in evidence/tests-before-pi-2026-11-17.xml |
 | E08 | Timing, memory and scaling | results/benchmark.json and figures/scaling.png |
 | E09 | Architecture and beach-line illustrations | figures/architecture.png, beachline.png |
 | E10 | Genuine problems and retained failures | docs/problems.md and initial failure files |
@@ -83,3 +88,23 @@ pytest failure. The startup update banner is not evidence of an installed update
 The screenshot requirements are complete. The owner still needs to review the
 report, demonstrate understanding and record the personal narration. The plan
 is confirmed as ChatGPT Plus. See REVIEW_CHECKLIST.md and demo/script.md.
+
+## Optional animation evidence
+
+- `docs/animation.md`: controls, architecture, complexity trade-off and measured scope.
+- `results/animation-preview/render-browser.json`: real browser diagnostics,
+  position/pointer checks, console results and downloaded-file path.
+- `evidence/canvas-preview.jpg`: actual browser capture, not an AI-conversation image.
+- `evidence/canvas-export.png`: actual PNG obtained using the browser Save PNG control.
+- `evidence/animation-canvas-tests.xml`: initial Canvas check, including a Node
+  test-harness syntax failure. Corrected checks and pointer-event verification
+  are retained in the subsequent Canvas XML files.
+- `evidence/animation-fast-text-tests.xml`: seven real failures caused by the
+  installed Matplotlib default line-spacing value `auto`; fixed and retested.
+- `evidence/animation-checkpoint-tests.xml`: real counter-copy failures; serial
+  reconstruction from the queue push count fixed the clone, with independence
+  and future-order regressions added.
+
+The owner said the newly created pointer-controlled viewer looked good. This
+feedback approves the preview's presentation; no merge or completed personal
+recording/review is inferred from it.

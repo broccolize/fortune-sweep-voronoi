@@ -102,3 +102,12 @@ on 17 November 2026; no email submission has been made.
 - [ ] Architecture, beach-line invariant and event-queue invariant explained.
 - [ ] Three actual problems or design decisions explained by the student.
 - [ ] Playback and duration checked before packaging.
+
+## Optional animation branch
+
+- [x] Real-engine animated sweep replay, with sweep, live beach-line geometry,
+  pending events and stale predictions shown.
+- [x] Pointer-following Canvas viewer; offline export and PNG download verified.
+- [x] Per-event stepping, playback, seeking, reset and completion controls.
+- [x] Separate renderer timing and explicit bounded replay-history complexity.
+- [ ] Owner decision to merge/include the optional branch and update the report.

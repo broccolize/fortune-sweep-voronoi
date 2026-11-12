@@ -137,3 +137,104 @@ def test_replay_input_errors_and_capacity_are_explicit():
         replay.tick(0)
     with pytest.raises(ValueError):
         replay.curves(1)
+
+
+@pytest.mark.parametrize("exponent", [10, 13, 15])
+def test_near_coincident_replay_geometry_remains_inspectable(exponent):
+    delta = 10 ** (-exponent)
+    points = [
+        Point(0, 0),
+        Point(1, 0),
+        Point(0, 1),
+        Point(1, 1),
+        Point(0.5, 0.5),
+        Point(0.5 + delta, 0.5 + 2 * delta),
+        Point(0.5 - delta, 0.5 + delta),
+    ]
+    replay = SweepReplay(points, Box(0, 0, 1, 1), debug=True)
+    frames = 0
+    while not replay.done:
+        replay.tick(3)
+        replay.curves()
+        replay.breakpoints()
+        frames += 1
+        assert frames < 200
+    assert len(replay.diagram.cells) == 7
+
+
+def test_rendered_arc_intervals_follow_the_processed_parabola_envelope():
+    replay = SweepReplay(random_sites(15, 87), Box(0, 0, 1, 1))
+    checked = 0
+    while not replay.done:
+        replay.tick(3)
+        for curve in replay.curves(13):
+            if curve.limiting:
+                continue
+            for p in curve.points[1:-1:3]:
+                q = replay.normalize(p)
+                values = [
+                    parabola_y(replay.points[i], q.x, replay.display_y)
+                    for i in replay.processed
+                    if replay.points[i].y > replay.display_y
+                ]
+                assert q.y == pytest.approx(min(values), rel=2e-8, abs=2e-8)
+                checked += 1
+    assert checked > 100
+
+
+def test_scrubbing_replays_real_topology_in_both_directions():
+    replay = SweepReplay(random_sites(20, 42), Box(0, 0, 1, 1), debug=True)
+    for position in (0.7, 0.2, 0.9, 0.4, 1.0, 0.0, 0.6):
+        replay.seek(position)
+        replay.sweep.beach.validate()
+        expected = SweepReplay(replay.sites, Box(0, 0, 1, 1), debug=True)
+        expected.seek(position)
+        assert signature(replay.sweep) == signature(expected.sweep)
+        assert replay.processed == expected.processed
+        replay.curves()
+    with pytest.raises(ValueError):
+        replay.seek(-0.1)
+    with pytest.raises(ValueError):
+        replay.seek_y(math.nan)
+
+
+def test_playback_uses_elapsed_time_instead_of_frame_count():
+    slow = SweepReplay(random_sites(15, 37), Box(0, 0, 1, 1))
+    fast = SweepReplay(random_sites(15, 37), Box(0, 0, 1, 1))
+    for _ in range(12):
+        slow.advance(0.2)
+    for _ in range(120):
+        fast.advance(0.02)
+    assert slow.event_count == fast.event_count
+    assert slow.display_y == pytest.approx(fast.display_y)
+    assert signature(slow.sweep) == signature(fast.sweep)
+    with pytest.raises(ValueError):
+        slow.advance(-1)
+
+
+def test_checkpoint_clone_is_independent_and_preserves_future_event_order():
+    from fortune.replay_state import clone_sweep
+
+    source = FortuneSweep(random_sites(30, 5), debug=True).start()
+    for _ in range(24):
+        source.step()
+    before = signature(source)
+    heap = tuple(source.queue._heap)
+    cloned, _ = clone_sweep(source)
+    assert signature(cloned) == before
+    assert cloned.beach.root is not source.beach.root
+    assert all(a is not b for a, b in zip(source.beach, cloned.beach))
+    cloned.run()
+    assert signature(source) == before and tuple(source.queue._heap) == heap
+    source.run()
+    assert signature(source) == signature(cloned)
+
+
+def test_scrub_checkpoints_remain_bounded_and_are_not_mutated_by_restoring():
+    replay = SweepReplay(random_sites(90, 12), Box(0, 0, 1, 1), debug=True)
+    replay.seek(1)
+    originals = [signature(s[0]) for s in replay._checkpoints.values()]
+    for position in (0.1, 0.8, 0.4, 0.9, 0.2, 0.6, 1.0):
+        replay.seek(position)
+    assert len(replay._checkpoints) <= 8
+    assert [signature(s[0]) for s in replay._checkpoints.values()] == originals

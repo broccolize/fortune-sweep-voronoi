@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fortune sweep — pointer replay</title>
+<style>
+:root{color-scheme:dark;font:14px 'Segoe UI',system-ui,sans-serif;background:#11151c;color:#e6eaf2}
+*{box-sizing:border-box}body{margin:0;padding:18px;max-width:1600px;margin-inline:auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}h1{font-size:21px;margin:0 0 6px}p{color:#9eacc0;line-height:1.5;margin:5px 0 14px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:20px}.stage{position:relative;background:#06080d;border:1px solid #303a4b;border-radius:8px;overflow:hidden}
+canvas{display:block;width:100%;height:64vh;min-height:360px;max-height:740px;cursor:ns-resize;touch-action:none}
+.hint{position:absolute;left:16px;bottom:14px;color:#a9b7ca;font-size:12px;pointer-events:none;background:#06080dcc;padding:5px 8px;border-radius:4px}
+aside{padding:5px 3px;min-width:0}h2{font-size:12px;letter-spacing:.09em;color:#aab6c9;margin:8px 0 12px}
+.queue{min-height:245px}.event{display:flex;justify-content:space-between;gap:6px;margin:0;padding:8px 0;border-bottom:1px solid #252d3a;font-variant-numeric:tabular-nums}.event.site{color:#ff647a}.event.circle{color:#65bfff}.event.stale{color:#738197}
+.numbers{line-height:1.9;font-variant-numeric:tabular-nums;color:#b3bfd1}.order{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px;line-height:1.7;color:#aeb9ca}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:13px 0}button{font:inherit;color:#e4eaf5;border:1px solid #38465b;background:#202a3a;padding:9px 13px;border-radius:5px;cursor:pointer}button:hover{background:#2c3b53}button.primary{background:#305b9b;border-color:#5783c3}button:focus-visible,input:focus-visible{outline:2px solid #9bc3ff;outline-offset:3px}label{display:flex;gap:7px;align-items:center;color:#bac6d8}input[type=range]{accent-color:#77aaff}.position{display:flex;align-items:center;gap:12px;margin:13px 0}.position input{flex:1}.position output{width:45px;text-align:right;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#aab6c8}.swatch{display:inline-block;width:19px;height:3px;vertical-align:middle;margin-right:6px}.status{font-size:13px;min-height:22px;color:#c0cbdb}
+.help{display:none;position:absolute;inset:12px;background:#0b111beF;padding:22px;line-height:1.7;border:1px solid #50637d;border-radius:6px;pointer-events:none}.help.visible{display:block}.help strong{color:#fff}.help p{color:#c5d0df}
+@media(max-width:800px){body{padding:10px}.layout{grid-template-columns:1fr}canvas{height:58vh}aside{display:none}header small{display:none}}
+</style>
+</head>
+<body>
+<header><h1>Fortune’s sweep</h1><small><output id="performance">Pointer ready</output> · Python event engine</small></header>
+<p>Move your pointer over the diagram. The white sweep line follows immediately. Click to freeze or resume following.</p>
+<main class="layout">
+<section>
+<div class="stage"><canvas id="view" aria-label="Interactive Fortune sweep replay" tabindex="0"></canvas>
+<div class="hint" id="hint">Pointer following is on · H for help</div>
+<div class="help" id="help"><strong>Pointer-controlled sweep</strong><p>Move the pointer to set the sweep height; no mouse button is needed. Click the plot to freeze or resume.</p><p>Red squares are sites. The white horizontal line is the sweep. White curves form the beach line. Purple segments are traced Voronoi edges.</p><p>Red horizontal markers show upcoming site events, blue markers show circle predictions, and gray markers show invalidated predictions.</p><p>Space: play/pause · Right: next event · R: reset · E: finish · H: help.</p></div></div>
+<div class="position"><label for="position">Position</label><input id="position" type="range" min="0" max="1000" value="0"><output id="positionValue">0%</output></div>
+<div class="controls"><button id="play" class="primary">Play</button><button id="follow">Follow pointer: on</button><button id="next">Next event</button><button id="reset">Reset</button><button id="finish">Finish</button><button id="save">Save PNG</button><label>Speed <input id="speed" type="range" min="1" max="20" value="6"></label><label><input id="markers" type="checkbox" checked>Events</label><label><input id="labels" type="checkbox">Labels</label></div>
+<div class="legend"><span><i class="swatch" style="background:#ff4962"></i>Sites</span><span><i class="swatch" style="background:#f6f8fc"></i>Beach / sweep</span><span><i class="swatch" style="background:#b17cf1"></i>Traced edges</span><span><i class="swatch" style="background:#55b4ff"></i>Circle event</span></div>
+<p class="status" id="status" aria-live="polite"></p>
+</section>
+<aside><h2>EVENT QUEUE</h2><p style="font-size:12px">Highest y first; top eight shown.</p><div class="queue" id="queue"></div><div class="numbers" id="counts"></div><h2>BEACH ORDER</h2><div class="order" id="order"></div></aside>
+</main>
+<script>window.FORTUNE_DATA=__FORTUNE_DATA__;</script>
+<script>__FORTUNE_SCRIPT__</script>
+</body></html>

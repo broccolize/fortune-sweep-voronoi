@@ -1,5 +1,10 @@
 # Fortune Sweep Voronoi
 
+> Optional preview branch: **codex/sweep-animation**. Pointer-following Canvas
+> replay is available with `run.bat --animate`; see [the feature notes](docs/animation.md).
+> The main project, report and submission ZIP are unchanged. The report copied
+> into this branch is the baseline, pending a decision to include the feature.
+
 From-scratch Python implementation of Fortune's sweep-line algorithm, with an
 AVL beach line, lazy circle-event invalidation, clipped ordered cells, interactive
 Matplotlib display and independent geometric validation. This is a personal
@@ -9,8 +14,8 @@ project using the supplied course specification as its quality benchmark.
 
 ## Status
 
-- 86 automated tests pass on native Windows 11 / Python 3.14.7, including four
-  Pi-generated regressions added on 17 November 2026.
+- 139 automated tests pass on this optional branch, including the original
+  86-test suite, replay controls and Canvas event/presentation checks.
 - A separate clean environment installed all pinned dependencies, built the
   package, passed the original 82-test suite and produced batch PNG/CSV/JSON output.
 - 300 seeded random and 40 tight-cluster configurations passed independent checks.
@@ -34,6 +39,7 @@ install.bat
 run.bat --input examples\sites.txt --output output\result.png --csv output\cells.csv --json output\diagram.json --bbox 0 0 1 1
 run.bat --random 100 --seed 2026 --output output\random.svg --csv output\random.csv
 run.bat --interactive
+run.bat --animate --input examples\sites.txt --bbox 0 0 1 1
 test.bat
 ```
 
@@ -51,6 +57,11 @@ Clear removes the current input from the canvas. Export writes PNG, CSV and JSON
 beside the chosen --output path, or to interactive.png by default. The interface
 rebuilds the diagram on Compute; it does not claim to maintain a dynamic Voronoi
 structure between clicks. Keep the window open while recording your demonstration.
+
+Animate opens a self-contained browser viewer. Move the pointer to control the
+sweep directly; click to freeze/resume. The browser receives states from the real
+Python engine, with no per-pointer Python calls. `--output replay.html` retains
+the viewer. `--animation-backend matplotlib` selects the earlier inspector.
 
 ## Debian WSL or Linux
 

@@ -1,0 +1,460 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="9" time="6.572" timestamp="2026-11-17T22:49:27.665336+08:00" hostname="DESKTOP-6F1NTUQ"><testcase classname="tests.test_replay_view" name="test_play_pause_step_reset_keyboard_and_real_frame_export" time="0.358"><failure message="TypeError: unsupported operand type(s) for -: 'str' and 'int'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002009092CC30&gt;
+tmp_path = WindowsPath('C:/Users/Mines/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/AC/#!sandbox.{e15c0583-d880-47c6-9a5a-bc17ab30c145}/Temp/pytest-of-Mines/pytest-0/test_play_pause_step_reset_key0')
+
+    def test_play_pause_step_reset_keyboard_and_real_frame_export(monkeypatch, tmp_path):
+&gt;       ui = controller(monkeypatch, tmp_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_view.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_view.py:26: in controller
+    ui = ReplayController(
+src\fortune\replay_view.py:99: in __init__
+    self.redraw()
+src\fortune\replay_view.py:146: in redraw
+    self._painter.paint(event_dirty=dirty)
+src\fortune\replay_artists.py:368: in paint
+    self.canvas.draw()
+.venv\Lib\site-packages\matplotlib\backends\backend_agg.py:438: in draw
+    self.figure.draw(self.renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:94: in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\figure.py:3282: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\axes\_base.py:3372: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:38: in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Text(0, 1, 'EVENT QUEUE')
+renderer = &lt;matplotlib.backends.backend_agg.RendererAgg object at 0x0000020092B901A0&gt;
+
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+&gt;       spacing = max(0, round(size * (self.get_linespacing() - 1)))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unsupported operand type(s) for -: 'str' and 'int'
+
+src\fortune\ui_text.py:64: TypeError</failure></testcase><testcase classname="tests.test_replay_view" name="test_complete_replay_restarts_and_collinear_input_is_explicit" time="0.300"><failure message="TypeError: unsupported operand type(s) for -: 'str' and 'int'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000200909F5E00&gt;
+tmp_path = WindowsPath('C:/Users/Mines/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/AC/#!sandbox.{e15c0583-d880-47c6-9a5a-bc17ab30c145}/Temp/pytest-of-Mines/pytest-0/test_complete_replay_restarts_0')
+
+    def test_complete_replay_restarts_and_collinear_input_is_explicit(
+        monkeypatch, tmp_path
+    ):
+&gt;       ui = controller(monkeypatch, tmp_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_view.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_view.py:26: in controller
+    ui = ReplayController(
+src\fortune\replay_view.py:99: in __init__
+    self.redraw()
+src\fortune\replay_view.py:146: in redraw
+    self._painter.paint(event_dirty=dirty)
+src\fortune\replay_artists.py:368: in paint
+    self.canvas.draw()
+.venv\Lib\site-packages\matplotlib\backends\backend_agg.py:438: in draw
+    self.figure.draw(self.renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:94: in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\figure.py:3282: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\axes\_base.py:3372: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:38: in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Text(0, 1, 'EVENT QUEUE')
+renderer = &lt;matplotlib.backends.backend_agg.RendererAgg object at 0x0000020093A03390&gt;
+
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+&gt;       spacing = max(0, round(size * (self.get_linespacing() - 1)))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unsupported operand type(s) for -: 'str' and 'int'
+
+src\fortune\ui_text.py:64: TypeError</failure></testcase><testcase classname="tests.test_replay_view" name="test_last_valid_circle_stays_visible_and_stale_queue_is_labelled" time="0.181"><failure message="TypeError: unsupported operand type(s) for -: 'str' and 'int'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000200931C9A30&gt;
+tmp_path = WindowsPath('C:/Users/Mines/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/AC/#!sandbox.{e15c0583-d880-47c6-9a5a-bc17ab30c145}/Temp/pytest-of-Mines/pytest-0/test_last_valid_circle_stays_v0')
+
+    def test_last_valid_circle_stays_visible_and_stale_queue_is_labelled(
+        monkeypatch, tmp_path
+    ):
+&gt;       ui = controller(monkeypatch, tmp_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_view.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_view.py:26: in controller
+    ui = ReplayController(
+src\fortune\replay_view.py:99: in __init__
+    self.redraw()
+src\fortune\replay_view.py:146: in redraw
+    self._painter.paint(event_dirty=dirty)
+src\fortune\replay_artists.py:368: in paint
+    self.canvas.draw()
+.venv\Lib\site-packages\matplotlib\backends\backend_agg.py:438: in draw
+    self.figure.draw(self.renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:94: in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\figure.py:3282: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\axes\_base.py:3372: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:38: in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Text(0, 1, 'EVENT QUEUE')
+renderer = &lt;matplotlib.backends.backend_agg.RendererAgg object at 0x000002009300F110&gt;
+
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+&gt;       spacing = max(0, round(size * (self.get_linespacing() - 1)))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unsupported operand type(s) for -: 'str' and 'int'
+
+src\fortune\ui_text.py:64: TypeError</failure></testcase><testcase classname="tests.test_replay_view" name="test_drawing_failure_pauses_with_an_explicit_message" time="0.261"><failure message="TypeError: unsupported operand type(s) for -: 'str' and 'int'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020090A36030&gt;
+tmp_path = WindowsPath('C:/Users/Mines/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/AC/#!sandbox.{e15c0583-d880-47c6-9a5a-bc17ab30c145}/Temp/pytest-of-Mines/pytest-0/test_drawing_failure_pauses_wi0')
+
+    def test_drawing_failure_pauses_with_an_explicit_message(monkeypatch, tmp_path):
+&gt;       ui = controller(monkeypatch, tmp_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_view.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_view.py:26: in controller
+    ui = ReplayController(
+src\fortune\replay_view.py:99: in __init__
+    self.redraw()
+src\fortune\replay_view.py:146: in redraw
+    self._painter.paint(event_dirty=dirty)
+src\fortune\replay_artists.py:368: in paint
+    self.canvas.draw()
+.venv\Lib\site-packages\matplotlib\backends\backend_agg.py:438: in draw
+    self.figure.draw(self.renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:94: in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\figure.py:3282: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\axes\_base.py:3372: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:38: in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Text(0, 1, 'EVENT QUEUE')
+renderer = &lt;matplotlib.backends.backend_agg.RendererAgg object at 0x000002009092E650&gt;
+
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+&gt;       spacing = max(0, round(size * (self.get_linespacing() - 1)))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unsupported operand type(s) for -: 'str' and 'int'
+
+src\fortune\ui_text.py:64: TypeError</failure></testcase><testcase classname="tests.test_replay_view" name="test_cli_animate_uses_seeded_sites_and_rejects_ambiguous_modes" time="0.012" /><testcase classname="tests.test_replay_view" name="test_animate_button_copies_input_without_modifying_the_current_diagram" time="0.034" /><testcase classname="tests.test_replay_view" name="test_movement_reuses_artists_and_does_not_redraw_the_figure" time="0.179"><failure message="TypeError: unsupported operand type(s) for -: 'str' and 'int'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020090937250&gt;
+tmp_path = WindowsPath('C:/Users/Mines/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/AC/#!sandbox.{e15c0583-d880-47c6-9a5a-bc17ab30c145}/Temp/pytest-of-Mines/pytest-0/test_movement_reuses_artists_a0')
+
+    def test_movement_reuses_artists_and_does_not_redraw_the_figure(monkeypatch, tmp_path):
+&gt;       ui = controller(monkeypatch, tmp_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_view.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_view.py:26: in controller
+    ui = ReplayController(
+src\fortune\replay_view.py:99: in __init__
+    self.redraw()
+src\fortune\replay_view.py:146: in redraw
+    self._painter.paint(event_dirty=dirty)
+src\fortune\replay_artists.py:368: in paint
+    self.canvas.draw()
+.venv\Lib\site-packages\matplotlib\backends\backend_agg.py:438: in draw
+    self.figure.draw(self.renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:94: in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\figure.py:3282: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\axes\_base.py:3372: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:38: in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Text(0, 1, 'EVENT QUEUE')
+renderer = &lt;matplotlib.backends.backend_agg.RendererAgg object at 0x000002009092DF30&gt;
+
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+&gt;       spacing = max(0, round(size * (self.get_linespacing() - 1)))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unsupported operand type(s) for -: 'str' and 'int'
+
+src\fortune\ui_text.py:64: TypeError</failure></testcase><testcase classname="tests.test_replay_view" name="test_position_slider_dragging_and_backward_seek" time="0.173"><failure message="TypeError: unsupported operand type(s) for -: 'str' and 'int'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000200909A4050&gt;
+tmp_path = WindowsPath('C:/Users/Mines/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/AC/#!sandbox.{e15c0583-d880-47c6-9a5a-bc17ab30c145}/Temp/pytest-of-Mines/pytest-0/test_position_slider_dragging_0')
+
+    def test_position_slider_dragging_and_backward_seek(monkeypatch, tmp_path):
+&gt;       ui = controller(monkeypatch, tmp_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_view.py:193: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_view.py:26: in controller
+    ui = ReplayController(
+src\fortune\replay_view.py:99: in __init__
+    self.redraw()
+src\fortune\replay_view.py:146: in redraw
+    self._painter.paint(event_dirty=dirty)
+src\fortune\replay_artists.py:368: in paint
+    self.canvas.draw()
+.venv\Lib\site-packages\matplotlib\backends\backend_agg.py:438: in draw
+    self.figure.draw(self.renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:94: in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\figure.py:3282: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\axes\_base.py:3372: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:38: in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Text(0, 1, 'EVENT QUEUE')
+renderer = &lt;matplotlib.backends.backend_agg.RendererAgg object at 0x00000200931CA210&gt;
+
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+&gt;       spacing = max(0, round(size * (self.get_linespacing() - 1)))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unsupported operand type(s) for -: 'str' and 'int'
+
+src\fortune\ui_text.py:64: TypeError</failure></testcase><testcase classname="tests.test_replay_view" name="test_resize_cache_export_and_fallback_rendering" time="0.166"><failure message="TypeError: unsupported operand type(s) for -: 'str' and 'int'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000200909A66C0&gt;
+tmp_path = WindowsPath('C:/Users/Mines/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/AC/#!sandbox.{e15c0583-d880-47c6-9a5a-bc17ab30c145}/Temp/pytest-of-Mines/pytest-0/test_resize_cache_export_and_f0')
+
+    def test_resize_cache_export_and_fallback_rendering(monkeypatch, tmp_path):
+&gt;       ui = controller(monkeypatch, tmp_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_replay_view.py:211: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_replay_view.py:26: in controller
+    ui = ReplayController(
+src\fortune\replay_view.py:99: in __init__
+    self.redraw()
+src\fortune\replay_view.py:146: in redraw
+    self._painter.paint(event_dirty=dirty)
+src\fortune\replay_artists.py:368: in paint
+    self.canvas.draw()
+.venv\Lib\site-packages\matplotlib\backends\backend_agg.py:438: in draw
+    self.figure.draw(self.renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:94: in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\figure.py:3282: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:71: in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\matplotlib\axes\_base.py:3372: in draw
+    mimage._draw_list_compositing_images(
+.venv\Lib\site-packages\matplotlib\image.py:133: in _draw_list_compositing_images
+    a.draw(renderer)
+.venv\Lib\site-packages\matplotlib\artist.py:38: in draw_wrapper
+    return draw(artist, renderer, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Text(0, 1, 'EVENT QUEUE')
+renderer = &lt;matplotlib.backends.backend_agg.RendererAgg object at 0x000002009090E470&gt;
+
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+&gt;       spacing = max(0, round(size * (self.get_linespacing() - 1)))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unsupported operand type(s) for -: 'str' and 'int'
+
+src\fortune\ui_text.py:64: TypeError</failure></testcase></testsuite></testsuites>

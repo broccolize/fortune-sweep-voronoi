@@ -1,5 +1,56 @@
 # Development Log
 
+## 17-18 November 2026 Optional replay: performance and pointer interaction
+
+- The owner found the first replay extremely slow, then clarified the intended
+  interaction using genuine website captures: the sweep should follow hovering
+  pointer motion, without holding a button. The owner later said the new viewer
+  looked good. The feature remains isolated on codex/sweep-animation.
+- Profiled the actual slow code: the 50-site Agg redraw median was 234.36 ms;
+  event advancement was about 0.007 ms. Axes/artists were rebuilt and static
+  text/widgets repainted each frame. Per-frame event subdivisions amplified lag.
+- Built a persistent-artist Matplotlib inspector with layered background caches,
+  dirty-region blits, bounded text bitmaps, wall-time pacing, position controls
+  and up to eight height-bucket checkpoints plus a final state. The native Tk
+  measurement improved from about 19.7 to 44.5 timer updates/s. This still did
+  not match the pointer interaction the owner wanted.
+- Made an offline browser Canvas viewer the default optional replay. Python
+  exports actual Fortune event states, arc sequences, queue priorities/stale
+  flags and edge attachment times. Browser pointer movement selects a recorded
+  state and draws exact quadratic parabolas, with no Python request per motion.
+  Normal diagrams and exports continue to use the Matplotlib path.
+- Explicit trade-off: the educational export can retain O(n^2) arc-order data,
+  bounded to 200 distinct sites. Normal O(n log n)/O(n) construction collects
+  none of this history. The 200-site HTML was about 669 kB.
+- Genuine debugging: a new wall-time playback test needed a controlled clock
+  instead of counting callbacks. Default Matplotlib line spacing returned auto,
+  causing seven initial text-cache failures; accepting that default fixed them.
+  Copying itertools.count failed on this interpreter; deriving the next serial
+  from the queue's push count fixed checkpoint cloning. A Node test-harness
+  command had an extra closing parenthesis and was corrected. Initial/fixed
+  XML records are retained rather than replacing failure evidence.
+- Verification: 139 tests passed in 11.91s, with zero failures/errors. Tests
+  compare recorded states against the real engine, verify independent checkpoint
+  copies, match JS drawing geometry against Python for 100 inputs, and move a
+  pointer with no pressed-button property in a source-level event test. Ruff and
+  JavaScript syntax checks passed.
+- Actual visible browser checks confirmed position 45% at world y=0.56, pointer
+  movement, continuous playback, no console errors and PNG download. Rolling
+  RAF readings were about 120 Hz with median drawing times of 1.4 ms (50 sites)
+  and 2.4 ms (200 sites), at the documented viewport/DPR. These are browser
+  diagnostics, not display scanout or universal performance guarantees.
+- Saved the real browser screenshot and downloaded PNG. They are program/UI
+  evidence, not fabricated AI conversations. The initial wheel attempt disabled
+  build isolation and could not import setuptools.build_meta; using normal
+  isolated building succeeded. The wheel includes both renderer assets, and an
+  isolated unpacked-wheel import generated a standalone replay successfully.
+- Compared 169 primary project files against the pre-feature hashes: unchanged.
+  The primary PDF/ZIP and copied baseline report are not updated for an optional
+  feature before an inclusion decision. Feature notes explain this scope.
+- The November 11 backend commit is retained. The owner-requested November 12
+  commit records the finished optional viewer. Test/build records keep their
+  actual timestamps. No merge or completed personal narration is claimed.
+
 ## 17 November 2026 Optional animation branch: event replay model
 
 - Owner requested animated Fortune replay, then specified that it should remain

@@ -1,0 +1,821 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="13" skipped="0" tests="28" time="1.108" timestamp="2026-11-17T22:54:17.928498+08:00" hostname="DESKTOP-6F1NTUQ"><testcase classname="tests.test_replay" name="test_queue_preview_is_ordered_without_popping" time="0.001" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[0]" time="0.016" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[1]" time="0.012" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[2]" time="0.011" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[3]" time="0.012" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[4]" time="0.011" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[5]" time="0.011" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[6]" time="0.010" /><testcase classname="tests.test_replay" name="test_stepping_matches_batch_and_keeps_invariants[7]" time="0.010" /><testcase classname="tests.test_replay" name="test_replay_frames_do_not_cross_pending_events[0]" time="0.004"><failure message="TypeError: cannot pickle 'itertools.count' object">seed = 0
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_replay_frames_do_not_cross_pending_events(seed):
+        replay = SweepReplay(random_sites(10, seed), Box(0, 0, 1, 1), debug=True)
+        previous = replay.display_y
+        stale_count = 0
+        frames = 0
+        while not replay.done:
+            target = min(replay.sweep.sweep_y, replay.sweep.queue.peek().y)
+&gt;           event = replay.tick(4)
+                    ^^^^^^^^^^^^^^
+
+tests\test_replay.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(10)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_replay_frames_do_not_cross_pending_events[1]" time="0.003"><failure message="TypeError: cannot pickle 'itertools.count' object">seed = 1
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_replay_frames_do_not_cross_pending_events(seed):
+        replay = SweepReplay(random_sites(10, seed), Box(0, 0, 1, 1), debug=True)
+        previous = replay.display_y
+        stale_count = 0
+        frames = 0
+        while not replay.done:
+            target = min(replay.sweep.sweep_y, replay.sweep.queue.peek().y)
+&gt;           event = replay.tick(4)
+                    ^^^^^^^^^^^^^^
+
+tests\test_replay.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(10)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_replay_frames_do_not_cross_pending_events[2]" time="0.004"><failure message="TypeError: cannot pickle 'itertools.count' object">seed = 2
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_replay_frames_do_not_cross_pending_events(seed):
+        replay = SweepReplay(random_sites(10, seed), Box(0, 0, 1, 1), debug=True)
+        previous = replay.display_y
+        stale_count = 0
+        frames = 0
+        while not replay.done:
+            target = min(replay.sweep.sweep_y, replay.sweep.queue.peek().y)
+&gt;           event = replay.tick(4)
+                    ^^^^^^^^^^^^^^
+
+tests\test_replay.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(10)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_replay_frames_do_not_cross_pending_events[3]" time="0.004"><failure message="TypeError: cannot pickle 'itertools.count' object">seed = 3
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_replay_frames_do_not_cross_pending_events(seed):
+        replay = SweepReplay(random_sites(10, seed), Box(0, 0, 1, 1), debug=True)
+        previous = replay.display_y
+        stale_count = 0
+        frames = 0
+        while not replay.done:
+            target = min(replay.sweep.sweep_y, replay.sweep.queue.peek().y)
+&gt;           event = replay.tick(4)
+                    ^^^^^^^^^^^^^^
+
+tests\test_replay.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(10)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_replay_frames_do_not_cross_pending_events[4]" time="0.005"><failure message="TypeError: cannot pickle 'itertools.count' object">seed = 4
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_replay_frames_do_not_cross_pending_events(seed):
+        replay = SweepReplay(random_sites(10, seed), Box(0, 0, 1, 1), debug=True)
+        previous = replay.display_y
+        stale_count = 0
+        frames = 0
+        while not replay.done:
+            target = min(replay.sweep.sweep_y, replay.sweep.queue.peek().y)
+&gt;           event = replay.tick(4)
+                    ^^^^^^^^^^^^^^
+
+tests\test_replay.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(10)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_arc_samples_are_true_parabolas_and_reset_is_repeatable" time="0.001"><failure message="TypeError: cannot pickle 'itertools.count' object">def test_arc_samples_are_true_parabolas_and_reset_is_repeatable():
+        replay = SweepReplay([(0.1, 0.85), (0.8, 0.65), (0.35, 0.15)], Box(0, 0, 1, 1))
+&gt;       replay.step_event()
+
+tests\test_replay.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(3)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_collinear_solver_is_shown_without_a_fabricated_sweep[points0]" time="0.001" /><testcase classname="tests.test_replay" name="test_collinear_solver_is_shown_without_a_fabricated_sweep[points1]" time="0.002" /><testcase classname="tests.test_replay" name="test_collinear_solver_is_shown_without_a_fabricated_sweep[points2]" time="0.002" /><testcase classname="tests.test_replay" name="test_collinear_solver_is_shown_without_a_fabricated_sweep[points3]" time="0.001" /><testcase classname="tests.test_replay" name="test_collinear_solver_is_shown_without_a_fabricated_sweep[points4]" time="0.002" /><testcase classname="tests.test_replay" name="test_equal_heights_cocircularity_duplicates_and_stale_queue" time="0.002"><failure message="TypeError: cannot pickle 'itertools.count' object">def test_equal_heights_cocircularity_duplicates_and_stale_queue():
+        replay = SweepReplay([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)], debug=True)
+        assert len(replay.sites) == 4 and replay.label(0) == "0/4"
+        found_stale = False
+        while not replay.done:
+&gt;           replay.step_event()
+
+tests\test_replay.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(4)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_replay_input_errors_and_capacity_are_explicit" time="0.005" /><testcase classname="tests.test_replay" name="test_near_coincident_replay_geometry_remains_inspectable[10]" time="0.007"><failure message="TypeError: cannot pickle 'itertools.count' object">exponent = 10
+
+    @pytest.mark.parametrize("exponent", [10, 13, 15])
+    def test_near_coincident_replay_geometry_remains_inspectable(exponent):
+        delta = 10 ** (-exponent)
+        points = [
+            Point(0, 0),
+            Point(1, 0),
+            Point(0, 1),
+            Point(1, 1),
+            Point(0.5, 0.5),
+            Point(0.5 + delta, 0.5 + 2 * delta),
+            Point(0.5 - delta, 0.5 + delta),
+        ]
+        replay = SweepReplay(points, Box(0, 0, 1, 1), debug=True)
+        frames = 0
+        while not replay.done:
+&gt;           replay.tick(3)
+
+tests\test_replay.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(7)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_near_coincident_replay_geometry_remains_inspectable[13]" time="0.007"><failure message="TypeError: cannot pickle 'itertools.count' object">exponent = 13
+
+    @pytest.mark.parametrize("exponent", [10, 13, 15])
+    def test_near_coincident_replay_geometry_remains_inspectable(exponent):
+        delta = 10 ** (-exponent)
+        points = [
+            Point(0, 0),
+            Point(1, 0),
+            Point(0, 1),
+            Point(1, 1),
+            Point(0.5, 0.5),
+            Point(0.5 + delta, 0.5 + 2 * delta),
+            Point(0.5 - delta, 0.5 + delta),
+        ]
+        replay = SweepReplay(points, Box(0, 0, 1, 1), debug=True)
+        frames = 0
+        while not replay.done:
+&gt;           replay.tick(3)
+
+tests\test_replay.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(7)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_near_coincident_replay_geometry_remains_inspectable[15]" time="0.008"><failure message="TypeError: cannot pickle 'itertools.count' object">exponent = 15
+
+    @pytest.mark.parametrize("exponent", [10, 13, 15])
+    def test_near_coincident_replay_geometry_remains_inspectable(exponent):
+        delta = 10 ** (-exponent)
+        points = [
+            Point(0, 0),
+            Point(1, 0),
+            Point(0, 1),
+            Point(1, 1),
+            Point(0.5, 0.5),
+            Point(0.5 + delta, 0.5 + 2 * delta),
+            Point(0.5 - delta, 0.5 + delta),
+        ]
+        replay = SweepReplay(points, Box(0, 0, 1, 1), debug=True)
+        frames = 0
+        while not replay.done:
+&gt;           replay.tick(3)
+
+tests\test_replay.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(7)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_rendered_arc_intervals_follow_the_processed_parabola_envelope" time="0.007"><failure message="TypeError: cannot pickle 'itertools.count' object">def test_rendered_arc_intervals_follow_the_processed_parabola_envelope():
+        replay = SweepReplay(random_sites(15, 87), Box(0, 0, 1, 1))
+        checked = 0
+        while not replay.done:
+&gt;           replay.tick(3)
+
+tests\test_replay.py:169: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:227: in tick
+    return self.step_event()
+           ^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(15)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_scrubbing_replays_real_topology_in_both_directions" time="0.012"><failure message="TypeError: cannot pickle 'itertools.count' object">def test_scrubbing_replays_real_topology_in_both_directions():
+        replay = SweepReplay(random_sites(20, 42), Box(0, 0, 1, 1), debug=True)
+        for position in (0.7, 0.2, 0.9, 0.4, 1.0, 0.0, 0.6):
+&gt;           replay.seek(position)
+
+tests\test_replay.py:188: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:194: in seek
+    self.seek_y(self.top_y + position * (self.bottom_y - self.top_y))
+src\fortune\replay.py:176: in seek_y
+    self.step_event()
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(20)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase><testcase classname="tests.test_replay" name="test_playback_uses_elapsed_time_instead_of_frame_count" time="0.013"><failure message="TypeError: cannot pickle 'itertools.count' object">def test_playback_uses_elapsed_time_instead_of_frame_count():
+        slow = SweepReplay(random_sites(15, 37), Box(0, 0, 1, 1))
+        fast = SweepReplay(random_sites(15, 37), Box(0, 0, 1, 1))
+        for _ in range(12):
+&gt;           slow.advance(0.2)
+
+tests\test_replay.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\fortune\replay.py:212: in advance
+    self.step_event()
+src\fortune\replay.py:117: in step_event
+    self._remember_checkpoint()
+src\fortune\replay.py:126: in _remember_checkpoint
+    self._checkpoints[bucket] = self._checkpoint()
+                                ^^^^^^^^^^^^^^^^^^
+src\fortune\replay.py:129: in _checkpoint
+    engine, event = clone_sweep(self.sweep, self.last_event)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\fortune\replay_state.py:52: in clone_sweep
+    result.queue._serial = copy(source.queue._serial)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+x = count(15)
+
+    def copy(x):
+        """Shallow copy operation on arbitrary Python objects.
+    
+        See the module's __doc__ string for more info.
+        """
+    
+        cls = type(x)
+    
+        if cls in _copy_atomic_types:
+            return x
+        if cls in _copy_builtin_containers:
+            return cls.copy(x)
+    
+    
+        if issubclass(cls, type):
+            # treat it as a regular class:
+            return x
+    
+        copier = getattr(cls, "__copy__", None)
+        if copier is not None:
+            return copier(x)
+    
+        reductor = dispatch_table.get(cls)
+        if reductor is not None:
+            rv = reductor(x)
+        else:
+            reductor = getattr(x, "__reduce_ex__", None)
+            if reductor is not None:
+&gt;               rv = reductor(4)
+                     ^^^^^^^^^^^
+E               TypeError: cannot pickle 'itertools.count' object
+
+C:\Users\Mines\AppData\Local\Programs\Python\Python314\Lib\copy.py:90: TypeError</failure></testcase></testsuite></testsuites>

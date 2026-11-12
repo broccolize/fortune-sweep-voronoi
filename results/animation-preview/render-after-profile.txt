@@ -1,0 +1,28 @@
+         745145 function calls (739098 primitive calls) in 3.093 seconds
+
+   Ordered by: cumulative time
+   List reduced from 583 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       48    0.002    0.000    3.109    0.065 replay_view.py:93(redraw)
+       48    0.000    0.000    2.987    0.062 replay_artists.py:347(paint)
+       57    0.003    0.000    2.929    0.051 replay_artists.py:328(_draw)
+      745    0.003    0.000    2.926    0.004 figure.py:3300(draw_artist)
+ 2168/745    0.015    0.000    2.885    0.004 artist.py:53(draw_wrapper)
+      747    0.030    0.000    2.228    0.003 text.py:840(draw)
+      349    0.007    0.000    1.786    0.005 backend_agg.py:235(draw_text)
+        9    0.002    0.000    1.694    0.188 replay_artists.py:333(_events)
+      349    0.232    0.001    1.165    0.003 backend_agg.py:175(_draw_text_glyphs_and_boxes)
+       93    0.004    0.000    0.667    0.007 _base.py:3307(draw)
+       93    0.002    0.000    0.644    0.007 image.py:115(_draw_list_compositing_images)
+     5843    0.603    0.000    0.615    0.000 {built-in method matplotlib.ft2font._render_glyph}
+      340    0.564    0.002    0.565    0.002 {built-in method matplotlib.ft2font._layout}
+      370    0.045    0.000    0.380    0.001 collections.py:360(draw)
+      313    0.021    0.000    0.361    0.001 text.py:416(_get_layout)
+      226    0.002    0.000    0.304    0.001 collections.py:1127(draw)
+      349    0.003    0.000    0.254    0.001 text.py:47(_get_text_metrics_with_cache)
+      115    0.000    0.000    0.244    0.002 text.py:114(_text_metrics)
+      115    0.002    0.000    0.244    0.002 backend_agg.py:251(get_text_width_height_descent)
+      227    0.015    0.000    0.233    0.001 path.py:626(get_extents)
+
+

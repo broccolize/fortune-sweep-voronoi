@@ -13,6 +13,7 @@ class InteractiveController:
         self.box = box or Box(0, 0, 1, 1)
         self.output = output
         self.diagram = None
+        self.replays = []
         self.status = figure.text(
             0.13,
             0.02,
@@ -74,6 +75,30 @@ class InteractiveController:
         self.status.set_text("Cleared. Click to add new sites.")
         self.figure.canvas.draw_idle()
 
+    def animate(self, event=None):
+        from pathlib import Path
+
+        from .replay_canvas import launch
+
+        if not self.sites:
+            self.status.set_text("Add at least one site first.")
+        else:
+            try:
+                path = Path(self.output)
+                replay = launch(
+                    self.sites,
+                    self.box,
+                    path.with_name(path.stem + "-replay.html"),
+                    block=False,
+                )
+                self.replays.append(replay)
+                self.status.set_text(
+                    "Pointer replay opened in the browser. Move over the diagram."
+                )
+            except (ValueError, ArithmeticError) as exc:
+                self.status.set_text(str(exc))
+        self.figure.canvas.draw_idle()
+
     def export(self, event=None):
         from pathlib import Path
 
@@ -99,9 +124,10 @@ def launch(sites=(), box=None, output="interactive.png"):
     controller = InteractiveController(fig, axes, sites, box, output)
     controller.buttons = []
     for x, label, callback in (
-        (0.18, "Compute", controller.compute),
-        (0.43, "Clear", controller.clear),
-        (0.68, "Export", controller.export),
+        (0.12, "Compute", controller.compute),
+        (0.32, "Animate", controller.animate),
+        (0.52, "Clear", controller.clear),
+        (0.72, "Export", controller.export),
     ):
         button = Button(fig.add_axes([x, 0.075, 0.15, 0.05]), label)
         button.on_clicked(callback)

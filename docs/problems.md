@@ -137,3 +137,22 @@ initially failed; the read-only inspection succeeded with approved access.
 Windows runtime dependencies were not yet installed at that initial inspection;
 they were installed and exercised later. These observations belong to the real
 log, but are not automatically five substantive algorithm problems.
+
+## P008 Replay drawing and interaction were too slow
+
+- Symptom: the owner found playback sluggish and wanted the sweep to follow
+  pointer motion immediately, like the referenced explanatory website.
+- Investigation: 50-site headless redraw took 234.36 ms while model advancement
+  took about 0.007 ms; profiling attributed most work to axes/text reconstruction
+  and glyph rendering. Native Tk and browser timings were measured separately.
+- Root cause: every frame rebuilt Matplotlib axes/artists and repainted static
+  content. Fixed per-frame event subdivisions coupled playback speed to painting.
+- Solution: retained an optimized persistent-artist inspector, then made an offline
+  Canvas replay the default on the optional branch. Python records actual event
+  states once; pointer motion selects them and draws exact quadratic curves.
+- Verification: current 139-test suite; state-by-state core comparison, cross-language
+  geometry tests, a no-button pointer event test, actual browser position/export
+  checks, and 120 Hz / 1.4-2.4 ms observations in the documented browser cases.
+- Prevention/lesson: measure the presentation pipeline independently of algorithm
+  construction, and test the requested interaction directly. Replay caching has
+  its own explicit 200-site limit and worst-case O(n^2) storage trade-off.

@@ -15,6 +15,9 @@ Status: implemented and independently tested. See evidence/tests-current.xml.
 | `io` | Coordinate loading and ordered text/CSV exports |
 | `visualize` | Matplotlib rendering and click-based input |
 | `cli` | Batch/interactive arguments, statistics and reproducible invocation |
+| `replay_canvas` + HTML/JS | Python event-state export and offline pointer-following Canvas presentation |
+| `replay` / `replay_state` | Optional stepping, seeking and bounded native-inspector checkpoints |
+| `replay_artists` / `ui_text` | Persistent Matplotlib inspector artists and cached interface text |
 | `validation` / tests | Independent brute-force checks, never core construction |
 
 ## Invariants to explain and test
@@ -45,3 +48,10 @@ their defining sites for independent empty-circle validation.
    Difficult intersection coordinates use 80-digit Decimal arithmetic.
 6. The sweep's event positions and exported coordinates are still doubles;
    selected near-machine-precision inputs pass, not a universal exactness proof.
+
+## Optional renderer complexity
+
+Canvas replay is an opt-in feature branch. Its event-state export may retain
+O(n^2) arc-order data at a 200-site cap; normal construction records no replay
+history. Browser movement is a binary search plus drawing of the selected state.
+See docs/animation.md for the measured scope and preserved baseline-report status.

@@ -1,0 +1,120 @@
+{
+  "actual_timestamp": "2026-11-17T22:01:02.384741+08:00",
+  "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "machine": "AMD64",
+  "processor": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+  "seed": 2026,
+  "repetitions": 3,
+  "timing_scope": "deduplication, normalization, Fortune sweep, clipping, cell/edge assembly; excludes input generation, plotting, validation and export",
+  "memory_method": "fresh subprocess per size; tracemalloc starts after input generation; process RSS includes interpreter and tracing overhead",
+  "results": [
+    {
+      "median_seconds": 0.061576100008096546,
+      "min_seconds": 0.046997400000691414,
+      "max_seconds": 0.07188060000771657,
+      "n": 100,
+      "python_peak_bytes": 729868,
+      "python_retained_bytes": 494060,
+      "cells": 100,
+      "process_peak_rss_bytes": 26304512,
+      "process_working_set_bytes": 25501696
+    },
+    {
+      "median_seconds": 0.5975969999562949,
+      "min_seconds": 0.5724140999955125,
+      "max_seconds": 0.599009900004603,
+      "n": 1000,
+      "python_peak_bytes": 7735112,
+      "python_retained_bytes": 5034708,
+      "cells": 1000,
+      "process_peak_rss_bytes": 45277184,
+      "process_working_set_bytes": 32419840
+    },
+    {
+      "median_seconds": 6.341344500018749,
+      "min_seconds": 6.317192599992268,
+      "max_seconds": 6.4790430999710225,
+      "n": 10000,
+      "python_peak_bytes": 68241392,
+      "python_retained_bytes": 34474356,
+      "cells": 10000,
+      "process_peak_rss_bytes": 229564416,
+      "process_working_set_bytes": 97329152
+    }
+  ],
+  "raw_timings": [
+    {
+      "n": 100,
+      "repetition": 0,
+      "seconds": 0.061576100008096546,
+      "sweep_seconds": 0.045281800033990294,
+      "vertices": 188,
+      "edges": 265
+    },
+    {
+      "n": 100,
+      "repetition": 1,
+      "seconds": 0.046997400000691414,
+      "sweep_seconds": 0.03257720003603026,
+      "vertices": 188,
+      "edges": 265
+    },
+    {
+      "n": 100,
+      "repetition": 2,
+      "seconds": 0.07188060000771657,
+      "sweep_seconds": 0.04658639995614067,
+      "vertices": 188,
+      "edges": 265
+    },
+    {
+      "n": 1000,
+      "repetition": 0,
+      "seconds": 0.5724140999955125,
+      "sweep_seconds": 0.40944880002643913,
+      "vertices": 1984,
+      "edges": 2886
+    },
+    {
+      "n": 1000,
+      "repetition": 1,
+      "seconds": 0.5975969999562949,
+      "sweep_seconds": 0.37746389996027574,
+      "vertices": 1984,
+      "edges": 2886
+    },
+    {
+      "n": 1000,
+      "repetition": 2,
+      "seconds": 0.599009900004603,
+      "sweep_seconds": 0.41386099997907877,
+      "vertices": 1984,
+      "edges": 2886
+    },
+    {
+      "n": 10000,
+      "repetition": 0,
+      "seconds": 6.317192599992268,
+      "sweep_seconds": 4.502465499972459,
+      "vertices": 19978,
+      "edges": 29630
+    },
+    {
+      "n": 10000,
+      "repetition": 1,
+      "seconds": 6.341344500018749,
+      "sweep_seconds": 4.5002540000132285,
+      "vertices": 19978,
+      "edges": 29630
+    },
+    {
+      "n": 10000,
+      "repetition": 2,
+      "seconds": 6.4790430999710225,
+      "sweep_seconds": 4.648364100023173,
+      "vertices": 19978,
+      "edges": 29630
+    }
+  ]
+}

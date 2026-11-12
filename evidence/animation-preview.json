@@ -1,0 +1,14 @@
+{
+  "actual_timestamp": "2026-11-17T22:56:54.992977+08:00",
+  "input": "examples\\sites.txt",
+  "generated_by": "tools/make_replay_example.py using actual SweepReplay state",
+  "png": "examples/sweep-replay.png",
+  "selected_frame": {
+    "event_count": 4,
+    "site_events": 3,
+    "circle_events": 1,
+    "sweep_y": 0.8163596864074776
+  },
+  "gif": null,
+  "frames": 0
+}

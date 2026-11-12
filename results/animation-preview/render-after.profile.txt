@@ -1,0 +1,28 @@
+         519255 function calls (514799 primitive calls) in 0.827 seconds
+
+   Ordered by: cumulative time
+   List reduced from 618 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       48    0.001    0.000    0.841    0.018 replay_view.py:101(redraw)
+       48    0.000    0.000    0.743    0.015 replay_artists.py:362(paint)
+       57    0.002    0.000    0.690    0.012 replay_artists.py:343(_draw)
+      745    0.002    0.000    0.688    0.001 figure.py:3300(draw_artist)
+ 1853/571    0.008    0.000    0.555    0.001 artist.py:53(draw_wrapper)
+      370    0.034    0.000    0.304    0.001 collections.py:360(draw)
+      226    0.001    0.000    0.249    0.001 collections.py:1127(draw)
+       93    0.003    0.000    0.196    0.002 _base.py:3307(draw)
+      227    0.012    0.000    0.192    0.001 path.py:626(get_extents)
+        9    0.002    0.000    0.190    0.021 replay_artists.py:348(_events)
+       93    0.001    0.000    0.181    0.002 image.py:115(_draw_list_compositing_images)
+      324    0.001    0.000    0.153    0.000 artist.py:30(draw_wrapper)
+      324    0.011    0.000    0.152    0.000 ui_text.py:47(draw)
+       48    0.001    0.000    0.096    0.002 replay_view.py:15(draw_replay)
+       48    0.004    0.000    0.095    0.002 replay_artists.py:177(update)
+      354    0.002    0.000    0.090    0.000 patches.py:738(draw)
+      116    0.002    0.000    0.080    0.001 ui_text.py:23(_bitmap)
+     1310    0.016    0.000    0.071    0.000 bezier.py:368(axis_aligned_extrema)
+       48    0.028    0.001    0.066    0.001 replay.py:237(curves)
+     1441    0.006    0.000    0.057    0.000 path.py:432(iter_bezier)
+
+
