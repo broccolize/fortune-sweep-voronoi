@@ -1,0 +1,23 @@
+{
+  "actual_timestamp": "2026-11-18T01:38:59.065250+08:00",
+  "archive": "CG_Assignment_2024380145_Mineth_Lohiru_Ariyarathna.zip",
+  "archive_sha256": "4f5586e960db8b0afd38d805784930a59e43228544e38d881aa0249b4a81e815",
+  "archive_bytes": 10356152,
+  "archive_files": 319,
+  "package_source_revision": "e296657fe5ab5ec269b1358ebc6b011e174a6480",
+  "package_built_from_clean_worktree": true,
+  "required_folders_present": true,
+  "crc": "passed",
+  "runtime_and_test_files_compared": 39,
+  "matches_isolated_installed_test_payload": true,
+  "installed_tests_passed": 139,
+  "report_matches_audited_pdf": true,
+  "report_pages": 28,
+  "body_pages": 16,
+  "editable_report_and_canvas_assets_present": true,
+  "missing_personal_evidence": [
+    "personal narrated video",
+    "final owner reading/approval"
+  ],
+  "note": "The final ZIP includes the completed report and evidence. Its 39 runtime/test/configuration/launcher files are byte-identical to the separately installed and tested payload; raw verification retains the earlier archive hash."
+}

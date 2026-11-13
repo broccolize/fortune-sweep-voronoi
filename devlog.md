@@ -54,6 +54,13 @@
   and the delivery tree. Utility clean-up preserved non-import ASTs. The package
   manifest now reports this tested-payload match and the audited PDF checksum,
   separately from the still-pending personal recording/review flags.
+- Main integration e296657 passed all four GitHub Windows/Ubuntu Python 3.12/3.14
+  jobs. The first push hit a Schannel TLS handshake error; a per-command secure
+  OpenSSL/HTTP 1.1 retry succeeded without disabling certificate verification.
+  The final review ZIP is built from a clean committed snapshot. Its CRC,
+  editable report/assets, audited PDF hash and all 39 tested payload files were
+  independently checked. Final ZIP hashes stay outside the archive to avoid a
+  self-referential checksum. The personal video and owner review remain pending.
 
 ## 17-18 November 2026 Optional replay: performance and pointer interaction
 

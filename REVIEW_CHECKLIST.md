@@ -83,7 +83,8 @@ help you choose which real interactions to capture.
   reports the missing personal video and pending owner review.
 - [x] Verify the 03_Executable launcher, installed Canvas assets and 139 tests in
   the extracted package's separate environment.
-- [ ] Check GitHub's latest Actions run and compare the latest source revision.
+- [x] Main integration e296657 passed all four Windows/Ubuntu Python 3.12/3.14
+  Actions jobs. The verified source revision and results are in evidence/ci-final.json.
 - [ ] After all checks and personal evidence are complete, set owner_review_complete
   to true in owner-metadata.json and rebuild. The manifest will still report missing
   evidence rather than treating this flag alone as completion.

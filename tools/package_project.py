@@ -77,8 +77,11 @@ def main():
 
     def tree(source, relative):
         for path in sorted(source.rglob("*")):
-            # A ZIP cannot contain its own final hash; the audit is kept beside it.
-            if path == ROOT / "evidence/package-audit.json":
+            # A ZIP cannot contain its own final hash; final audits stay beside it.
+            if path in {
+                ROOT / "evidence/package-audit.json",
+                ROOT / "evidence/package-final-content.json",
+            }:
                 continue
             if source == ROOT / "report" and (
                 path.suffix

@@ -1,12 +1,13 @@
 {
-  "run_id": 42794350532,
-  "head_sha": "73336949b7f28b78c3a55b345d05bdd36fdc53dc",
+  "run_id": 44138800657,
+  "head_sha": "e296657fe5ab5ec269b1358ebc6b011e174a6480",
   "status": "completed",
   "conclusion": "success",
-  "url": "https://github.com/broccolize/fortune-sweep-voronoi/actions/runs/42794350532",
+  "url": "https://github.com/broccolize/fortune-sweep-voronoi/actions/runs/44138800657",
+  "updated_at": "2026-11-17T17:37:22Z",
   "jobs": [
     {
-      "name": "test (windows-latest, 3.14)",
+      "name": "test (windows-latest, 3.12)",
       "conclusion": "success"
     },
     {
@@ -14,12 +15,13 @@
       "conclusion": "success"
     },
     {
-      "name": "test (windows-latest, 3.12)",
+      "name": "test (windows-latest, 3.14)",
       "conclusion": "success"
     },
     {
       "name": "test (ubuntu-latest, 3.14)",
       "conclusion": "success"
     }
-  ]
+  ],
+  "scope": "Verified main integration; source revision is explicit. Later delivery-audit commits retain the same tested runtime and test files."
 }
