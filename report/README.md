@@ -55,15 +55,23 @@ review package can also be compiled directly:
 - AI evidence: sections/appendix-b.tex. Landscape pages preserve the original
   terminal captures; the originals and their checksums must be kept unchanged.
   In the self-contained 01_Report package, these assets are also in figures/.
+- Sweep viewer evidence and measured rendering scope: sections/appendix-c.tex.
+  Its real browser capture is evidence/canvas-preview.jpg in the project and
+  figures/canvas-preview.jpg in the self-contained report package.
 
 Compile after editing. TeX numbers sections, equations, figures, tables and
 listings and updates contents, figure/table lists and references automatically.
 The body remains Times New Roman 12 pt with 1.5 line spacing. The source is
 editable in VS Code, TeXstudio or any text editor.
 
-The checked PDF has 26 pages: one cover, two navigation pages, 16 body pages and
-seven appendix pages. Five evidence pages use A4 landscape orientation for
-legible terminal captures; the main report remains portrait. Automatic numbering will update when the source is edited.
+See evidence/report-latex-audit.json for the checked page/body counts and PDF
+checksum. Five evidence pages use A4 landscape orientation for legible terminal
+captures; the main report remains portrait. Automatic numbering updates when
+the source is edited.
 
 The older Markdown file is retained as a legacy draft. It is no longer used to
 build the PDF; editing it does not change the LaTeX report.
+
+For the optional structural audit and page renders, install report/requirements.txt
+into your Python environment, then run `python tools/audit_report.py --render`.
+The PDF compiler itself uses only Python's standard library plus the TeX tools.

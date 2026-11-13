@@ -1,0 +1,23 @@
+{
+  "actual_timestamp": "2026-11-18T01:29:12.065101+08:00",
+  "owner_authorized_inclusion": true,
+  "merged_into_main": true,
+  "feature_tip": "e19ff8d3e5babf1575fac4a41f27539f91a8b8d5",
+  "preserved_feature_commit_dates": [
+    "2026-11-11",
+    "2026-11-12"
+  ],
+  "default_renderer": "offline browser Canvas",
+  "main_tests": 139,
+  "installed_tests": 139,
+  "all_tested_modules_installed": true,
+  "matching_tested_payload_files": 39,
+  "changed_tested_payload_files": [],
+  "report_sha256": "7e18d7b6b80859f5e285fc76eda479c912928ef491a871233d754beb95ee7a2c",
+  "report_pages": 28,
+  "body_pages": 16,
+  "feature_browser_code_unchanged": true,
+  "browser_evidence": "results/animation-preview/render-browser.json",
+  "personal_review_complete": false,
+  "personal_recording_present": false
+}

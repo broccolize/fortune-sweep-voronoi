@@ -2,7 +2,7 @@
 \section{Performance Analysis and Results}
 \label{sec:7}
 
-Benchmarks used Windows 11 x64, Python 3.14.7 and an Intel64 Family 6 Model 165 processor. Each size used seed 2026 and the unit-square box. Table~\ref{tab:5} reports the median of three uninstrumented timing runs and separate memory measurements. Construction includes deduplication, normalization, the sweep, clipping and cell assembly; input generation, validation, plotting and export are excluded.
+The integrated version was benchmarked on 18 November 2026 using Windows 11 x64, Python 3.14.7 and an Intel64 Family 6 Model 165 processor. Each size used seed 2026 and the unit-square box. Table~\ref{tab:5} reports the median of three uninstrumented timing runs and separate memory measurements. Construction includes deduplication, normalization, the sweep, clipping and cell assembly; input generation, validation, drawing and replay export are excluded.
 
 \begin{table}[!htbp]
 \centering
@@ -12,9 +12,9 @@ Benchmarks used Windows 11 x64, Python 3.14.7 and an Intel64 Family 6 Model 165 
 \toprule
 \textbf{Sites} & \textbf{Median seconds} & \textbf{Python peak MiB} & \textbf{Process peak MiB} \\
 \midrule
-100 & 0.03294 & 0.70 & 23.67 \\
-1,000 & 0.40641 & 7.38 & 41.42 \\
-10,000 & 4.35665 & 65.08 & 217.48 \\
+100 & 0.08210 & 0.70 & 24.83 \\
+1,000 & 0.66062 & 7.38 & 42.94 \\
+10,000 & 6.66119 & 65.08 & 219.05 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -28,4 +28,4 @@ Benchmarks used Windows 11 x64, Python 3.14.7 and an Intel64 Family 6 Model 165 
 
 Memory was measured in fresh processes. Tracemalloc started after input generation and recorded Python allocations during construction. Process peak working set included the interpreter, input and instrumentation; it therefore does not measure uninstrumented incremental algorithmic memory \cite{pythontracemalloc}.
 
-Tenfold input increases yielded time ratios of approximately 12.34 and 10.72. Python allocation peaks grew approximately tenfold. These observations are consistent with the intended \(O(n\log n)\) time and \(O(n)\) space, but three sizes do not prove asymptotic bounds. Full platform metadata, scope and per-run values are preserved in \path{results/benchmark.json}.
+Tenfold input increases yielded median-time ratios of approximately 8.05 and 10.08. Python allocation peaks grew approximately tenfold. Timing varied on this shared desktop: the 10,000-site runs ranged from 5.25015 to 6.92806 seconds. Three sizes and noisy measurements cannot establish an asymptotic bound; the scaling plot supports the separate structural complexity argument rather than proving it. Raw values and platform metadata are preserved in \path{results/benchmark.json}. Earlier measurements remain archived separately. The replay renderer's frame timings in Appendix~\ref{sec:c} measure a different workload.

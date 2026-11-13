@@ -3,20 +3,23 @@
 NumPy is used only as a validation utility to accelerate brute-force distance
 scans. It is not imported by the Fortune construction engine.
 """
+# ruff: noqa: E402
+# Standalone execution sets the project source/test paths before local imports.
 
 import argparse
 import json
-from pathlib import Path
 import random
 import sys
 import time
 import traceback
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 import numpy as np
-from fortune import construct, Box
 from validation import validate_cells, validate_empty_circles
+
+from fortune import Box, construct
 
 
 def check_all_vertices(diagram):

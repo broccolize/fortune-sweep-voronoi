@@ -1,5 +1,9 @@
 # Core Implementation Evidence
 
+Historical core-stage record. The current integrated version has 139 passing
+tests; use docs/validation.md and evidence/package-verification.json for the
+later main integration and installed-package verification.
+
 Actual verification date: 10 November 2026, GMT+8.
 
 ## Geometry

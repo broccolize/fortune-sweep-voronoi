@@ -44,7 +44,7 @@ supplied assignment as a quality benchmark.
 | E04 | Substantive AI interaction 2 | Present and embedded: evidence/ai-interaction-2.png plus pi-tiny-cell-code-continuation.png; Pi tiny-cell review, Figure 12; provenance in ai-interaction-2.json |
 | E05 | General program output | figures/general.png, examples/batch.png |
 | E06 | Annotated degenerate outputs | figures/degenerate-1.png and degenerate-2.png |
-| E07 | Automated validation | evidence/tests-current.xml: 139 passing on this feature branch; original 82-test result preserved in evidence/tests-before-pi-2026-11-17.xml |
+| E07 | Automated validation | evidence/tests-current.xml: 139 passing on integrated main; earlier results preserved with their original scope |
 | E08 | Timing, memory and scaling | results/benchmark.json and figures/scaling.png |
 | E09 | Architecture and beach-line illustrations | figures/architecture.png, beachline.png |
 | E10 | Genuine problems and retained failures | docs/problems.md and initial failure files |
@@ -54,7 +54,7 @@ supplied assignment as a quality benchmark.
 | E14 | Full stress including largest vertices | evidence/stress-final.json |
 | E15 | Searchable PDF and layout | report/report.pdf and evidence/report-layout.json |
 | E16 | Genuine Pi review and generated tests | evidence/pi-review-2026-11-17/: prompt, response, raw session and targeted results; tests/test_pi_regressions.py |
-| E17 | Actual LaTeX build and visual review | report/report.tex, report/sections/, report/references.bib; evidence/report-build.log and report-latex-audit.json; 26 pages including 16 body pages |
+| E17 | Actual LaTeX build and visual review | report/report.tex, report/sections/, report/references.bib; current counts, checksum and checks in evidence/report-latex-audit.json and report-visual-check.json |
 | E18 | Owner-supplied personal reflection | docs/personal-reflection-notes.md; Section 8; Heunis learning article cited in the bibliography |
 
 ## Owner-provided screenshots, received 17 November 2026
@@ -79,8 +79,8 @@ PNG is retained as the observed result; it is not converted into a supposed
 JUnit file. The preceding desktop JUnit result and measured benchmarks retain
 their actual values and provenance.
 
-A comparison of all 21 Python files under src/ and tests/ found the bytes
-unchanged from the preceding review ZIP. That corroborates the current source
+A comparison made before animation work found all 21 then-existing Python files
+under src/ and tests/ unchanged from the preceding review ZIP. That corroborates that source
 state; it does not reconstruct every activity performed in the owner's Pi
 session. The red inspection error remains visible and is not labelled as a
 pytest failure. The startup update banner is not evidence of an installed update.
@@ -89,7 +89,7 @@ The screenshot requirements are complete. The owner still needs to review the
 report, demonstrate understanding and record the personal narration. The plan
 is confirmed as ChatGPT Plus. See REVIEW_CHECKLIST.md and demo/script.md.
 
-## Optional animation evidence
+## Animation evidence and main integration
 
 - `docs/animation.md`: controls, architecture, complexity trade-off and measured scope.
 - `results/animation-preview/render-browser.json`: real browser diagnostics,
@@ -105,6 +105,19 @@ is confirmed as ChatGPT Plus. See REVIEW_CHECKLIST.md and demo/script.md.
   reconstruction from the queue push count fixed the clone, with independence
   and future-order regressions added.
 
-The owner said the newly created pointer-controlled viewer looked good. This
-feedback approves the preview's presentation; no merge or completed personal
-recording/review is inferred from it.
+The owner said the newly created pointer-controlled viewer looked good, then
+explicitly authorized main-branch integration on 18 November 2026. The report's
+Appendix C includes the real viewer capture and separately scoped performance
+measurements. The personal recording and final reading of the draft remain
+owner tasks. Historical preview records retain their original branch scope;
+the integration evidence records the later decision and current source.
+
+## Installed delivery verification
+
+`evidence/package-verification.json` and `package-tests.xml` record the extracted
+ZIP's separate installation and corrected 139-test run. An explicit pytest
+configuration prevents discovery of the primary checkout's settings. Python -I
+and module-path assertions verify that all eighteen loaded Fortune modules come
+from the installed copy. Initial results are preserved separately with their
+scope correction. The installed Canvas assets generate offline HTML, and the
+delivered 03_Executable launcher produces PNG, CSV and JSON.

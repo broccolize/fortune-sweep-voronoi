@@ -1,12 +1,12 @@
 """Install and verify a clean Windows source copy without sharing its environment."""
 
-from pathlib import Path
 import json
 import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 

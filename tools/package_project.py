@@ -19,9 +19,14 @@ Install Python 3.12+ x64 (3.14.7 was tested) with Python on PATH.
 Open 02_SourceCode and run install.bat once, then:
   run.bat --input examples\sites.txt --bbox 0 0 1 1 --output output\demo.png --csv output\cells.csv --json output\diagram.json
   run.bat --interactive
+  run.bat --animate --input examples\sites.txt --bbox 0 0 1 1
   test.bat -q
 The launcher 03_Executable\run.bat calls the same source implementation.
 Internet is required for the first pinned dependency installation.
+Animate opens an offline pointer-controlled browser replay (up to 200 distinct
+sites). Hover moves the sweep line; click freezes/resumes it. The saved history
+is separate from ordinary batch construction. Node.js is optional for two
+JavaScript validation tests and is not needed to run the program or viewer.
 
 REPRODUCE RESULTS FROM 02_SourceCode
   .venv\Scripts\python tools\stress.py
@@ -93,6 +98,7 @@ def main():
                 continue
             if path.is_file() and not any(
                 p in ("__pycache__", ".pytest_cache", ".venv", "tmp")
+                or p.endswith(".egg-info")
                 for p in path.parts
             ):
                 copy(path, Path(relative) / path.relative_to(source))
@@ -138,6 +144,8 @@ def main():
         "pi-tiny-cell-code-continuation.png",
         "pi-interaction-tests.png",
         "pi-tests-summary.png",
+        "canvas-preview.jpg",
+        "canvas-export.png",
     ):
         copy(ROOT / "evidence" / name, Path("01_Report/figures") / name)
     tree(ROOT / "tests", "tests")
@@ -153,7 +161,7 @@ def main():
     )
     write(
         "03_Executable/README.txt",
-        "Windows entry point: run.bat --interactive or run.bat --input examples\\sites.txt --output output\\demo.png --csv output\\cells.csv. Dependencies install into 02_SourceCode/.venv on first use. Read the root README.txt.\n",
+        "Windows entry point: run.bat --interactive, run.bat --animate, or run.bat --input examples\\sites.txt --output output\\demo.png --csv output\\cells.csv. Dependencies install into 02_SourceCode/.venv on first use. Read the root README.txt.\n",
     )
     try:
         revision = subprocess.check_output(
@@ -193,19 +201,62 @@ def main():
         "01_Report/preamble.tex",
         "01_Report/references.bib",
         "01_Report/sections/01-introduction.tex",
+        "01_Report/sections/appendix-c.tex",
+        "01_Report/figures/canvas-preview.jpg",
         "02_SourceCode/src/fortune/sweep.py",
+        "02_SourceCode/src/fortune/replay_canvas.py",
+        "02_SourceCode/src/fortune/replay_canvas.html",
+        "02_SourceCode/src/fortune/replay_canvas.js",
+        "02_SourceCode/tools/verify_package.py",
         "03_Executable/run.bat",
         "04_Demo/script.md",
+        "04_Demo/recording-checklist.md",
+        "04_Demo/examples/sweep-pointer-replay.html",
         "tests/test_diagram.py",
         "README.txt",
         "devlog.md",
     ]
-    missing = [p for p in required if not (stage / p).is_file()]
+    staged_names = {p.relative_to(stage).as_posix() for p in files}
+    missing = [p for p in required if p not in staged_names]
     owner = dict(
         subscription_plan=bool(metadata.get("subscription_plan")),
         ai_screenshot_1=(ROOT / "evidence" / "ai-interaction-1.png").is_file(),
         ai_screenshot_2=(ROOT / "evidence" / "ai-interaction-2.png").is_file(),
         narrated_recording=(ROOT / "demo" / "walkthrough.mp4").is_file(),
+    )
+    verified = ROOT / "evidence/package-verification.json"
+    runtime_check = dict(matches_tested_payload=False, compared_files=0)
+    if verified.is_file():
+        record = json.loads(verified.read_text(encoding="utf-8"))
+        expected = record.get("source_and_test_sha256", {})
+        changed = [
+            name
+            for name, expected_hash in expected.items()
+            if not (stage / "02_SourceCode" / name).is_file()
+            or hashlib.sha256((stage / "02_SourceCode" / name).read_bytes()).hexdigest()
+            != expected_hash
+        ]
+        runtime_check = dict(
+            matches_tested_payload=bool(expected) and not changed,
+            compared_files=len(expected),
+            changed_files=changed,
+            installed_tests_passed=record.get("tests_passed"),
+            installed_module_assertions=record.get(
+                "all_tested_fortune_modules_installed", False
+            ),
+            verification_record="02_SourceCode/evidence/package-verification.json",
+        )
+    report_audit = json.loads(
+        (ROOT / "evidence/report-audit.json").read_text(encoding="utf-8")
+    )
+    report_hash = hashlib.sha256(
+        (stage / "01_Report/report.pdf").read_bytes()
+    ).hexdigest()
+    report_check = dict(
+        matches_audited_pdf=report_hash == report_audit.get("pdf_sha256"),
+        sha256=report_hash,
+        pages=report_audit.get("pages"),
+        body_pages=report_audit.get("main_body_pages"),
     )
     manifest = dict(
         generated_at=datetime.now(timezone(timedelta(hours=8))).isoformat(),
@@ -215,8 +266,13 @@ def main():
         ai_artifacts_present=not missing,
         owner_evidence_present=owner,
         owner_review_required=not metadata.get("owner_review_complete", False),
+        runtime_verification=runtime_check,
+        report_verification=report_check,
         complete_against_reference=not missing
         and all(owner.values())
+        and runtime_check["matches_tested_payload"]
+        and runtime_check.get("installed_module_assertions", False)
+        and report_check["matches_audited_pdf"]
         and metadata.get("owner_review_complete", False),
         note="Review copy; file presence alone does not verify video duration, narration or screenshot authenticity.",
     )

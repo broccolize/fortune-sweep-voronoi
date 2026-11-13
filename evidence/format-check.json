@@ -1,8 +1,12 @@
 {
-  "files_checked": 27,
-  "ast_equivalence": "passed",
-  "formatter": "ruff 0.17.4",
-  "scope": "format-only AST equivalence before separate safe import cleanup",
-  "final_src_tests_lint": "passed",
-  "final_tests_after_import_cleanup": 82
+  "actual_timestamp": "2026-11-18T01:29:12.065101+08:00",
+  "ruff_lint": "passed",
+  "ruff_format": "42 files already formatted",
+  "javascript_syntax": "passed",
+  "utility_non_import_ast_unchanged": {
+    "tools/benchmark.py": true,
+    "tools/stress.py": true,
+    "tools/clean_check.py": true,
+    "tools/commit_milestone.py": true
+  }
 }

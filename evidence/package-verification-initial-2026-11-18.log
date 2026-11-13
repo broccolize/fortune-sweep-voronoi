@@ -1,0 +1,32 @@
+=== new isolated environment ===
+
+=== pinned dependencies ===
+
+=== install delivered package ===
+
+=== isolated import and Canvas assets ===
+C:\Users\Mines\Documents\ChatGPT\Computer Geometry\tmp\package-check-20261118-005156\02_SourceCode\.venv\Lib\site-packages\fortune\__init__.py
+
+=== delivered independent test suite ===
+........................................................................ [ 51%]
+...................................................................      [100%]
+139 passed in 46.93s
+
+=== 03_Executable batch launcher ===
+{
+  "site_events": 9,
+  "circle_events": 10,
+  "stale_events": 8,
+  "queue_peak": 9,
+  "events_pushed": 27,
+  "beach_max_height": 4,
+  "trace_edges": 18,
+  "input_sites": 9,
+  "unique_sites": 9,
+  "duplicates": 0,
+  "cells": 9,
+  "vertices": 10,
+  "edges": 16,
+  "sweep_seconds": 0.009950199979357421,
+  "construction_seconds": 0.013221100030932575
+}

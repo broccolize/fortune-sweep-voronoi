@@ -64,6 +64,9 @@ voronoi = "fortune.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+fortune = ["replay_canvas.html", "replay_canvas.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
@@ -417,7 +420,9 @@ def main(argv=None):
     parser.add_argument(
         "--bbox", type=float, nargs=4, metavar=("XMIN", "YMIN", "XMAX", "YMAX")
     )
-    parser.add_argument("--output", help="PNG or SVG image path")
+    parser.add_argument(
+        "--output", help="Batch PNG/SVG path, or standalone HTML with Canvas --animate"
+    )
     parser.add_argument(
         "--csv", help="Ordered cell boundaries and explicit clipped-edge records"
     )
@@ -426,8 +431,20 @@ def main(argv=None):
         dest="json_path",
         help="Complete diagram including rays and defining triples",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--interactive", action="store_true", help="Click-to-add interface"
+    )
+    mode.add_argument(
+        "--animate",
+        action="store_true",
+        help="Replay the sweep with Play/Pause and Next event (up to 200 sites)",
+    )
+    parser.add_argument(
+        "--animation-backend",
+        choices=("canvas", "matplotlib"),
+        default="canvas",
+        help="Canvas pointer replay (default), or the Matplotlib event inspector",
     )
     parser.add_argument(
         "--show", action="store_true", help="Display batch output on screen"
@@ -451,6 +468,35 @@ def main(argv=None):
             if args.random is not None
             else None
         )
+        if args.animate:
+            if args.csv or args.json_path:
+                parser.error(
+                    "Use batch mode for CSV/JSON; Canvas replay --output saves HTML."
+                )
+            if args.animation_backend == "canvas":
+                from .replay_canvas import launch
+            else:
+                from .replay_view import launch
+
+            if not sites and args.input is None and args.random is None:
+                sites = random_sites(8, args.seed)
+                box = box or Box(0, 0, 1, 1)
+            if not sites:
+                raise ValueError("At least one finite site is required")
+            replay = launch(
+                sites,
+                box,
+                args.output
+                or (
+                    "replay.html"
+                    if args.animation_backend == "canvas"
+                    else "replay.png"
+                ),
+                labels=not args.no_labels,
+            )
+            if args.animation_backend == "canvas" and hasattr(replay, "path"):
+                print(f"Opened pointer replay: {replay.path}")
+            return 0
         if args.interactive or not argv:
             from .interactive import launch
 
@@ -935,6 +981,19 @@ class EventQueue:
     def pop(self):
         return heapq.heappop(self._heap)[-1]
 
+    def peek(self):
+        """Inspect the next event without changing its heap priority."""
+        return self._heap[0][-1] if self._heap else None
+
+    def preview(self, limit=8):
+        """Read a bounded, priority-ordered view, including stale entries."""
+        if limit < 0:
+            raise ValueError("Preview limit must be nonnegative")
+        return [item[-1] for item in heapq.nsmallest(limit, self._heap)]
+
+    def __len__(self):
+        return len(self._heap)
+
     def __bool__(self):
         return bool(self._heap)
 
@@ -1131,6 +1190,7 @@ class InteractiveController:
         self.box = box or Box(0, 0, 1, 1)
         self.output = output
         self.diagram = None
+        self.replays = []
         self.status = figure.text(
             0.13,
             0.02,
@@ -1192,6 +1252,30 @@ class InteractiveController:
         self.status.set_text("Cleared. Click to add new sites.")
         self.figure.canvas.draw_idle()
 
+    def animate(self, event=None):
+        from pathlib import Path
+
+        from .replay_canvas import launch
+
+        if not self.sites:
+            self.status.set_text("Add at least one site first.")
+        else:
+            try:
+                path = Path(self.output)
+                replay = launch(
+                    self.sites,
+                    self.box,
+                    path.with_name(path.stem + "-replay.html"),
+                    block=False,
+                )
+                self.replays.append(replay)
+                self.status.set_text(
+                    "Pointer replay opened in the browser. Move over the diagram."
+                )
+            except (ValueError, ArithmeticError) as exc:
+                self.status.set_text(str(exc))
+        self.figure.canvas.draw_idle()
+
     def export(self, event=None):
         from pathlib import Path
 
@@ -1217,9 +1301,10 @@ def launch(sites=(), box=None, output="interactive.png"):
     controller = InteractiveController(fig, axes, sites, box, output)
     controller.buttons = []
     for x, label, callback in (
-        (0.18, "Compute", controller.compute),
-        (0.43, "Clear", controller.clear),
-        (0.68, "Export", controller.export),
+        (0.12, "Compute", controller.compute),
+        (0.32, "Animate", controller.animate),
+        (0.52, "Clear", controller.clear),
+        (0.72, "Export", controller.export),
     ):
         button = Button(fig.add_axes([x, 0.075, 0.15, 0.05]), label)
         button.on_clicked(callback)
@@ -1374,6 +1459,1552 @@ def write_json(diagram, path):
 
 
 ==============================================================================
+src\fortune\replay.py
+==============================================================================
+"""Bounded, on-demand replay of the actual Fortune event engine.
+
+The completed clipped diagram is prepared for the final frame. A fresh sweep
+then uses FortuneSweep.step(), also used by batch construction. Intermediate
+frames never infer a beach line from the completed polygons. No frame history
+is retained. Exactly collinear inputs show the production solver's special case.
+"""
+
+import math
+from dataclasses import dataclass
+
+from .diagram import construct
+from .geometry import Box, Point, breakpoint_x, parabola_y
+from .replay_state import clone_sweep
+from .sweep import FortuneSweep, all_collinear, collinear_neighbours
+
+MAX_REPLAY_SITES = 200
+
+
+@dataclass(frozen=True, slots=True)
+class ArcCurve:
+    site: int
+    points: tuple[Point, ...]
+    limiting: bool = False
+
+
+def stale(event):
+    return event.kind == 1 and (
+        not event.arc.alive or event.arc.generation != event.generation
+    )
+
+
+class SweepReplay:
+    def __init__(self, coordinates, box=None, *, debug=False):
+        coordinates = [
+            p if isinstance(p, Point) else Point(float(p[0]), float(p[1]))
+            for p in coordinates
+        ]
+        if len(set(coordinates)) > MAX_REPLAY_SITES:
+            raise ValueError(
+                f"Replay supports at most {MAX_REPLAY_SITES} distinct sites; "
+                "use batch mode for larger inputs."
+            )
+        self.diagram = construct(coordinates, box, debug=debug)
+        self.sites, self.box = self.diagram.sites, self.diagram.box
+        self.debug = debug
+        xmin, xmax = min(p.x for p in self.sites), max(p.x for p in self.sites)
+        ymin, ymax = min(p.y for p in self.sites), max(p.y for p in self.sites)
+        self.scale = max(xmax - xmin, ymax - ymin) or max(
+            1.0, abs(xmin) * 1e-6, abs(ymin) * 1e-6
+        )
+        self.ox, self.oy = xmin + (xmax - xmin) / 2, ymin + (ymax - ymin) / 2
+        self.points = [self.normalize(p) for p in self.sites]
+        b = self.box
+        self.view = Box(
+            min(b.xmin, xmin),
+            min(b.ymin, ymin),
+            max(b.xmax, xmax),
+            max(b.ymax, ymax),
+        )
+        span = max(self.view.xmax - self.view.xmin, self.view.ymax - self.view.ymin)
+        self.top_y = self.view.ymax + 0.1 * span
+        self.bottom_y = self.view.ymin - 0.1 * span
+        self.special_case = all_collinear(self.sites)
+        self._checkpoints = {}
+        self._final_checkpoint = None
+        self.reset()
+        # Prepare the bounded seek index once, keeping pointer motion cheap.
+        if not self.special_case:
+            while not self.done:
+                self.step_event()
+            self.reset()
+
+    def normalize(self, p):
+        return Point((p.x - self.ox) / self.scale, (p.y - self.oy) / self.scale)
+
+    def world(self, p):
+        return Point(self.ox + self.scale * p.x, self.oy + self.scale * p.y)
+
+    @property
+    def done(self):
+        return self.special_case or not self.sweep.queue
+
+    @property
+    def sweep_y(self):
+        return self.oy + self.scale * self.display_y
+
+    def label(self, site):
+        return "/".join(map(str, self.diagram.cells[site].input_indices))
+
+    def reset(self):
+        self.sweep = (
+            collinear_neighbours(self.points)
+            if self.special_case
+            else FortuneSweep(
+                self.points, debug=self.debug, original_points=self.sites
+            ).start()
+        )
+        self.processed = set(range(len(self.sites))) if self.special_case else set()
+        self.display_y = (self.top_y - self.oy) / self.scale
+        self.last_event = None
+        self.last_stale = False
+        self.event_count = 0
+        self._subframe = 0
+        self._segment_start = self.display_y
+        self._fraction = 0.0
+
+    def step_event(self):
+        if self.done:
+            return None
+        previous_stale = self.sweep.statistics["stale_events"]
+        event = self.sweep.step()
+        self.display_y = self.sweep.sweep_y
+        self.last_event = event
+        self.last_stale = self.sweep.statistics["stale_events"] > previous_stale
+        self.event_count += 1
+        if event.kind == 0:
+            self.processed.add(event.site)
+        self._subframe = 0
+        self._segment_start = self.display_y
+        self._fraction = 0.0
+        self._remember_checkpoint()
+        return event
+
+    def _remember_checkpoint(self):
+        bucket = min(7, int(self.position * 8))
+        if self.done:
+            if self._final_checkpoint is None:
+                self._final_checkpoint = self._checkpoint()
+        elif bucket not in self._checkpoints:
+            self._checkpoints[bucket] = self._checkpoint()
+
+    def _checkpoint(self):
+        engine, event = clone_sweep(self.sweep, self.last_event)
+        return (
+            engine,
+            event,
+            frozenset(self.processed),
+            self.event_count,
+            self.last_stale,
+        )
+
+    def _restore(self, checkpoint):
+        engine, event, processed, count, last_stale = checkpoint
+        self.sweep, self.last_event = clone_sweep(engine, event)
+        self.processed = set(processed)
+        self.event_count = count
+        self.last_stale = last_stale
+        self.display_y = self.sweep.sweep_y
+        self._segment_start = self.display_y
+        self._subframe = 0
+        self._fraction = 0.0
+
+    @property
+    def position(self):
+        if self.done:
+            return 1.0
+        return min(
+            1.0, max(0.0, (self.top_y - self.sweep_y) / (self.top_y - self.bottom_y))
+        )
+
+    def seek_y(self, world_y):
+        """Seek using real event dispatch; upward motion replays from the start.
+
+        Up to eight height-bucket checkpoints and one final state keep storage
+        linear and avoid reconstructing the entire sweep on every pointer move.
+        """
+        if not math.isfinite(world_y):
+            raise ValueError("Sweep position must be finite")
+        if self.special_case:
+            return
+        target = (world_y - self.oy) / self.scale
+        candidates = [s for s in self._checkpoints.values() if s[0].sweep_y >= target]
+        best = max(candidates, key=lambda s: s[3]) if candidates else None
+        if target > self.display_y or (best and best[3] > self.event_count):
+            if best:
+                self._restore(best)
+            else:
+                self.reset()
+        while self.sweep.queue and self.sweep.queue.peek().y >= target:
+            self.step_event()
+        self.display_y = target
+        self._segment_start = target
+        self._subframe = 1
+        self._fraction = 0.0
+
+    def seek(self, position):
+        if not math.isfinite(position) or not 0 <= position <= 1:
+            raise ValueError("Replay position must be between 0 and 1")
+        if position == 0:
+            self.reset()
+        elif position == 1:
+            if self._final_checkpoint:
+                self._restore(self._final_checkpoint)
+            else:
+                while not self.done:
+                    self.step_event()
+        else:
+            self.seek_y(self.top_y + position * (self.bottom_y - self.top_y))
+
+    def advance(self, event_fraction):
+        """Advance a wall-time budget measured in events, independent of FPS."""
+        if not math.isfinite(event_fraction) or event_fraction < 0:
+            raise ValueError("Playback advance must be finite and nonnegative")
+        budget = self._fraction + event_fraction
+        while not self.done:
+            target = min(self.sweep.sweep_y, self.sweep.queue.peek().y)
+            if target == self._segment_start:
+                self.step_event()
+                continue
+            if budget < 1:
+                self._fraction = budget
+                self._subframe = int(budget > 0)
+                self.display_y = (1 - budget) * self._segment_start + budget * target
+                return
+            budget -= 1
+            self.step_event()
+
+    def tick(self, substeps=8):
+        """Move toward, never past, the next event before processing it.
+
+        Same-height events remain distinct steps. Subdivision is per event,
+        avoiding arbitrarily long waits for far-away circumcircle bottoms.
+        """
+        if substeps < 1:
+            raise ValueError("Substeps must be positive")
+        if self.done:
+            return None
+        target = min(self.sweep.sweep_y, self.sweep.queue.peek().y)
+        self._subframe += 1
+        if self._subframe >= substeps or target == self.display_y:
+            return self.step_event()
+        fraction = self._subframe / substeps
+        self.display_y = (1 - fraction) * self._segment_start + fraction * target
+        return None
+
+    def curves(self, samples=65):
+        """Sample only each live arc's actual breakpoint interval."""
+        if samples < 2:
+            raise ValueError("At least two arc samples are required")
+        if self.done:
+            return []
+        lo, hi = (
+            self.normalize(Point(self.view.xmin, self.view.ymin)),
+            self.normalize(Point(self.view.xmax, self.view.ymax)),
+        )
+        pad = 0.06 * max(hi.x - lo.x, hi.y - lo.y)
+        result = []
+        for arc in self.sweep.beach:
+            focus = self.points[arc.site]
+            if focus.y == self.display_y:
+                # The new parabola is a vertical limiting fragment at birth.
+                heights = [
+                    parabola_y(self.points[a.site], focus.x, self.display_y)
+                    for a in (arc.prev, arc.next)
+                    if a and self.points[a.site].y > self.display_y
+                ]
+                top = min(hi.y + pad, min(heights) if heights else hi.y + pad)
+                result.append(
+                    ArcCurve(
+                        arc.site,
+                        (
+                            self.world(focus),
+                            self.world(Point(focus.x, max(focus.y, top))),
+                        ),
+                        True,
+                    )
+                )
+                continue
+            if focus.y < self.display_y:
+                raise ArithmeticError("Replay arc focus lies below the sweep")
+            left = (
+                breakpoint_x(self.points[arc.prev.site], focus, self.display_y)
+                if arc.prev
+                else lo.x - pad
+            )
+            right = (
+                breakpoint_x(focus, self.points[arc.next.site], self.display_y)
+                if arc.next
+                else hi.x + pad
+            )
+            left, right = max(left, lo.x - pad), min(right, hi.x + pad)
+            if left >= right:
+                continue
+            points = []
+            for i in range(samples):
+                x = left + (right - left) * i / (samples - 1)
+                y = parabola_y(focus, x, self.display_y)
+                p = self.world(Point(x, y))
+                points.append(
+                    p
+                    if math.isfinite(p.x) and math.isfinite(p.y)
+                    else Point(math.nan, math.nan)
+                )
+            result.append(ArcCurve(arc.site, tuple(points)))
+        return result
+
+    def breakpoints(self):
+        result = []
+        if self.done:
+            return result
+        for left in self.sweep.beach:
+            if left.next is None:
+                continue
+            right = left.next
+            a, b = self.points[left.site], self.points[right.site]
+            x = breakpoint_x(a, b, self.display_y)
+            focus = a if a.y > self.display_y else b
+            if focus.y <= self.display_y:
+                continue
+            p = self.world(Point(x, parabola_y(focus, x, self.display_y)))
+            if math.isfinite(p.x) and math.isfinite(p.y):
+                result.append((tuple(sorted((left.site, right.site))), p))
+        return result
+
+
+==============================================================================
+src\fortune\replay_artists.py
+==============================================================================
+"""Persistent replay artists and a cached-background painter.
+
+Axes, labels and widgets are created once. Event text is painted only when the
+event state changes; movement frames redraw geometry and the position control.
+NumPy and Matplotlib are presentation dependencies, never construction code.
+"""
+
+import math
+import textwrap
+from contextlib import contextmanager
+
+import numpy as np
+from matplotlib import colormaps
+from matplotlib.collections import LineCollection, PolyCollection
+from matplotlib.lines import Line2D
+from matplotlib.patches import Circle, Rectangle
+
+from .geometry import Point
+from .replay import stale
+from .ui_text import ui_text
+
+SWEEP = "#b42369"
+BEACH = "#e37b12"
+EDGE = "#344054"
+CIRCLE = "#087f8c"
+
+
+def event_name(model, event):
+    if event.kind == 0:
+        return f"Site {model.label(event.site)}"
+    return "Circle " + "/".join(model.label(i) for i in event.defining)
+
+
+def offsets(points):
+    return np.asarray([(p.x, p.y) for p in points], dtype=float).reshape(-1, 2)
+
+
+class ReplayArtists:
+    def __init__(self, model, axes, panel, *, labels=True):
+        self.axes, self.panel = axes, panel
+        self.diagram = model.diagram
+        self.revision = None
+        self.event_changed = True
+        axes.clear()
+        panel.clear()
+        panel.set_axis_off()
+        b, view = model.box, model.view
+        self.span = max(view.xmax - view.xmin, view.ymax - view.ymin)
+        pad = self.span * 0.06
+        self.xlim = (view.xmin - pad, view.xmax + pad)
+        self.ylim = (view.ymin - pad, view.ymax + pad)
+        axes.set(xlim=self.xlim, ylim=self.ylim, xlabel="x", ylabel="y")
+        axes.set_aspect("equal", adjustable="box")
+        if labels:
+            for i, p in enumerate(model.sites):
+                axes.annotate(
+                    model.label(i),
+                    (p.x, p.y),
+                    xytext=(5, 5),
+                    textcoords="offset points",
+                    fontsize=8,
+                    color=EDGE,
+                )
+        axes.legend(
+            handles=[
+                Line2D([], [], color=SWEEP, label="Sweep line"),
+                Line2D([], [], color=BEACH, lw=2, label="Beach line"),
+                Line2D([], [], color=EDGE, label="Traced edges"),
+                Line2D([], [], color=CIRCLE, ls="--", label="Event circle"),
+            ],
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.13),
+            ncol=4,
+            fontsize=8,
+            framealpha=0.95,
+        )
+        ui_text(
+            panel, 0, 1, "EVENT QUEUE", fontsize=12, weight="bold", va="top", color=EDGE
+        )
+        ui_text(
+            panel,
+            0,
+            0.94,
+            "Highest y first; sites win ties",
+            fontsize=9,
+            color="#667085",
+        )
+        self.rows = [
+            ui_text(
+                panel, 0, 0.84 - i * 0.073, "", fontsize=8.5, va="top", linespacing=1.1
+            )
+            for i in range(8)
+        ]
+        ui_text(
+            panel,
+            0,
+            0.9,
+            "Gray [stale] entries will be skipped",
+            fontsize=8,
+            color="#667085",
+        )
+        self.queue_size = ui_text(panel, 0, 0.23, "", fontsize=8.5, color="#667085")
+        self.statistics = ui_text(
+            panel, 0, 0.17, "", fontsize=9, va="top", linespacing=1.5
+        )
+        self.height = ui_text(panel, 0, 0.055, "", fontsize=9, color=SWEEP)
+        self.order = ui_text(
+            panel, 0, -0.04, "", fontsize=9, va="top", linespacing=1.5, color=EDGE
+        )
+        self.special = ui_text(
+            panel, 0, 0.85, "", fontsize=10, va="top", linespacing=1.5
+        )
+        self.heading = ui_text(
+            axes, 0.5, 1.035, "", transform=axes.transAxes, ha="center", fontsize=12
+        )
+        self.event_artists = [
+            self.heading,
+            *self.rows,
+            self.queue_size,
+            self.statistics,
+            self.order,
+            self.special,
+        ]
+
+        self.cells = PolyCollection(
+            [[(p.x, p.y) for p in c.vertices] for c in model.diagram.cells],
+            facecolors=[colormaps["tab20"](i % 20) for i in range(len(model.sites))],
+            edgecolors="#3f4754",
+            linewidths=0.6,
+            alpha=0.65,
+            zorder=1,
+        )
+        self.cells.set_visible(False)
+        axes.add_collection(self.cells)
+        self.edges = LineCollection([], colors=EDGE, linewidths=1.2, zorder=2)
+        self.beach = LineCollection([], colors=BEACH, linewidths=2, zorder=4)
+        self.limiting = LineCollection(
+            [], colors=BEACH, linewidths=2, linestyles="dotted", zorder=4
+        )
+        for collection in (self.edges, self.beach, self.limiting):
+            axes.add_collection(collection)
+        self.pending = axes.scatter([], [], s=28, c="#a8b0bd", zorder=5)
+        self.processed = axes.scatter([], [], s=28, c="#172b4d", zorder=5)
+        self.breakpoints = axes.scatter([], [], s=13, c=BEACH, zorder=6)
+        self.vertices = axes.scatter([], [], marker="s", s=24, c=EDGE, zorder=6)
+        self.highlight = axes.scatter(
+            [], [], s=130, facecolors="none", edgecolors=SWEEP, zorder=7
+        )
+        self.sweep = axes.axhline(0, color=SWEEP, lw=1.7, zorder=3)
+        self.circle = Circle(
+            (0, 0), 1, fill=False, ls="--", lw=1.2, color=CIRCLE, zorder=1
+        )
+        axes.add_patch(self.circle)
+        self.outside = axes.text(
+            0.02, 0.97, "", transform=axes.transAxes, color=SWEEP, fontsize=9, va="top"
+        )
+        self.boundary = Rectangle(
+            (b.xmin, b.ymin),
+            b.xmax - b.xmin,
+            b.ymax - b.ymin,
+            fill=False,
+            ls="--",
+            lw=1.2,
+            color="#b42318",
+            zorder=8,
+        )
+        axes.add_patch(self.boundary)
+        self.motion_artists = [
+            self.cells,
+            self.circle,
+            self.edges,
+            self.sweep,
+            self.beach,
+            self.limiting,
+            self.pending,
+            self.processed,
+            self.breakpoints,
+            self.vertices,
+            self.highlight,
+            self.boundary,
+            self.outside,
+            self.height,
+        ]
+
+    def update(self, model):
+        revision = (id(model.sweep), model.event_count, model.done, model.last_stale)
+        self.event_changed = revision != self.revision
+        if self.event_changed:
+            self._update_event(model)
+            self.revision = revision
+        self.cells.set_visible(model.done)
+        self.height.set_text(
+            "" if model.special_case else f"Sweep y = {model.sweep_y:.6g}"
+        )
+        if model.done:
+            self.hide_geometry()
+            self.cells.set_visible(True)
+            return
+        curves = model.curves()
+        for limiting, collection in ((False, self.beach), (True, self.limiting)):
+            collection.set_segments(
+                [
+                    [(p.x, p.y) for p in c.points]
+                    for c in curves
+                    if c.limiting == limiting
+                ]
+            )
+            collection.set_visible(True)
+        breakpoints = model.breakpoints()
+        self.breakpoints.set_offsets(offsets(p for _, p in breakpoints))
+        self.breakpoints.set_visible(True)
+        active = {}
+        for key, p in breakpoints:
+            active.setdefault(key, []).append(p)
+        lines = []
+        for key, edge in model.sweep.edges.items():
+            ends = [model.world(model.sweep.vertices[v].point) for v in edge.vertices]
+            moving = active.get(key, [])
+            if len(ends) >= 2:
+                lines.append((ends[0], ends[1]))
+            elif ends:
+                lines.extend((ends[0], p) for p in moving)
+            elif len(moving) >= 2:
+                lines.append((moving[0], moving[1]))
+            elif moving and model.points[key[0]].y == model.points[key[1]].y:
+                lines.append((moving[0], Point(moving[0].x, self.ylim[1])))
+        self.edges.set_segments([[(p.x, p.y), (q.x, q.y)] for p, q in lines])
+        self.edges.set_visible(True)
+        y = model.sweep_y
+        self.sweep.set_ydata([y, y])
+        self.sweep.set_visible(self.ylim[0] <= y <= self.ylim[1])
+        self.outside.set_visible(not self.sweep.get_visible())
+        if self.outside.get_visible():
+            above = y > self.ylim[1]
+            self.outside.set_text("Sweep above view" if above else "Sweep below view")
+            self.outside.set_position((0.02, 0.97 if above else 0.02))
+            self.outside.set_verticalalignment("top" if above else "bottom")
+        candidate = model.sweep.queue.peek()
+        if (
+            model.last_event
+            and model.last_event.kind == 1
+            and not model.last_stale
+            and model._subframe == 0
+        ):
+            candidate = model.last_event
+        self.circle.set_visible(False)
+        if (
+            candidate
+            and candidate.kind == 1
+            and (
+                (candidate is model.last_event and not model.last_stale)
+                or not stale(candidate)
+            )
+        ):
+            radius = model.scale * (candidate.centre.y - candidate.y)
+            if math.isfinite(radius) and 0 < radius < 1e6 * self.span:
+                centre = model.world(candidate.centre)
+                self.circle.center = (centre.x, centre.y)
+                self.circle.set_radius(radius)
+                self.circle.set_visible(True)
+
+    def hide_geometry(self):
+        for artist in (
+            self.edges,
+            self.beach,
+            self.limiting,
+            self.breakpoints,
+            self.sweep,
+            self.outside,
+            self.circle,
+            self.highlight,
+        ):
+            artist.set_visible(False)
+
+    def _update_event(self, model):
+        self.heading.set_text(
+            "Completed clipped diagram"
+            if model.done
+            else "Fortune's sweep | drag to explore"
+        )
+        self.pending.set_offsets(
+            offsets(p for i, p in enumerate(model.sites) if i not in model.processed)
+        )
+        self.processed.set_offsets(
+            offsets(p for i, p in enumerate(model.sites) if i in model.processed)
+        )
+        self.vertices.set_offsets(
+            offsets(model.world(v.point) for v in model.sweep.vertices)
+        )
+        points = (
+            [model.sites[model.last_event.site]]
+            if model.last_event and model.last_event.kind == 0 and not model.done
+            else []
+        )
+        self.highlight.set_offsets(offsets(points))
+        self.highlight.set_visible(bool(points))
+        entries = [] if model.special_case else model.sweep.queue.preview(8)
+        for row, event in zip(self.rows, entries + [None] * 8):
+            text = ""
+            if event:
+                y = model.oy + model.scale * event.y
+                text = f"{event_name(model, event)}   y={y:.5g}"
+                if stale(event):
+                    text += "  [stale]"
+            row.set_text(text)
+            row.set_color("#98a2b3" if event and stale(event) else EDGE)
+        if model.special_case:
+            self.special.set_text(
+                textwrap.fill(
+                    "Collinear special case: the production solver uses sorted neighbours and direct bisectors. No beach-line sweep is performed.",
+                    30,
+                )
+            )
+            self.queue_size.set_text("")
+            self.statistics.set_text("")
+            self.order.set_text("")
+        else:
+            self.special.set_text("Empty: sweep complete" if model.done else "")
+            self.queue_size.set_text(
+                f"{len(model.sweep.queue)} heap entries; top 8 shown"
+            )
+            stats = model.sweep.statistics
+            self.statistics.set_text(
+                f"Processed: {stats['site_events']} sites, {stats['circle_events']} circles\nDiscarded: {stats['stale_events']} stale events"
+            )
+            order = " | ".join(
+                model.label(a.site) for a in list(model.sweep.beach)[:18]
+            )
+            if model.sweep.beach.count > 18:
+                order += " | ..."
+            self.order.set_text(
+                "BEACH ORDER  (left to right)\n" + textwrap.fill(order or "(empty)", 33)
+            )
+
+
+class CachedPainter:
+    """Two cached layers: static layout, then event text and control state."""
+
+    def __init__(self, figure, event_artists, motion_artists, motion_regions=None):
+        self.figure, self.canvas = figure, figure.canvas
+        self.event_artists = event_artists
+        self.motion_regions = motion_regions
+        self.motion_artists = sorted(motion_artists, key=lambda a: a.get_zorder())
+        self.artists = list(dict.fromkeys(event_artists + motion_artists))
+        self.enabled = bool(self.canvas.supports_blit)
+        self.base = self.event_background = None
+        self.event_dirty = True
+        for artist in self.artists:
+            artist.set_animated(self.enabled)
+        self.cid = self.canvas.mpl_connect("draw_event", self._on_draw)
+
+    def _draw(self, artists):
+        for artist in artists:
+            if artist.get_visible():
+                self.figure.draw_artist(artist)
+
+    def _events(self):
+        self.canvas.restore_region(self.base)
+        self._draw(self.event_artists)
+        self.event_background = self.canvas.copy_from_bbox(self.figure.bbox)
+        self.event_dirty = False
+
+    def _on_draw(self, event):
+        if not self.enabled or self.canvas.is_saving():
+            return
+        self.base = self.canvas.copy_from_bbox(self.figure.bbox)
+        self._events()
+        self._draw(self.motion_artists)
+        self.canvas.blit(self.figure.bbox)
+
+    def paint(self, *, event_dirty=False):
+        if not self.enabled:
+            self.canvas.draw_idle()
+            return
+        self.event_dirty |= event_dirty
+        if self.base is None:
+            self.canvas.draw()
+            return
+        full_blit = self.event_dirty
+        if self.event_dirty:
+            self._events()
+        self.canvas.restore_region(self.event_background)
+        self._draw(self.motion_artists)
+        if full_blit or self.motion_regions is None:
+            self.canvas.blit(self.figure.bbox)
+        else:
+            for region in self.motion_regions():
+                self.canvas.blit(region)
+
+    def invalidate(self):
+        self.base = self.event_background = None
+
+    @contextmanager
+    def full_render(self):
+        states = [a.get_animated() for a in self.artists]
+        try:
+            for a in self.artists:
+                a.set_animated(False)
+            yield
+        finally:
+            for a, state in zip(self.artists, states):
+                a.set_animated(state)
+            self.invalidate()
+
+    def close(self):
+        self.canvas.mpl_disconnect(self.cid)
+
+
+==============================================================================
+src\fortune\replay_canvas.html
+==============================================================================
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fortune sweep — pointer replay</title>
+<style>
+:root{color-scheme:dark;font:14px 'Segoe UI',system-ui,sans-serif;background:#11151c;color:#e6eaf2}
+*{box-sizing:border-box}body{margin:0;padding:18px;max-width:1600px;margin-inline:auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}h1{font-size:21px;margin:0 0 6px}p{color:#9eacc0;line-height:1.5;margin:5px 0 14px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:20px}.stage{position:relative;background:#06080d;border:1px solid #303a4b;border-radius:8px;overflow:hidden}
+canvas{display:block;width:100%;height:64vh;min-height:360px;max-height:740px;cursor:ns-resize;touch-action:none}
+.hint{position:absolute;left:16px;bottom:14px;color:#a9b7ca;font-size:12px;pointer-events:none;background:#06080dcc;padding:5px 8px;border-radius:4px}
+aside{padding:5px 3px;min-width:0}h2{font-size:12px;letter-spacing:.09em;color:#aab6c9;margin:8px 0 12px}
+.queue{min-height:245px}.event{display:flex;justify-content:space-between;gap:6px;margin:0;padding:8px 0;border-bottom:1px solid #252d3a;font-variant-numeric:tabular-nums}.event.site{color:#ff647a}.event.circle{color:#65bfff}.event.stale{color:#738197}
+.numbers{line-height:1.9;font-variant-numeric:tabular-nums;color:#b3bfd1}.order{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px;line-height:1.7;color:#aeb9ca}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:13px 0}button{font:inherit;color:#e4eaf5;border:1px solid #38465b;background:#202a3a;padding:9px 13px;border-radius:5px;cursor:pointer}button:hover{background:#2c3b53}button.primary{background:#305b9b;border-color:#5783c3}button:focus-visible,input:focus-visible{outline:2px solid #9bc3ff;outline-offset:3px}label{display:flex;gap:7px;align-items:center;color:#bac6d8}input[type=range]{accent-color:#77aaff}.position{display:flex;align-items:center;gap:12px;margin:13px 0}.position input{flex:1}.position output{width:45px;text-align:right;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#aab6c8}.swatch{display:inline-block;width:19px;height:3px;vertical-align:middle;margin-right:6px}.status{font-size:13px;min-height:22px;color:#c0cbdb}
+.help{display:none;position:absolute;inset:12px;background:#0b111beF;padding:22px;line-height:1.7;border:1px solid #50637d;border-radius:6px;pointer-events:none}.help.visible{display:block}.help strong{color:#fff}.help p{color:#c5d0df}
+@media(max-width:800px){body{padding:10px}.layout{grid-template-columns:1fr}canvas{height:58vh}aside{display:none}header small{display:none}}
+</style>
+</head>
+<body>
+<header><h1>Fortune’s sweep</h1><small><output id="performance">Pointer ready</output> · Python event engine</small></header>
+<p>Move your pointer over the diagram. The white sweep line follows immediately. Click to freeze or resume following.</p>
+<main class="layout">
+<section>
+<div class="stage"><canvas id="view" aria-label="Interactive Fortune sweep replay" tabindex="0"></canvas>
+<div class="hint" id="hint">Pointer following is on · H for help</div>
+<div class="help" id="help"><strong>Pointer-controlled sweep</strong><p>Move the pointer to set the sweep height; no mouse button is needed. Click the plot to freeze or resume.</p><p>Red squares are sites. The white horizontal line is the sweep. White curves form the beach line. Purple segments are traced Voronoi edges.</p><p>Red horizontal markers show upcoming site events, blue markers show circle predictions, and gray markers show invalidated predictions.</p><p>Space: play/pause · Right: next event · R: reset · E: finish · H: help.</p></div></div>
+<div class="position"><label for="position">Position</label><input id="position" type="range" min="0" max="1000" value="0"><output id="positionValue">0%</output></div>
+<div class="controls"><button id="play" class="primary">Play</button><button id="follow">Follow pointer: on</button><button id="next">Next event</button><button id="reset">Reset</button><button id="finish">Finish</button><button id="save">Save PNG</button><label>Speed <input id="speed" type="range" min="1" max="20" value="6"></label><label><input id="markers" type="checkbox" checked>Events</label><label><input id="labels" type="checkbox">Labels</label></div>
+<div class="legend"><span><i class="swatch" style="background:#ff4962"></i>Sites</span><span><i class="swatch" style="background:#f6f8fc"></i>Beach / sweep</span><span><i class="swatch" style="background:#b17cf1"></i>Traced edges</span><span><i class="swatch" style="background:#55b4ff"></i>Circle event</span></div>
+<p class="status" id="status" aria-live="polite"></p>
+</section>
+<aside><h2>EVENT QUEUE</h2><p style="font-size:12px">Highest y first; top eight shown.</p><div class="queue" id="queue"></div><div class="numbers" id="counts"></div><h2>BEACH ORDER</h2><div class="order" id="order"></div></aside>
+</main>
+<script>window.FORTUNE_DATA=__FORTUNE_DATA__;</script>
+<script>__FORTUNE_SCRIPT__</script>
+</body></html>
+
+
+==============================================================================
+src\fortune\replay_canvas.js
+==============================================================================
+/* Presentation geometry only. Python supplies every arc order and event state. */
+(function (root) {
+  "use strict";
+  function parabolaY(p, x, d) {
+    return (x-p[0])*(x-p[0])/(2*(p[1]-d))+(p[1]+d)/2;
+  }
+  function breakpointX(left, right, d) {
+    if (left[1]===right[1]) return left[0]+(right[0]-left[0])/2;
+    const dp=left[1]-d,dq=right[1]-d;
+    if (dp<=0) return left[0];
+    if (dq<=0) return right[0];
+    const dx=right[0]-left[0],a=right[1]-left[1],b=2*dp*dx;
+    const c=-dp*dx*dx-a*dp*dq;
+    let discriminant=b*b-4*a*c;
+    if (discriminant<0) {
+      if (discriminant < -2e-14*(b*b+Math.abs(4*a*c))) throw new Error("Breakpoint precision limit");
+      discriminant=0;
+    }
+    const q=-0.5*(b+((b<0||Object.is(b,-0))?-1:1)*Math.sqrt(discriminant));
+    const r1=q?q/a:-b/(2*a),r2=q?c/q:r1;
+    return left[0]+(left[1]>right[1]?Math.min(r1,r2):Math.max(r1,r2));
+  }
+  function stateAt(states, y) {
+    let lo=0,hi=states.length;
+    while (lo+1<hi) {
+      const mid=(lo+hi)>>1;
+      if (states[mid].y>=y) lo=mid; else hi=mid;
+    }
+    return lo;
+  }
+  if (typeof module!=="undefined" && module.exports) module.exports={parabolaY,breakpointX,stateAt};
+  if (typeof document==="undefined") return;
+
+  const D=root.FORTUNE_DATA,$=id=>document.getElementById(id);
+  const canvas=$("view"),ctx=canvas.getContext("2d",{alpha:false});
+  const range=$("position"),status=$("status"),queue=$("queue");
+  const siteColor="#ff4962",beachColor="#f4f6fb",edgeColor="#b17cf1",circleColor="#55b4ff";
+  let width=800,height=600,scale=1,xoff=0,yoff=0,dpr=1;
+  let progress=0,directrix=D.view[3],index=0,manual=null,complete=!!D.special_case;
+  let follow=!D.special_case,playing=false,pointerInside=false,pending=false,dirty=true,lastTime=0,lastDraw=0;
+  let panelIndex=-1,frames=0,fps=0,showFPS=true,statsAt=0;
+  const renderTimes=[],intervals=[];
+  $("labels").checked=D.labels;
+  function sx(x){return xoff+(x-D.view[0])*scale;}
+  function sy(y){return height-yoff-(y-D.view[1])*scale;}
+  function worldY(y){return D.world[1]+D.world[2]*y;}
+  function resize() {
+    const rect=canvas.getBoundingClientRect();
+    width=rect.width;height=rect.height;dpr=root.devicePixelRatio||1;
+    canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    scale=Math.min(width/(D.view[2]-D.view[0]),height/(D.view[3]-D.view[1]));
+    xoff=(width-(D.view[2]-D.view[0])*scale)/2;
+    yoff=(height-(D.view[3]-D.view[1])*scale)/2;
+    dirty=true;schedule();
+  }
+  function segment(a,b,color,lineWidth=1.4) {
+    if (!a||!b||!a.every(Number.isFinite)||!b.every(Number.isFinite)) return;
+    let t0=0,t1=1;
+    const dx=b[0]-a[0],dy=b[1]-a[1];
+    for (const [p,q] of [[-dx,a[0]-D.view[0]],[dx,D.view[2]-a[0]],[-dy,a[1]-D.view[1]],[dy,D.view[3]-a[1]]]) {
+      if (p===0) {if(q<0)return;continue;}
+      const r=q/p;
+      if(p<0)t0=Math.max(t0,r);else t1=Math.min(t1,r);
+      if(t0>t1)return;
+    }
+    ctx.strokeStyle=color;ctx.lineWidth=lineWidth;
+    ctx.beginPath();ctx.moveTo(sx(a[0]+t0*dx),sy(a[1]+t0*dy));ctx.lineTo(sx(a[0]+t1*dx),sy(a[1]+t1*dy));ctx.stroke();
+  }
+  function drawArc(focus,left,right,d) {
+    const gap=focus[1]-d;
+    if(gap<=0)return;
+    const vertexY=(focus[1]+d)/2;
+    if(vertexY>D.view[3])return;
+    const outer=Math.sqrt(Math.max(0,2*gap*(D.view[3]-vertexY)));
+    left=Math.max(left,focus[0]-outer,D.view[0]);right=Math.min(right,focus[0]+outer,D.view[2]);
+    if(left>=right)return;
+    const pieces=[];
+    if(vertexY<D.view[1]) {
+      const inner=Math.sqrt(2*gap*(D.view[1]-vertexY));
+      if(left<focus[0]-inner)pieces.push([left,Math.min(right,focus[0]-inner)]);
+      if(right>focus[0]+inner)pieces.push([Math.max(left,focus[0]+inner),right]);
+    } else pieces.push([left,right]);
+    ctx.strokeStyle=beachColor;ctx.lineWidth=1.7;
+    for(const [a,b] of pieces) {
+      if(a>=b)continue;
+      const mid=(a+b)/2,ya=parabolaY(focus,a,d),yb=parabolaY(focus,b,d);
+      const control=2*parabolaY(focus,mid,d)-(ya+yb)/2;
+      ctx.beginPath();ctx.moveTo(sx(a),sy(ya));ctx.quadraticCurveTo(sx(mid),sy(control),sx(b),sy(yb));ctx.stroke();
+    }
+  }
+  function eventName(e) {
+    return e.kind===0?"Site "+D.sites[e.site][2]:"Circle "+e.defining.map(i=>D.sites[i][2]).join("/");
+  }
+  function updatePanel(state) {
+    if(panelIndex===index)return;
+    panelIndex=index;
+    const fragment=document.createDocumentFragment();
+    for(const [id,stale] of state.queue) {
+      const e=D.events[id],row=document.createElement("div"),name=document.createElement("span"),value=document.createElement("span");
+      row.className="event "+(stale?"stale":e.kind===0?"site":"circle");
+      name.textContent=eventName(e)+(stale?" · stale":"");value.textContent=worldY(e.y).toPrecision(4);
+      row.append(name,value);fragment.append(row);
+    }
+    if(!state.queue.length) {const row=document.createElement("p");row.textContent=D.special_case?"Collinear special case: direct bisectors.":"Queue empty.";fragment.append(row);}
+    queue.replaceChildren(fragment);
+    $("counts").textContent=`${state.counts[0]} site events · ${state.counts[1]} circle events · ${state.counts[2]} stale discarded · ${state.queued} queued`;
+    $("order").textContent=state.arcs.map(i=>D.sites[i][2]).join(" | ")||"(empty)";
+  }
+  function draw() {
+    const start=performance.now();
+    index=complete?D.states.length-1:manual!==null?manual:stateAt(D.states,directrix);
+    const state=D.states[index],done=complete||state.done;
+    updatePanel(state);
+    ctx.fillStyle="#06080d";ctx.fillRect(0,0,width,height);
+    ctx.save();ctx.beginPath();ctx.rect(0,0,width,height);ctx.clip();
+    if(done) {
+      D.cells.forEach((cell,i)=>{
+        if(!cell.length)return;
+        ctx.beginPath();cell.forEach((p,j)=>j?ctx.lineTo(sx(p[0]),sy(p[1])):ctx.moveTo(sx(p[0]),sy(p[1])));ctx.closePath();
+        ctx.fillStyle=`hsla(${(i*137.508)%360},55%,47%,.14)`;ctx.fill();ctx.strokeStyle=edgeColor;ctx.lineWidth=1.3;ctx.stroke();
+      });
+    } else {
+      if($("markers").checked) for(const [id,invalid] of state.queue) {
+        const e=D.events[id],y=sy(e.y);
+        if(y<0||y>height)continue;
+        ctx.strokeStyle=invalid?"#495565":e.kind===0?"#a62c44":"#23699f";ctx.lineWidth=0.8;
+        ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();
+      }
+      const active=new Map(),breaks=[];
+      for(let k=0;k+1<state.arcs.length;k++) {
+        const ia=state.arcs[k],ib=state.arcs[k+1],a=D.sites[ia],b=D.sites[ib];
+        const x=breakpointX(a,b,directrix),f=a[1]>directrix?a:b;
+        if(f[1]<=directrix)continue;
+        const p=[x,parabolaY(f,x,directrix)],key=Math.min(ia,ib)+","+Math.max(ia,ib);
+        if(p.every(Number.isFinite)){if(!active.has(key))active.set(key,[]);active.get(key).push(p);breaks.push(p);}
+      }
+      const visibleVertices=new Set();
+      for(const edge of D.edges) {
+        if(edge.created>index)continue;
+        const ends=edge.ends.filter(e=>e[1]<=index).map(e=>{visibleVertices.add(e[0]);return D.vertices[e[0]];});
+        const moving=active.get(edge.sites.join(","))||[];
+        if(ends.length>=2)segment(ends[0],ends[1],edgeColor);
+        else if(ends.length)for(const p of moving)segment(ends[0],p,"#aeb9cc");
+        else if(moving.length>=2)segment(moving[0],moving[1],"#aeb9cc");
+        else if(moving.length&&D.sites[edge.sites[0]][1]===D.sites[edge.sites[1]][1])segment(moving[0],[moving[0][0],D.view[3]],"#aeb9cc");
+      }
+      for(let k=0;k<state.arcs.length;k++) {
+        const f=D.sites[state.arcs[k]];
+        if(f[1]===directrix) {
+          let top=D.view[3];
+          for(const neighbour of [state.arcs[k-1],state.arcs[k+1]])if(neighbour!==undefined&&D.sites[neighbour][1]>directrix)top=Math.min(top,parabolaY(D.sites[neighbour],f[0],directrix));
+          segment([f[0],f[1]],[f[0],top],beachColor);continue;
+        }
+        const left=k?breakpointX(D.sites[state.arcs[k-1]],f,directrix):D.view[0];
+        const right=k+1<state.arcs.length?breakpointX(f,D.sites[state.arcs[k+1]],directrix):D.view[2];
+        drawArc(f,left,right,directrix);
+      }
+      for(const v of visibleVertices){const p=D.vertices[v];ctx.fillStyle=edgeColor;ctx.fillRect(sx(p[0])-2,sy(p[1])-2,4,4);}
+      let circle=state.queue.find(([id,invalid])=>!invalid&&D.events[id].kind===1);
+      if(manual!==null&&state.last!==null&&!state.discarded&&D.events[state.last].kind===1)circle=[state.last,false];
+      if(circle) {
+        const e=D.events[circle[0]],radius=e.centre[1]-e.y;
+        if(radius>0&&radius*scale<1e7){ctx.strokeStyle=circleColor;ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.beginPath();ctx.arc(sx(e.centre[0]),sy(e.centre[1]),radius*scale,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+      }
+      const y=sy(directrix);ctx.strokeStyle=beachColor;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();
+    }
+    ctx.strokeStyle="#42516a";ctx.lineWidth=1;ctx.setLineDash([5,5]);ctx.strokeRect(sx(D.box[0]),sy(D.box[3]),(D.box[2]-D.box[0])*scale,(D.box[3]-D.box[1])*scale);ctx.setLineDash([]);
+    ctx.font="11px Segoe UI, sans-serif";
+    for(const p of D.sites) {
+      ctx.fillStyle=siteColor;ctx.fillRect(sx(p[0])-3,sy(p[1])-3,6,6);
+      if($("labels").checked){ctx.fillStyle="#dbe4f4";ctx.fillText(String(p[2]).slice(0,32),sx(p[0])+7,sy(p[1])-6);}
+    }
+    ctx.restore();
+    if(showFPS){ctx.fillStyle="#72e39c";ctx.font="12px ui-monospace, monospace";ctx.fillText(fps?`${Math.round(fps)} FPS`:"Pointer-ready",12,20);}
+    range.value=Math.round(progress*1000);$("positionValue").value=Math.round(progress*100)+"%";
+    status.textContent=D.special_case?"Collinear sites use direct bisectors; no sweep events are needed.":done?"Completed clipped diagram. Move upward to replay.":`Sweep y = ${worldY(directrix).toPrecision(6)} · ${index} heap entries processed`;
+    frames++;renderTimes.push(performance.now()-start);if(renderTimes.length>120)renderTimes.shift();
+    canvas.dataset.sweepY=String(worldY(directrix));canvas.dataset.stateIndex=String(index);canvas.dataset.frameCount=String(frames);
+    if(performance.now()-statsAt>250) {
+      statsAt=performance.now();
+      const median=[...renderTimes].sort((a,b)=>a-b)[Math.floor(renderTimes.length/2)];
+      canvas.dataset.medianRenderMs=String(median);canvas.dataset.rafFps=String(fps);
+      $("performance").textContent=(fps?Math.round(fps)+" fps · ":"")+median.toFixed(2)+" ms draw";
+    }
+  }
+  function setProgress(value) {
+    progress=Math.max(0,Math.min(1,value));complete=progress>=1||!!D.special_case;manual=null;
+    directrix=D.view[3]+progress*(D.view[1]-D.view[3]);dirty=true;
+  }
+  function syncButtons() {
+    $("play").textContent=playing?"Pause":"Play";$("follow").textContent="Follow pointer: "+(follow?"on":"off");
+    $("hint").textContent=follow?"Move the pointer · Click to freeze · H for help":"Frozen · Click to follow · H for help";
+  }
+  function schedule(){if(!pending){pending=true;requestAnimationFrame(tick);}}
+  function tick(now) {
+    pending=false;
+    const dt=lastTime?Math.min(.1,(now-lastTime)/1000):0;lastTime=now;
+    if(playing){setProgress(progress+dt*Number($("speed").value)/50);if(complete){playing=false;syncButtons();}}
+    if(dirty||pointerInside||playing) {
+      if(lastDraw&&now-lastDraw<200){intervals.push(now-lastDraw);if(intervals.length>90)intervals.shift();fps=1000/(intervals.reduce((a,b)=>a+b,0)/intervals.length);}
+      lastDraw=now;
+      try{draw();}catch(error){playing=false;status.textContent="Replay drawing limit: "+error.message;syncButtons();}
+      dirty=false;
+    }
+    if(playing||pointerInside)schedule();
+  }
+  function move(event) {
+    if(!follow||D.special_case)return;
+    playing=false;
+    const rect=canvas.getBoundingClientRect(),y=D.view[1]+(height-(event.clientY-rect.top)-yoff)/scale;
+    setProgress((D.view[3]-y)/(D.view[3]-D.view[1]));syncButtons();schedule();
+  }
+  canvas.addEventListener("pointerenter",e=>{pointerInside=true;move(e);schedule();});
+  canvas.addEventListener("pointermove",move);
+  canvas.addEventListener("pointerleave",()=>{pointerInside=false;});
+  canvas.addEventListener("click",()=>{follow=!follow;playing=false;syncButtons();dirty=true;schedule();});
+  $("follow").onclick=()=>{follow=!follow;playing=false;syncButtons();dirty=true;schedule();};
+  $("play").onclick=()=>{if(complete)setProgress(0);playing=!playing;follow=false;lastTime=0;syncButtons();dirty=true;schedule();};
+  range.oninput=()=>{playing=false;follow=false;setProgress(Number(range.value)/1000);syncButtons();schedule();};
+  function next(){playing=false;follow=false;manual=Math.min(D.states.length-1,index+1);directrix=D.states[manual].y;progress=Math.max(0,Math.min(1,(D.view[3]-directrix)/(D.view[3]-D.view[1])));complete=manual===D.states.length-1;syncButtons();dirty=true;schedule();}
+  $("next").onclick=next;
+  $("reset").onclick=()=>{playing=false;follow=!D.special_case;setProgress(0);syncButtons();schedule();};
+  $("finish").onclick=()=>{playing=false;follow=false;setProgress(1);syncButtons();schedule();};
+  for(const name of ["labels","markers"])$(name).onchange=()=>{dirty=true;schedule();};
+  $("save").onclick=()=>canvas.toBlob(blob=>{const link=document.createElement("a");link.download="fortune-replay.png";link.href=URL.createObjectURL(blob);link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);});
+  root.addEventListener("keydown",e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey||["INPUT","BUTTON","TEXTAREA"].includes(document.activeElement.tagName))return;
+    const key=e.key.toLowerCase();
+    if(key==="h")$("help").classList.toggle("visible");
+    else if(key===" "){$("play").click();e.preventDefault();}
+    else if(key==="arrowright"){next();e.preventDefault();}
+    else if(key==="r")$("reset").click();
+    else if(key==="e")$("finish").click();
+    else if(key==="f"){showFPS=!showFPS;dirty=true;schedule();}
+  });
+  new ResizeObserver(resize).observe(canvas);
+  root.fortuneReplay=Object.freeze({
+    inspect:()=>({index,worldY:worldY(directrix),progress,follow,playing,frames,
+      fps,medianRenderMs:renderTimes.length?[...renderTimes].sort((a,b)=>a-b)[Math.floor(renderTimes.length/2)]:0,
+      eventCounts:D.states[index].counts,beach:[...D.states[index].arcs]}),
+    setPosition:value=>{playing=false;follow=false;setProgress(value);syncButtons();schedule();},
+    breakpointX,parabolaY
+  });
+  syncButtons();resize();
+})(typeof window!=="undefined"?window:globalThis);
+
+
+==============================================================================
+src\fortune\replay_canvas.py
+==============================================================================
+"""Export an offline, pointer-following Canvas replay of real Python events.
+
+Fortune construction stays in Python. The browser receives immutable event
+states and draws their parabolas; pointer movement makes no Python calls.
+This bounded educational replay may store O(n^2) arc/queue snapshot data at
+the 200-site cap. Normal construction and its benchmarks do not collect it.
+"""
+
+import heapq
+import json
+import webbrowser
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from .geometry import Point
+from .replay import SweepReplay, stale
+
+
+def build_payload(coordinates, box=None, *, labels=True):
+    model = SweepReplay(coordinates, box)
+    engine = model.sweep
+    events = {}
+    edges = {}
+    states = []
+
+    def capture(step, last=None, discarded=False):
+        for entry in engine.queue._heap:
+            serial, event = entry[3], entry[-1]
+            if serial not in events:
+                events[serial] = dict(
+                    kind=event.kind,
+                    y=event.y,
+                    x=event.x,
+                    site=event.site,
+                    defining=event.defining,
+                    centre=[event.centre.x, event.centre.y] if event.centre else None,
+                )
+        for key, edge in engine.edges.items():
+            record = edges.setdefault(key, dict(sites=list(key), created=step, ends=[]))
+            for vertex in edge.vertices:
+                if not any(end[0] == vertex for end in record["ends"]):
+                    record["ends"].append([vertex, step])
+        states.append(
+            dict(
+                y=engine.sweep_y if step else model.normalize(Point(0, model.top_y)).y,
+                arcs=[arc.site for arc in engine.beach],
+                queue=[
+                    [e[3], stale(e[-1])] for e in heapq.nsmallest(8, engine.queue._heap)
+                ],
+                queued=len(engine.queue),
+                last=last,
+                discarded=discarded,
+                counts=[
+                    engine.statistics["site_events"],
+                    engine.statistics["circle_events"],
+                    engine.statistics["stale_events"],
+                ],
+                done=not bool(engine.queue),
+            )
+        )
+
+    capture(0)
+    step = 0
+    while engine.queue:
+        serial = engine.queue._heap[0][3]
+        before = engine.statistics["stale_events"]
+        model.step_event()
+        step += 1
+        capture(step, serial, engine.statistics["stale_events"] > before)
+    view = model.view
+    span = max(view.xmax - view.xmin, view.ymax - view.ymin)
+    left = model.normalize(Point(view.xmin - 0.1 * span, view.ymin - 0.1 * span))
+    right = model.normalize(Point(view.xmax + 0.1 * span, view.ymax + 0.1 * span))
+    b = model.box
+    low = model.normalize(Point(b.xmin, b.ymin))
+    high = model.normalize(Point(b.xmax, b.ymax))
+    payload = dict(
+        generated_at=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        source="Python FortuneSweep.step; no browser Voronoi implementation",
+        sites=[[p.x, p.y, model.label(i)] for i, p in enumerate(model.points)],
+        vertices=[[v.point.x, v.point.y] for v in engine.vertices],
+        edges=list(edges.values()),
+        events={str(k): v for k, v in events.items()},
+        states=states,
+        cells=[
+            [[model.normalize(p).x, model.normalize(p).y] for p in c.vertices]
+            for c in model.diagram.cells
+        ],
+        view=[left.x, left.y, right.x, right.y],
+        box=[low.x, low.y, high.x, high.y],
+        world=[model.ox, model.oy, model.scale],
+        labels=labels,
+        special_case=model.special_case,
+    )
+    return payload, model
+
+
+def write_replay(coordinates, box=None, output="replay.html", *, labels=True):
+    payload, model = build_payload(coordinates, box, labels=labels)
+    folder = Path(__file__).parent
+    template = (folder / "replay_canvas.html").read_text(encoding="utf-8")
+    script = (folder / "replay_canvas.js").read_text(encoding="utf-8")
+    data = json.dumps(
+        payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+    )
+    data = data.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    html = template.replace("__FORTUNE_DATA__", data).replace(
+        "__FORTUNE_SCRIPT__", script
+    )
+    path = Path(output).with_suffix(".html")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(html, encoding="utf-8")
+    return CanvasReplay(path.resolve(), model)
+
+
+@dataclass
+class CanvasReplay:
+    path: Path
+    model: SweepReplay
+
+
+def launch(
+    sites,
+    box=None,
+    output="replay.html",
+    *,
+    block=False,
+    labels=True,
+    open_browser=True,
+):
+    replay = write_replay(sites, box, output, labels=labels)
+    if open_browser:
+        webbrowser.open(replay.path.as_uri())
+    return replay
+
+
+==============================================================================
+src\fortune\replay_state.py
+==============================================================================
+"""Copy the small mutable event state for at most eight replay checkpoints.
+
+Copying explicitly preserves live arc identities, heap serial priorities and
+stale-event tombstones without following arbitrarily long neighbour cycles.
+The construction algorithm does not use checkpoints.
+"""
+
+import itertools
+
+from .beachline import Arc
+from .events import Event
+from .sweep import FortuneSweep, TraceEdge, Vertex
+
+
+def clone_sweep(source, extra_event=None):
+    result = FortuneSweep(
+        source.points, debug=source.debug, original_points=source.original_points
+    )
+    arcs = {
+        a: Arc(a.site, height=a.height, generation=a.generation, alive=a.alive)
+        for a in source.beach
+    }
+    for old, new in list(arcs.items()):
+        for link in ("left", "right", "parent", "prev", "next"):
+            setattr(new, link, arcs.get(getattr(old, link)))
+    result.beach.root = arcs.get(source.beach.root)
+    result.beach.first = arcs.get(source.beach.first)
+    result.beach.count = source.beach.count
+    result.beach.max_height = source.beach.max_height
+
+    def clone_event(event):
+        if event is None:
+            return None
+        arc = event.arc
+        if arc is not None and arc not in arcs:
+            # A removed arc is only consulted by the stale-event guard.
+            arcs[arc] = Arc(arc.site, generation=arc.generation, alive=arc.alive)
+        return Event(
+            event.y,
+            event.x,
+            event.kind,
+            site=event.site,
+            arc=arcs.get(arc),
+            generation=event.generation,
+            centre=event.centre,
+            defining=event.defining,
+        )
+
+    result.queue._heap = [
+        (*entry[:4], clone_event(entry[-1])) for entry in source.queue._heap
+    ]
+    # Each push consumes one serial; the next value equals the push count.
+    result.queue._serial = itertools.count(source.queue.pushed)
+    result.queue.peak_size = source.queue.peak_size
+    result.queue.pushed = source.queue.pushed
+    result.sweep_y = source.sweep_y
+    result.neighbours = [set(ns) for ns in source.neighbours]
+    result.edges = {
+        key: TraceEdge(edge.sites, list(edge.vertices))
+        for key, edge in source.edges.items()
+    }
+    result.vertices = [Vertex(v.point, set(v.defining)) for v in source.vertices]
+    result._vertex_index = dict(source._vertex_index)
+    result.statistics = dict(source.statistics)
+    result._started = source._started
+    if result.debug:
+        result.beach.validate()
+    return result, clone_event(extra_event)
+
+
+==============================================================================
+src\fortune\replay_view.py
+==============================================================================
+"""Responsive playback, direct sweep dragging and position scrubbing."""
+
+from pathlib import Path
+from time import perf_counter
+
+from .io import ensure_parent
+from .replay import SweepReplay
+from .replay_artists import CachedPainter, ReplayArtists, event_name
+from .ui_text import replace_widget_text, ui_text
+
+PLOT_RECT = (0.07, 0.30, 0.58, 0.60)
+PANEL_RECT = (0.71, 0.31, 0.27, 0.58)
+
+
+def draw_replay(model, axes, panel, *, labels=True):
+    """Update persistent artists; also usable by headless frame/GIF exports."""
+    scene = getattr(axes, "_fortune_replay_artists", None)
+    if scene is None or scene.panel is not panel or scene.diagram is not model.diagram:
+        scene = ReplayArtists(model, axes, panel, labels=labels)
+        axes._fortune_replay_artists = scene
+    scene.update(model)
+    return scene
+
+
+class ReplayController:
+    def __init__(
+        self,
+        figure,
+        axes,
+        panel,
+        model,
+        *,
+        output="replay.png",
+        labels=True,
+        clock=None,
+    ):
+        from matplotlib.widgets import Button, Slider
+
+        self.figure, self.axes, self.panel, self.model = figure, axes, panel, model
+        self.output, self.labels = Path(output), labels
+        self.playing = self.closed = self._dragging = False
+        self._clock = clock or perf_counter
+        self._last_tick = self._clock()
+        self._scene = self._painter = None
+        self._paint_revision = None
+        self.timer = figure.canvas.new_timer(interval=16)
+        self.timer.add_callback(self.tick)
+        self.status = ui_text(figure, 0.07, 0.025, "", fontsize=9, color="#344054")
+        self.buttons = []
+        for x, width, label, callback in (
+            (0.07, 0.12, "Play", self.toggle_play),
+            (0.21, 0.12, "Next event", self.next_event),
+            (0.35, 0.12, "Reset", self.reset),
+            (0.49, 0.14, "Save frame", self.save_frame),
+        ):
+            button = Button(
+                figure.add_axes([x, 0.075, width, 0.045]), label, useblit=False
+            )
+            button.label = replace_widget_text(button.ax, button.label)
+            button.drawon = False
+            button.hovercolor = button.color
+            button.on_clicked(callback)
+            self.buttons.append(button)
+        self.speed = Slider(
+            figure.add_axes([0.76, 0.09, 0.18, 0.02]),
+            "Events/s",
+            0.5,
+            30,
+            valinit=6,
+            valstep=0.5,
+        )
+        self.speed.label = replace_widget_text(self.speed.ax, self.speed.label)
+        self.speed.valtext = replace_widget_text(self.speed.ax, self.speed.valtext)
+        self.speed.drawon = False
+        self.speed.on_changed(self.speed_changed)
+        self.position = Slider(
+            figure.add_axes([0.14, 0.15, 0.48, 0.022]),
+            "Position",
+            0,
+            100,
+            valinit=100 * model.position,
+            valfmt="%1.0f%%",
+        )
+        self.position.label = replace_widget_text(self.position.ax, self.position.label)
+        self.position.valtext = replace_widget_text(
+            self.position.ax, self.position.valtext
+        )
+        self.position.drawon = False
+        self.position.set_active(not model.special_case)
+        self.position.on_changed(self.scrub)
+        for name, callback in (
+            ("key_press_event", self.key),
+            ("close_event", self.close),
+            ("button_press_event", self.press),
+            ("motion_notify_event", self.motion),
+            ("button_release_event", self.release),
+        ):
+            self.figure.canvas.mpl_connect(name, callback)
+        self.redraw()
+
+    def redraw(self, message=None, *, controls_changed=False):
+        if self.closed:
+            return
+        try:
+            self._scene = draw_replay(
+                self.model, self.axes, self.panel, labels=self.labels
+            )
+        except (ValueError, ArithmeticError) as exc:
+            self.pause()
+            if self._scene:
+                self._scene.hide_geometry()
+            message = f"Replay drawing stopped: {exc}"
+        if message is None:
+            if self.model.special_case:
+                message = "Collinear input: direct-bisector construction shown. Choose non-collinear sites to replay the sweep."
+            elif self.model.done:
+                message = f"Complete: {self.model.event_count} entries processed. Drag Position backward or Play to replay."
+            elif self.model.last_event:
+                message = f"Event {self.model.event_count}: {event_name(self.model, self.model.last_event)}"
+                if self.model.last_stale:
+                    message += " | stale prediction discarded"
+                message += " | Drag the plot or Position; Space: play/pause; Right: next event."
+            else:
+                message = "Play or drag the plot / Position slider. Right: next event; R: reset."
+        dirty = controls_changed or message != self.status.get_text()
+        self.status.set_text(message)
+        label = "Pause" if self.playing else "Play"
+        dirty |= label != self.buttons[0].label.get_text()
+        self.buttons[0].label.set_text(label)
+        events = self.position.eventson
+        self.position.eventson = False
+        self.position.set_val(100 * self.model.position)
+        self.position.eventson = events
+        if self._scene is None:
+            self.figure.canvas.draw_idle()
+            return
+        if self._painter is None:
+            self._painter = CachedPainter(
+                self.figure,
+                self._scene.event_artists
+                + [self.status, self.speed.ax]
+                + [b.ax for b in self.buttons],
+                self._scene.motion_artists + [self.position.ax],
+                motion_regions=self.movement_regions,
+            )
+        dirty |= self._paint_revision != self._scene.revision
+        self._painter.paint(event_dirty=dirty)
+        self._paint_revision = self._scene.revision
+
+    def movement_regions(self):
+        from matplotlib.transforms import Bbox
+
+        # Avoid copying the full Tk PhotoImage when only these regions move.
+        scale = self.figure.dpi / 100
+        slider = self.position.ax.bbox
+        panel = self.panel.bbox
+        baseline = panel.y0 + 0.055 * panel.height
+        return (
+            self.axes.bbox.padded(4 * scale),
+            Bbox.from_extents(
+                slider.x0 - 100 * scale,
+                slider.y0 - 15 * scale,
+                slider.x1 + 70 * scale,
+                slider.y1 + 20 * scale,
+            ),
+            Bbox.from_extents(
+                panel.x0 - 3 * scale,
+                baseline - 10 * scale,
+                panel.x1 + 3 * scale,
+                baseline + 22 * scale,
+            ),
+        )
+
+    def pause(self):
+        self.playing = False
+        self.timer.stop()
+
+    def toggle_play(self, event=None):
+        if self.model.special_case or self.closed:
+            return
+        if self.playing:
+            self.pause()
+        else:
+            if self.model.done:
+                self.model.reset()
+            self.playing = True
+            self._last_tick = self._clock()
+            self.timer.start()
+        self.redraw()
+
+    def next_event(self, event=None):
+        self.pause()
+        try:
+            self.model.step_event()
+            self.redraw()
+        except (ValueError, ArithmeticError) as exc:
+            self.redraw(f"Replay stopped: {exc}")
+
+    def tick(self):
+        # Returning False would remove this callback from Matplotlib's timer.
+        if not self.playing or self.closed:
+            return
+        now = self._clock()
+        elapsed = min(0.25, max(0.0, now - self._last_tick))
+        self._last_tick = now
+        frame_started = perf_counter()
+        try:
+            self.model.advance(elapsed * self.speed.val)
+            if self.model.done:
+                self.pause()
+            self.redraw()
+        except (ValueError, ArithmeticError) as exc:
+            self.pause()
+            self.redraw(f"Replay stopped: {exc}")
+        # Tk schedules its next callback after this one returns. Subtract the
+        # drawing time instead of adding a fixed 16 ms delay to every frame.
+        self.timer.interval = max(
+            1, round(1000 / 60 - (perf_counter() - frame_started) * 1000)
+        )
+
+    def speed_changed(self, value):
+        self._last_tick = self._clock()
+        self.redraw(controls_changed=True)
+
+    def scrub(self, value):
+        self.pause()
+        try:
+            self.model.seek(float(value) / 100)
+            self.redraw()
+        except (ValueError, ArithmeticError) as exc:
+            self.redraw(f"Replay stopped: {exc}")
+
+    def _drag_y(self, value):
+        self.pause()
+        try:
+            self.model.seek_y(min(self.model.top_y, max(self.model.bottom_y, value)))
+            self.redraw()
+        except (ValueError, ArithmeticError) as exc:
+            self.redraw(f"Replay stopped: {exc}")
+
+    def press(self, event):
+        if (
+            event.inaxes is self.axes
+            and event.button == 1
+            and event.ydata is not None
+            and not self.model.special_case
+            and self.axes.get_navigate_mode() is None
+        ):
+            self._dragging = True
+            self._drag_y(event.ydata)
+
+    def motion(self, event):
+        if self._dragging and event.inaxes is self.axes and event.ydata is not None:
+            self._drag_y(event.ydata)
+
+    def release(self, event):
+        if self._dragging and event.inaxes is self.axes and event.ydata is not None:
+            self._drag_y(event.ydata)
+        self._dragging = False
+
+    def reset(self, event=None):
+        self.pause()
+        self.model.reset()
+        self.redraw()
+
+    def save_frame(self, event=None):
+        try:
+            if self._painter:
+                with self._painter.full_render():
+                    self.figure.savefig(ensure_parent(self.output), dpi=160)
+            else:
+                self.figure.savefig(ensure_parent(self.output), dpi=160)
+            self.redraw(f"Saved current replay frame: {self.output.name}")
+        except (OSError, ValueError) as exc:
+            self.redraw(f"Could not save frame: {exc}")
+
+    def key(self, event):
+        if event.key in (" ", "space"):
+            self.toggle_play()
+        elif event.key == "right":
+            self.next_event()
+        elif event.key == "r":
+            self.reset()
+
+    def close(self, event=None):
+        self.pause()
+        self.closed = True
+        if self._painter:
+            self._painter.close()
+
+
+def launch(sites, box=None, output="replay.png", *, block=True, labels=True):
+    import matplotlib.pyplot as plt
+
+    model = SweepReplay(sites, box)
+    fig = plt.figure(figsize=(12, 7))
+    fig.canvas.manager.set_window_title("Fortune sweep replay | smooth controls")
+    axes = fig.add_axes(PLOT_RECT)
+    panel = fig.add_axes(PANEL_RECT)
+    controller = ReplayController(fig, axes, panel, model, output=output, labels=labels)
+    fig.fortune_replay = controller
+    plt.show(block=block)
+    return controller
+
+
+==============================================================================
 src\fortune\sweep.py
 ==============================================================================
 """Fortune's event-driven sweep, producing adjacency and traced Voronoi edges.
@@ -1418,6 +3049,7 @@ class FortuneSweep:
         self.vertices = []
         self._vertex_index = {}
         self.statistics = dict(site_events=0, circle_events=0, stale_events=0)
+        self._started = False
 
     def edge(self, a, b, vertex=None):
         if a == b:
@@ -1514,24 +3146,47 @@ class FortuneSweep:
         self.schedule(left)
         self.schedule(right)
 
-    def run(self):
-        for i, p in enumerate(self.points):
-            self.queue.push(Event(p.y, p.x, 0, site=i))
-        while self.queue:
-            event = self.queue.pop()
-            self.sweep_y = min(self.sweep_y, event.y)
-            if event.kind == 0:
-                self.site_event(event.site)
-            else:
-                self.circle_event(event)
-            if self.debug:
-                self.beach.validate()
+    def start(self):
+        """Queue sites once; replay and batch execution share this entry point."""
+        if not self._started:
+            for i, p in enumerate(self.points):
+                self.queue.push(Event(p.y, p.x, 0, site=i))
+            self._started = True
+        return self
+
+    def step(self):
+        """Process exactly one heap entry, including an invalidated prediction.
+
+        Return the processed event, or None after completion. The same handlers
+        and generation guard are used by ordinary construction and replay.
+        """
+        self.start()
+        if not self.queue:
+            self._finish_statistics()
+            return None
+        event = self.queue.pop()
+        self.sweep_y = min(self.sweep_y, event.y)
+        if event.kind == 0:
+            self.site_event(event.site)
+        else:
+            self.circle_event(event)
+        if self.debug:
+            self.beach.validate()
+        if not self.queue:
+            self._finish_statistics()
+        return event
+
+    def _finish_statistics(self):
         self.statistics.update(
             queue_peak=self.queue.peak_size,
             events_pushed=self.queue.pushed,
             beach_max_height=self.beach.max_height,
             trace_edges=len(self.edges),
         )
+
+    def run(self):
+        while self.step() is not None:
+            pass
         return self
 
 
@@ -1550,6 +3205,127 @@ def all_collinear(points):
         return True
     a, b = min(points, key=lambda p: (p.x, p.y)), max(points, key=lambda p: (p.x, p.y))
     return all(orient(a, b, p) == 0 for p in points)
+
+
+==============================================================================
+src\fortune\ui_text.py
+==============================================================================
+"""Cached bitmap text for the live Agg/Tk UI, with normal vector export.
+
+Matplotlib's glyph-by-glyph text drawing dominated the replay profile. Pillow
+renders these plain interface strings once; subsequent draws composite a small
+RGBA bitmap. Font and string caches are bounded. Mathematical/report text is
+unaffected, and SVG/PDF backends retain Matplotlib's regular text renderer.
+"""
+
+from functools import lru_cache
+
+import numpy as np
+from matplotlib import colors, font_manager
+from matplotlib.backends.backend_agg import RendererAgg
+from matplotlib.text import Text
+from PIL import Image, ImageDraw, ImageFont
+
+
+@lru_cache(maxsize=16)
+def _font(path, size):
+    return ImageFont.truetype(path, size, layout_engine=ImageFont.Layout.BASIC)
+
+
+@lru_cache(maxsize=256)
+def _bitmap(text, path, size, rgba, spacing):
+    font = _font(path, size)
+    measure = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    box = measure.multiline_textbbox(
+        (0, 0), text, font=font, anchor="ls", spacing=spacing
+    )
+    left, top, right, bottom = box
+    pad = 1
+    image = Image.new(
+        "RGBA", (max(1, right - left + 2 * pad), max(1, bottom - top + 2 * pad))
+    )
+    ImageDraw.Draw(image).multiline_text(
+        (pad - left, pad - top),
+        text,
+        font=font,
+        fill=rgba,
+        anchor="ls",
+        spacing=spacing,
+    )
+    return np.ascontiguousarray(np.asarray(image)[::-1]), bottom + pad
+
+
+class RasterText(Text):
+    def draw(self, renderer):
+        text = self.get_text()
+        if not self.get_visible() or not text:
+            self.stale = False
+            return
+        if (
+            not isinstance(renderer, RendererAgg)
+            or self.get_rotation() != 0
+            or "$" in text
+            or self.get_bbox_patch() is not None
+        ):
+            return super().draw(renderer)
+        size = max(1, round(renderer.points_to_pixels(self.get_fontsize())))
+        path = font_manager.findfont(self.get_fontproperties())
+        rgba = tuple(
+            round(c * 255) for c in colors.to_rgba(self.get_color(), self.get_alpha())
+        )
+        linespacing = self.get_linespacing()
+        # Matplotlib 3.11 can return "auto" for the default spacing.
+        linespacing = linespacing if isinstance(linespacing, (int, float)) else 1.2
+        spacing = max(0, round(size * (linespacing - 1)))
+        pixels, baseline = _bitmap(text, path, size, rgba, spacing)
+        x, y = self.get_transform().transform(self.get_position())
+        height, width = pixels.shape[:2]
+        ha, va = self.get_horizontalalignment(), self.get_verticalalignment()
+        if ha == "center":
+            x -= width / 2
+        elif ha == "right":
+            x -= width
+        if va == "top":
+            y -= height
+        elif va in ("center", "center_baseline"):
+            y -= height / 2
+        elif va == "baseline":
+            y -= baseline
+        gc = renderer.new_gc()
+        try:
+            if self.get_clip_on():
+                gc.set_clip_rectangle(self.get_clip_box())
+            renderer.draw_image(gc, round(x), round(y), pixels)
+        finally:
+            gc.restore()
+        self.stale = False
+
+
+def ui_text(parent, x, y, text="", **kwargs):
+    kwargs.setdefault("clip_on", False)
+    kwargs.setdefault(
+        "transform",
+        parent.transData if hasattr(parent, "transData") else parent.transFigure,
+    )
+    artist = RasterText(x, y, text, **kwargs)
+    parent.add_artist(artist)
+    return artist
+
+
+def replace_widget_text(axes, old):
+    """Replace one widget label at initialization, preserving public settings."""
+    new = ui_text(
+        axes,
+        *old.get_position(),
+        old.get_text(),
+        transform=old.get_transform(),
+        fontproperties=old.get_fontproperties(),
+        color=old.get_color(),
+        horizontalalignment=old.get_horizontalalignment(),
+        verticalalignment=old.get_verticalalignment(),
+    )
+    old.remove()
+    return new
 
 
 ==============================================================================
@@ -1647,6 +3423,46 @@ if not exist ".venv\Scripts\python.exe" (
 )
 ".venv\Scripts\python.exe" -m pytest %*
 exit /b %errorlevel%
+
+
+==============================================================================
+tests\canvas_pointer_check.js
+==============================================================================
+// Source-level event test: pointer movement must work without a pressed button.
+const fs=require('fs');
+const input=JSON.parse(fs.readFileSync(0,'utf8'));
+let pending=null;
+const noop=()=>{};
+const context=new Proxy({}, {get:(target,key)=>target[key]||noop});
+function element(){return {
+  events:{},dataset:{},value:'0',checked:false,children:[],tagName:'DIV',
+  classList:{toggle:noop},
+  addEventListener(name,fn){this.events[name]=fn;},
+  getBoundingClientRect(){return {left:0,top:0,width:800,height:600};},
+  getContext(){return context;},
+  append(...children){this.children.push(...children);},
+  replaceChildren(...children){this.children=children;}
+};}
+const nodes=new Map();
+global.window=global;
+global.FORTUNE_DATA=input.payload;
+global.devicePixelRatio=1;
+global.addEventListener=noop;
+global.requestAnimationFrame=fn=>{pending=fn;return 1;};
+global.ResizeObserver=class {constructor(fn){this.fn=fn;}observe(){this.fn();}};
+global.document={
+  getElementById(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);},
+  createElement:element,createDocumentFragment:element,activeElement:{tagName:'BODY'}
+};
+require(input.script);
+function pump(time){const fn=pending;pending=null;if(fn)fn(time);}
+pump(0);
+const view=nodes.get('view');
+view.events.pointerenter({clientY:100});pump(16);
+const first=global.fortuneReplay.inspect();
+view.events.pointermove({clientY:450});pump(32);
+const second=global.fortuneReplay.inspect();
+process.stdout.write(JSON.stringify({first,second}));
 
 
 ==============================================================================
@@ -2342,6 +4158,657 @@ def test_exact_heap_priority_ties_are_fifo_across_interleaved_pushes():
 
 
 ==============================================================================
+tests\test_replay.py
+==============================================================================
+import math
+
+import pytest
+
+from fortune.events import Event, EventQueue
+from fortune.geometry import Box, Point, parabola_y
+from fortune.io import random_sites
+from fortune.replay import SweepReplay, stale
+from fortune.sweep import FortuneSweep
+
+
+def signature(sweep):
+    return (
+        tuple((v.point, frozenset(v.defining)) for v in sweep.vertices),
+        tuple((key, tuple(e.vertices)) for key, e in sorted(sweep.edges.items())),
+        tuple(frozenset(ns) for ns in sweep.neighbours),
+        dict(sweep.statistics),
+    )
+
+
+def test_queue_preview_is_ordered_without_popping():
+    queue = EventQueue()
+    events = [Event(2, 0, 1), Event(2, 1, 0), Event(3, 0, 0), Event(2, 0, 0)]
+    for e in events:
+        queue.push(e)
+    before = tuple(queue._heap)
+    assert queue.preview(3) == [events[2], events[3], events[1]]
+    assert tuple(queue._heap) == before
+    assert queue.peek() is events[2] and len(queue) == 4
+    assert queue.preview(0) == []
+    with pytest.raises(ValueError):
+        queue.preview(-1)
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_stepping_matches_batch_and_keeps_invariants(seed):
+    points = random_sites(18, seed)
+    batch = FortuneSweep(points, debug=True).run()
+    stepped = FortuneSweep(points, debug=True).start()
+    previous = math.inf
+    while (event := stepped.step()) is not None:
+        assert event.y <= previous
+        previous = event.y
+        stepped.beach.validate()
+    assert signature(stepped) == signature(batch)
+    assert stepped.step() is None
+    assert signature(stepped.run()) == signature(batch)
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_replay_frames_do_not_cross_pending_events(seed):
+    replay = SweepReplay(random_sites(10, seed), Box(0, 0, 1, 1), debug=True)
+    previous = replay.display_y
+    stale_count = 0
+    frames = 0
+    while not replay.done:
+        target = min(replay.sweep.sweep_y, replay.sweep.queue.peek().y)
+        event = replay.tick(4)
+        assert target <= replay.display_y <= previous
+        previous = replay.display_y
+        replay.curves()
+        if event is not None and replay.last_stale:
+            stale_count += 1
+        frames += 1
+        assert frames < 500
+    assert stale_count == replay.sweep.statistics["stale_events"]
+    assert len(replay.processed) == 10
+    expected = FortuneSweep(
+        replay.points, debug=True, original_points=replay.sites
+    ).run()
+    assert signature(replay.sweep) == signature(expected)
+
+
+def test_arc_samples_are_true_parabolas_and_reset_is_repeatable():
+    replay = SweepReplay([(0.1, 0.85), (0.8, 0.65), (0.35, 0.15)], Box(0, 0, 1, 1))
+    replay.step_event()
+    replay.step_event()
+    replay.tick(6)
+    assert replay.curves()
+    for curve in replay.curves():
+        assert not curve.limiting
+        for p in curve.points:
+            q = replay.normalize(p)
+            assert q.y == pytest.approx(
+                parabola_y(replay.points[curve.site], q.x, replay.display_y)
+            )
+    first = []
+    replay.reset()
+    while (event := replay.step_event()) is not None:
+        first.append((event.kind, event.y, event.x, replay.last_stale))
+    replay.reset()
+    second = []
+    while (event := replay.step_event()) is not None:
+        second.append((event.kind, event.y, event.x, replay.last_stale))
+    assert first == second
+
+
+@pytest.mark.parametrize(
+    "points",
+    [
+        [(0, 0)],
+        [(0, 0), (1, 0)],
+        [(0, 0), (1, 0), (2, 0)],
+        [(0, 0), (0, 1), (0, 2)],
+        [(0, 0), (1, 2), (2, 4)],
+    ],
+)
+def test_collinear_solver_is_shown_without_a_fabricated_sweep(points):
+    replay = SweepReplay(points)
+    assert replay.special_case and replay.done
+    assert replay.step_event() is None and replay.curves() == []
+    assert len(replay.diagram.cells) == len(points)
+
+
+def test_equal_heights_cocircularity_duplicates_and_stale_queue():
+    replay = SweepReplay([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)], debug=True)
+    assert len(replay.sites) == 4 and replay.label(0) == "0/4"
+    found_stale = False
+    while not replay.done:
+        replay.step_event()
+        replay.curves()
+        found_stale |= any(stale(e) for e in replay.sweep.queue.preview(100))
+    assert found_stale
+    assert len(replay.sweep.vertices) == 1
+    assert replay.sweep.vertices[0].defining == {0, 1, 2, 3}
+
+
+def test_replay_input_errors_and_capacity_are_explicit():
+    with pytest.raises(ValueError):
+        SweepReplay([])
+    with pytest.raises(ValueError):
+        SweepReplay([(math.nan, 0)])
+    with pytest.raises(ValueError, match="at most 200"):
+        SweepReplay(random_sites(201, 2))
+    replay = SweepReplay(random_sites(4, 2))
+    with pytest.raises(ValueError):
+        replay.tick(0)
+    with pytest.raises(ValueError):
+        replay.curves(1)
+
+
+@pytest.mark.parametrize("exponent", [10, 13, 15])
+def test_near_coincident_replay_geometry_remains_inspectable(exponent):
+    delta = 10 ** (-exponent)
+    points = [
+        Point(0, 0),
+        Point(1, 0),
+        Point(0, 1),
+        Point(1, 1),
+        Point(0.5, 0.5),
+        Point(0.5 + delta, 0.5 + 2 * delta),
+        Point(0.5 - delta, 0.5 + delta),
+    ]
+    replay = SweepReplay(points, Box(0, 0, 1, 1), debug=True)
+    frames = 0
+    while not replay.done:
+        replay.tick(3)
+        replay.curves()
+        replay.breakpoints()
+        frames += 1
+        assert frames < 200
+    assert len(replay.diagram.cells) == 7
+
+
+def test_rendered_arc_intervals_follow_the_processed_parabola_envelope():
+    replay = SweepReplay(random_sites(15, 87), Box(0, 0, 1, 1))
+    checked = 0
+    while not replay.done:
+        replay.tick(3)
+        for curve in replay.curves(13):
+            if curve.limiting:
+                continue
+            for p in curve.points[1:-1:3]:
+                q = replay.normalize(p)
+                values = [
+                    parabola_y(replay.points[i], q.x, replay.display_y)
+                    for i in replay.processed
+                    if replay.points[i].y > replay.display_y
+                ]
+                assert q.y == pytest.approx(min(values), rel=2e-8, abs=2e-8)
+                checked += 1
+    assert checked > 100
+
+
+def test_scrubbing_replays_real_topology_in_both_directions():
+    replay = SweepReplay(random_sites(20, 42), Box(0, 0, 1, 1), debug=True)
+    for position in (0.7, 0.2, 0.9, 0.4, 1.0, 0.0, 0.6):
+        replay.seek(position)
+        replay.sweep.beach.validate()
+        expected = SweepReplay(replay.sites, Box(0, 0, 1, 1), debug=True)
+        expected.seek(position)
+        assert signature(replay.sweep) == signature(expected.sweep)
+        assert replay.processed == expected.processed
+        replay.curves()
+    with pytest.raises(ValueError):
+        replay.seek(-0.1)
+    with pytest.raises(ValueError):
+        replay.seek_y(math.nan)
+
+
+def test_playback_uses_elapsed_time_instead_of_frame_count():
+    slow = SweepReplay(random_sites(15, 37), Box(0, 0, 1, 1))
+    fast = SweepReplay(random_sites(15, 37), Box(0, 0, 1, 1))
+    for _ in range(12):
+        slow.advance(0.2)
+    for _ in range(120):
+        fast.advance(0.02)
+    assert slow.event_count == fast.event_count
+    assert slow.display_y == pytest.approx(fast.display_y)
+    assert signature(slow.sweep) == signature(fast.sweep)
+    with pytest.raises(ValueError):
+        slow.advance(-1)
+
+
+def test_checkpoint_clone_is_independent_and_preserves_future_event_order():
+    from fortune.replay_state import clone_sweep
+
+    source = FortuneSweep(random_sites(30, 5), debug=True).start()
+    for _ in range(24):
+        source.step()
+    before = signature(source)
+    heap = tuple(source.queue._heap)
+    cloned, _ = clone_sweep(source)
+    assert signature(cloned) == before
+    assert cloned.beach.root is not source.beach.root
+    assert all(a is not b for a, b in zip(source.beach, cloned.beach))
+    cloned.run()
+    assert signature(source) == before and tuple(source.queue._heap) == heap
+    source.run()
+    assert signature(source) == signature(cloned)
+
+
+def test_scrub_checkpoints_remain_bounded_and_are_not_mutated_by_restoring():
+    replay = SweepReplay(random_sites(90, 12), Box(0, 0, 1, 1), debug=True)
+    replay.seek(1)
+    originals = [signature(s[0]) for s in replay._checkpoints.values()]
+    for position in (0.1, 0.8, 0.4, 0.9, 0.2, 0.6, 1.0):
+        replay.seek(position)
+    assert len(replay._checkpoints) <= 8
+    assert [signature(s[0]) for s in replay._checkpoints.values()] == originals
+
+
+==============================================================================
+tests\test_replay_canvas.py
+==============================================================================
+import json
+import random
+import shutil
+import subprocess
+
+import pytest
+
+from fortune.geometry import Box, Point, breakpoint_x, parabola_y
+from fortune.io import random_sites
+from fortune.replay import SweepReplay, stale
+from fortune.replay_canvas import build_payload, launch, write_replay
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_canvas_snapshots_are_exact_records_of_the_python_engine(seed):
+    points = random_sites(12, seed)
+    payload, _ = build_payload(points, Box(0, 0, 1, 1))
+    expected = SweepReplay(points, Box(0, 0, 1, 1), debug=True)
+    for i, state in enumerate(payload["states"]):
+        if i:
+            expected.step_event()
+        assert state["arcs"] == [arc.site for arc in expected.sweep.beach]
+        assert state["counts"] == [
+            expected.sweep.statistics[k]
+            for k in ("site_events", "circle_events", "stale_events")
+        ]
+        assert state["queued"] == len(expected.sweep.queue)
+        assert [invalid for _, invalid in state["queue"]] == [
+            stale(e) for e in expected.sweep.queue.preview(8)
+        ]
+    assert expected.done
+    assert len(payload["vertices"]) == len(expected.sweep.vertices)
+    assert [s["y"] for s in payload["states"]] == sorted(
+        (s["y"] for s in payload["states"]), reverse=True
+    )
+    json.dumps(payload, allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    "points",
+    [
+        [(0, 0)],
+        [(0, 0), (1, 0), (2, 0)],
+        [(0, 0), (0, 1), (0, 2)],
+        [(0, 0), (1, 2), (2, 4)],
+        [(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)],
+    ],
+)
+def test_canvas_minimal_collinear_cocircular_and_duplicate_inputs(points):
+    data, model = build_payload(points)
+    assert data["states"][-1]["done"] and data["cells"]
+    assert len(data["sites"]) == len(set(points))
+    assert data["special_case"] == model.special_case
+    if len(set(points)) == 4:
+        assert data["sites"][0][2] == "0/4"
+
+
+def test_canvas_export_is_self_contained_and_launch_opens_only_the_local_file(
+    monkeypatch, tmp_path
+):
+    path = tmp_path / "replay.html"
+    replay = write_replay(random_sites(8, 4), Box(0, 0, 1, 1), path)
+    text = path.read_text(encoding="utf-8")
+    assert "__FORTUNE_" not in text
+    assert "<script src=" not in text and "https://" not in text
+    assert "pointermove" in text and "requestAnimationFrame" in text
+    opened = []
+    monkeypatch.setattr(
+        "fortune.replay_canvas.webbrowser.open", lambda url: opened.append(url)
+    )
+    launch(random_sites(4, 2), output=path)
+    assert opened == [replay.path.as_uri()]
+
+
+def test_browser_presentation_geometry_matches_python():
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is only needed for the JavaScript presentation cross-check")
+    import fortune.replay_canvas as canvas
+
+    script = str(canvas.Path(canvas.__file__).with_suffix(".js"))
+    # The JS file is a renderer, not a second Fortune implementation.
+    rng = random.Random(47)
+    cases = []
+    for _ in range(100):
+        a, b = Point(rng.random(), rng.random()), Point(rng.random(), rng.random())
+        d = min(a.y, b.y) - rng.uniform(0.01, 1)
+        cases.append(([a.x, a.y], [b.x, b.y], d))
+    command = """
+const f = require(process.argv[1]);
+const cases = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+console.log(JSON.stringify(cases.map(([a,b,d]) => [
+  f.breakpointX(a,b,d), f.parabolaY(a,.31,d)
+])));
+"""
+    result = subprocess.run(
+        [node, "-e", command, script],
+        input=json.dumps(cases),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    for (a, b, d), (x, y) in zip(cases, json.loads(result.stdout)):
+        assert x == pytest.approx(
+            breakpoint_x(Point(*a), Point(*b), d), rel=1e-11, abs=1e-12
+        )
+        assert y == pytest.approx(parabola_y(Point(*a), 0.31, d), rel=1e-11, abs=1e-12)
+
+
+def test_canvas_pointer_follows_without_a_mouse_button():
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is only needed for the Canvas event test")
+    from pathlib import Path
+
+    import fortune.replay_canvas as canvas
+
+    payload, _ = build_payload(random_sites(8, 3), Box(0, 0, 1, 1))
+    result = subprocess.run(
+        [node, str(Path(__file__).with_name("canvas_pointer_check.js"))],
+        input=json.dumps(
+            {
+                "payload": payload,
+                "script": str(Path(canvas.__file__).with_suffix(".js")),
+            }
+        ),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    values = json.loads(result.stdout)
+    assert values["first"]["follow"] and values["second"]["follow"]
+    assert values["first"]["worldY"] == pytest.approx(0.9)
+    assert values["second"]["worldY"] == pytest.approx(0.2)
+    assert values["second"]["index"] > values["first"]["index"]
+
+
+==============================================================================
+tests\test_replay_view.py
+==============================================================================
+from types import SimpleNamespace
+
+import pytest
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
+from matplotlib.patches import Circle
+
+from fortune.cli import main
+from fortune.geometry import Box, Point
+from fortune.interactive import InteractiveController
+from fortune.io import random_sites
+from fortune.replay import SweepReplay
+from fortune.replay_view import PANEL_RECT, PLOT_RECT, ReplayController, draw_replay
+
+
+def controller(monkeypatch, tmp_path, points=None):
+    fig = Figure(figsize=(12, 7))
+    FigureCanvasAgg(fig)
+    # GUI coalesces draw_idle calls. Headless callbacks are checked without
+    # synchronously rasterizing every intermediate frame during these tests.
+    monkeypatch.setattr(fig.canvas, "draw_idle", lambda: None)
+    axes = fig.add_axes(PLOT_RECT)
+    panel = fig.add_axes(PANEL_RECT)
+    model = SweepReplay(points or random_sites(8, 24), Box(0, 0, 1, 1))
+    clock = SimpleNamespace(now=0.0)
+    ui = ReplayController(
+        fig, axes, panel, model, output=tmp_path / "frame.png", clock=lambda: clock.now
+    )
+    ui.test_clock = clock
+    return ui
+
+
+def test_play_pause_step_reset_keyboard_and_real_frame_export(monkeypatch, tmp_path):
+    ui = controller(monkeypatch, tmp_path)
+    assert not ui.playing and ui.model.event_count == 0
+    ui.next_event()
+    assert ui.model.event_count == 1 and not ui.playing
+    ui.key(SimpleNamespace(key=" "))
+    assert ui.playing
+    for _ in range(13):
+        ui.test_clock.now += 0.05
+        ui.tick()
+    assert ui.model.event_count >= 2
+    ui.key(SimpleNamespace(key="right"))
+    assert not ui.playing
+    ui.save_frame()
+    assert (tmp_path / "frame.png").read_bytes().startswith(b"\x89PNG")
+    assert "Saved current replay frame" in ui.status.get_text()
+    ui.key(SimpleNamespace(key="r"))
+    assert ui.model.event_count == 0 and not ui.model.processed
+    ui.toggle_play()
+    ui.close()
+    assert not ui.playing and ui.closed
+    ui.tick()
+    assert ui.model.event_count == 0
+
+
+def test_complete_replay_restarts_and_collinear_input_is_explicit(
+    monkeypatch, tmp_path
+):
+    ui = controller(monkeypatch, tmp_path)
+    while not ui.model.done:
+        ui.model.step_event()
+    ui.redraw()
+    assert "Complete" in ui.status.get_text()
+    ui.toggle_play()
+    assert ui.playing and ui.model.event_count == 0
+    ui.close()
+    line = controller(
+        monkeypatch, tmp_path, [Point(0, 0), Point(0.5, 0.5), Point(1, 1)]
+    )
+    line.toggle_play()
+    assert not line.playing and line.model.done
+    assert "Collinear" in line.status.get_text()
+    assert any("No beach-line sweep" in t.get_text() for t in line.panel.texts)
+
+
+def test_last_valid_circle_stays_visible_and_stale_queue_is_labelled(
+    monkeypatch, tmp_path
+):
+    ui = controller(monkeypatch, tmp_path)
+    for _ in range(100):
+        ui.model.step_event()
+        e = ui.model.last_event
+        if e.kind == 1 and not ui.model.last_stale and not ui.model.done:
+            break
+    else:
+        pytest.fail("Expected an intermediate valid circle event")
+    draw_replay(ui.model, ui.axes, ui.panel)
+    assert any(isinstance(p, Circle) and p.get_visible() for p in ui.axes.patches)
+    # Old predictions deliberately remain in the heap and are identified.
+    while not ui.model.done:
+        ui.redraw()
+        if any(
+            "[stale]" in t.get_text() and "Circle" in t.get_text()
+            for t in ui.panel.texts
+        ):
+            break
+        ui.model.step_event()
+    else:
+        pytest.fail("Expected stale entries in the queue view")
+
+
+def test_drawing_failure_pauses_with_an_explicit_message(monkeypatch, tmp_path):
+    ui = controller(monkeypatch, tmp_path)
+
+    def fail():
+        raise ArithmeticError("test precision limit")
+
+    monkeypatch.setattr(ui.model, "curves", fail)
+    ui.toggle_play()
+    assert not ui.playing
+    assert "Replay drawing stopped: test precision limit" == ui.status.get_text()
+
+
+def test_cli_animate_uses_seeded_sites_and_rejects_ambiguous_modes(
+    monkeypatch, tmp_path
+):
+    calls = []
+
+    def launch(sites, box, output, **kwargs):
+        calls.append((sites, box, output, kwargs))
+
+    monkeypatch.setattr("fortune.replay_view.launch", launch)
+    monkeypatch.setattr("fortune.replay_canvas.launch", launch)
+    assert main(["--animate"]) == 0
+    assert calls[0][0] == random_sites(8, 2026) and calls[0][1] == Box(0, 0, 1, 1)
+    assert (
+        main(
+            [
+                "--animate",
+                "--random",
+                "3",
+                "--seed",
+                "4",
+                "--no-labels",
+                "--output",
+                str(tmp_path / "frame.svg"),
+            ]
+        )
+        == 0
+    )
+    assert calls[-1][0] == random_sites(3, 4) and not calls[-1][3]["labels"]
+    with pytest.raises(SystemExit):
+        main(["--animate", "--interactive"])
+    with pytest.raises(SystemExit):
+        main(["--animate", "--csv", "bad.csv"])
+
+
+def test_animate_button_copies_input_without_modifying_the_current_diagram(
+    monkeypatch, tmp_path
+):
+    fig = Figure()
+    FigureCanvasAgg(fig)
+    monkeypatch.setattr(fig.canvas, "draw_idle", lambda: None)
+    parent = InteractiveController(
+        fig, fig.subplots(), output=str(tmp_path / "result.png")
+    )
+    parent.animate()
+    assert "Add at least one" in parent.status.get_text()
+    parent.sites = [Point(0.1, 0.1), Point(0.8, 0.2), Point(0.4, 0.9)]
+    parent.compute()
+    diagram = parent.diagram
+    calls = []
+
+    def launch(sites, box, output, **kwargs):
+        calls.append((output, kwargs))
+        return SimpleNamespace(model=SweepReplay(sites, box))
+
+    monkeypatch.setattr("fortune.replay_canvas.launch", launch)
+    parent.animate()
+    assert parent.diagram is diagram and len(parent.replays) == 1
+    assert calls[0][0].name == "result-replay.html" and calls[0][1]["block"] is False
+    parent.sites.append(Point(0.7, 0.7))
+    assert len(parent.replays[0].model.sites) == 3
+
+
+def test_movement_reuses_artists_and_does_not_redraw_the_figure(monkeypatch, tmp_path):
+    ui = controller(monkeypatch, tmp_path)
+    artists = tuple(ui.axes.get_children())
+    panel = tuple(ui.panel.get_children())
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Full redraw or axes reconstruction during movement")
+
+    monkeypatch.setattr(ui.figure.canvas, "draw", forbidden)
+    monkeypatch.setattr(ui.axes, "clear", forbidden)
+    monkeypatch.setattr(ui.panel, "clear", forbidden)
+    for _ in range(18):
+        ui.model.tick(4)
+        ui.redraw()
+    assert tuple(ui.axes.get_children()) == artists
+    assert tuple(ui.panel.get_children()) == panel
+
+
+def test_position_slider_dragging_and_backward_seek(monkeypatch, tmp_path):
+    ui = controller(monkeypatch, tmp_path)
+    ui.position.set_val(75)
+    count = ui.model.event_count
+    assert count > 0 and not ui.playing
+    ui.position.set_val(20)
+    assert ui.model.event_count < count
+    assert ui.model.position == pytest.approx(0.2)
+    ui.press(SimpleNamespace(inaxes=ui.axes, button=1, ydata=0.6))
+    ui.motion(SimpleNamespace(inaxes=ui.axes, ydata=0.4))
+    ui.release(SimpleNamespace(inaxes=ui.axes, ydata=0.3))
+    assert ui.model.sweep_y == pytest.approx(0.3) and not ui._dragging
+    ui.position.set_val(100)
+    assert ui.model.done
+    ui.position.set_val(0)
+    assert not ui.model.processed and ui.model.event_count == 0
+
+
+def test_resize_cache_export_and_fallback_rendering(monkeypatch, tmp_path):
+    ui = controller(monkeypatch, tmp_path)
+    ui.model.seek(0.6)
+    ui.redraw()
+    ui.figure.set_size_inches(10, 6)
+    ui.figure.canvas.draw()
+    ui.model.tick(4)
+    ui.redraw()
+    ui.save_frame()
+    assert (tmp_path / "frame.png").stat().st_size > 10000
+    assert ui._painter.base is not None
+    # Unsupported backends retain the same data using ordinary painting.
+    ui.close()
+    fig = Figure()
+    FigureCanvasAgg(fig)
+    monkeypatch.setattr(fig.canvas, "supports_blit", False)
+    other = ReplayController(
+        fig,
+        fig.add_axes(PLOT_RECT),
+        fig.add_axes(PANEL_RECT),
+        SweepReplay(random_sites(4, 4)),
+    )
+    assert not other._painter.enabled
+    other.next_event()
+    assert other.model.event_count == 1
+    other.close()
+
+
+def test_fast_interface_text_keeps_svg_text_and_multiline_rendering(tmp_path):
+    from matplotlib import rc_context
+
+    from fortune.ui_text import _bitmap, ui_text
+
+    fig = Figure(figsize=(5, 3))
+    FigureCanvasAgg(fig)
+    axes = fig.subplots()
+    axes.set_axis_off()
+    ui_text(axes, 0.1, 0.8, "Site 7\nstale: discard", fontsize=11, va="top")
+    fig.canvas.draw()
+    hits = _bitmap.cache_info().hits
+    fig.canvas.draw()
+    assert _bitmap.cache_info().hits > hits
+    assert _bitmap.cache_info().maxsize == 256
+    with rc_context({"svg.fonttype": "none"}):
+        fig.savefig(tmp_path / "text.svg")
+    content = (tmp_path / "text.svg").read_text(encoding="utf-8")
+    assert "Site 7" in content and "stale: discard" in content
+    assert "<image" not in content
+
+
+==============================================================================
 tests\validation.py
 ==============================================================================
 """Independent O(n) / O(n^2) validators; never imported by the algorithm."""
@@ -2414,27 +4881,204 @@ def validate_empty_circles(diagram):
 
 
 ==============================================================================
+tools\audit_report.py
+==============================================================================
+"""Check the compiled report and optionally render numbered pages for visual QA."""
+
+import argparse
+import hashlib
+import importlib.metadata
+import io
+import json
+import re
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from pypdf import PdfReader
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--render", action="store_true")
+    parser.add_argument("--dpi", type=int, default=105)
+    args = parser.parse_args()
+    pdf = ROOT / "report/report.pdf"
+    reader = PdfReader(pdf)
+    aux = (ROOT / "tmp/latex-build/report.aux").read_text(encoding="utf-8")
+    labels = {
+        name: (number, int(page))
+        for name, number, page in re.findall(
+            r"\\newlabel\{([^}]+)\}\{\{([^}]+)\}\{(\d+)\}", aux
+        )
+    }
+    body = labels["last-main-page"][1]
+    text = [page.extract_text() for page in reader.pages]
+    fonts = {}
+    for page in reader.pages:
+        resources = page["/Resources"]
+        font_refs = resources.get("/Font")
+        if font_refs is None:
+            continue
+        for ref in font_refs.get_object().values():
+            font = ref.get_object()
+            children = font.get("/DescendantFonts", [font])
+            for child in children:
+                obj = child.get_object()
+                descriptor = obj.get("/FontDescriptor", {})
+                if hasattr(descriptor, "get_object"):
+                    descriptor = descriptor.get_object()
+                embedded = any(
+                    k in descriptor for k in ("/FontFile", "/FontFile2", "/FontFile3")
+                )
+                fonts[str(obj.get("/BaseFont", font.get("/BaseFont")))] = embedded
+    all_a4 = all(
+        all(
+            abs(a - b) < 1
+            for a, b in zip(
+                sorted(map(float, (p.mediabox.width, p.mediabox.height))),
+                [595.276, 841.890],
+            )
+        )
+        for p in reader.pages
+    )
+    unresolved = bool(re.search(r"\?\?|\b(?:TODO|TBD|PLACEHOLDER)\b", "\n".join(text)))
+    build = json.loads((ROOT / "evidence/report-build.json").read_text())
+    from PIL import Image
+
+    embedded_images = set()
+    for page in reader.pages:
+        for item in page.images:
+            stream = item.indirect_reference.get_object()
+            # The high-level extractor can re-encode JPEGs. Decode the original
+            # DCT stream to compare original pixels without another lossy save.
+            if str(stream.get("/Filter")) == "/DCTDecode":
+                picture = Image.open(io.BytesIO(stream.get_data())).convert("RGB")
+            else:
+                picture = item.image.convert("RGB")
+            embedded_images.add(
+                (picture.size, hashlib.sha256(picture.tobytes()).hexdigest())
+            )
+    screenshot_names = (
+        "gui-native.png",
+        "ai-interaction-1.png",
+        "pi-environment.png",
+        "pi-interaction-invariants.png",
+        "ai-interaction-2.png",
+        "pi-tiny-cell-code-continuation.png",
+        "pi-interaction-tests.png",
+        "pi-tests-summary.png",
+        "canvas-preview.jpg",
+    )
+    screenshot_matches = {}
+    for name in screenshot_names:
+        with Image.open(ROOT / "evidence" / name) as original:
+            picture = original.convert("RGB")
+            key = (picture.size, hashlib.sha256(picture.tobytes()).hexdigest())
+            screenshot_matches[name] = key in embedded_images
+    summary = dict(
+        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        report_engine="LuaLaTeX",
+        pdf_sha256=hashlib.sha256(pdf.read_bytes()).hexdigest(),
+        pages=len(reader.pages),
+        main_body_pages=body,
+        section_pages={k: v[1] for k, v in labels.items() if k.startswith("sec:")},
+        counts={
+            prefix: sum(k.startswith(prefix + ":") for k in labels)
+            for prefix in ("fig", "tab", "eq", "lst")
+        },
+        a4_all_pages=all_a4,
+        body_font="Times New Roman 12 pt",
+        body_spacing="1.5 (setspace onehalfspacing)",
+        code_font="Courier New 9.5 pt; line numbers 9 pt",
+        fonts_embedded=fonts,
+        searchable_text=all(len(t.strip()) > 10 for t in text),
+        unresolved_placeholders=unresolved,
+        overflow_warnings=build["overfull_box_warnings"],
+        owner_review_complete=json.loads((ROOT / "owner-metadata.json").read_text())[
+            "owner_review_complete"
+        ],
+        source="report/report.tex",
+        editable_sections=len(list((ROOT / "report/sections").glob("*.tex"))),
+        bibliography_style="IEEE numbered (ieeetr)",
+        bibliography_entries=len(re.findall(r"\\bibcite\{", aux)),
+        embedded_screenshots_match_original_pixels=screenshot_matches,
+        visual_review="Pending inspection of the newly rendered pages",
+    )
+    if args.render:
+        import pypdfium2 as pdfium
+        from PIL import Image, ImageDraw
+
+        stamp = datetime.now(timezone(timedelta(hours=8)))
+        out = ROOT / "tmp" / stamp.strftime("report-pages-%Y%m%d-%H%M%S")
+        out.mkdir(parents=True, exist_ok=False)
+        document = pdfium.PdfDocument(str(pdf))
+        thumbs = []
+        for index in range(len(document)):
+            page = document[index]
+            bitmap = page.render(scale=args.dpi / 72)
+            im = bitmap.to_pil().convert("RGB")
+            im.save(out / f"page-{index + 1:02d}.png")
+            im.thumbnail((420, 595), Image.Resampling.LANCZOS)
+            thumb = Image.new("RGB", (440, 630), "#e4e7eb")
+            ImageDraw.Draw(thumb).text((10, 6), f"PDF page {index + 1}", fill="black")
+            thumb.paste(im, ((440 - im.width) // 2, 27))
+            thumbs.append(thumb)
+            bitmap.close()
+            page.close()
+        document.close()
+        for first in range(0, len(thumbs), 6):
+            sheet = Image.new("RGB", (880, 1890), "#d4d9df")
+            for offset, thumb in enumerate(thumbs[first : first + 6]):
+                sheet.paste(thumb, ((offset % 2) * 440, (offset // 2) * 630))
+            sheet.save(out / f"contact-{first // 6 + 1:02d}.png")
+        summary["render_dpi"] = args.dpi
+        summary["render_directory"] = str(out.relative_to(ROOT)).replace("\\", "/")
+        summary["renderer"] = "pypdfium2 " + importlib.metadata.version("pypdfium2")
+    assert body >= 10 and all_a4 and all(fonts.values())
+    assert summary["searchable_text"] and not unresolved
+    assert summary["overflow_warnings"] == 0
+    assert all(screenshot_matches.values()), screenshot_matches
+    for name in ("report-audit.json", "report-latex-audit.json", "report-layout.json"):
+        (ROOT / "evidence" / name).write_text(
+            json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+        )
+    print(
+        json.dumps(
+            {k: v for k, v in summary.items() if k != "fonts_embedded"}, indent=2
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
 tools\benchmark.py
 ==============================================================================
 """Reproducible timing plus isolated Python-allocation/Windows RSS measurements."""
+# ruff: noqa: E402
+# Standalone execution sets the project source path before local imports.
 
 import argparse
 import csv
 import ctypes
 import gc
 import json
-from pathlib import Path
 import platform
 import statistics
 import subprocess
 import sys
 import time
 import tracemalloc
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from fortune import construct, Box
+from fortune import Box, construct
 from fortune.io import random_sites
 
 
@@ -2685,6 +5329,10 @@ def source_listing():
     paths = []
     for directory in ("src", "tests", "tools"):
         paths.extend((ROOT / directory).rglob("*.py"))
+    # The browser renderer is part of the editable implementation, too.
+    paths.extend((ROOT / "src/fortune").glob("*.html"))
+    paths.extend((ROOT / "src/fortune").glob("*.js"))
+    paths.extend((ROOT / "tests").glob("*.js"))
     paths.extend(ROOT.glob("*.bat"))
     paths.extend(ROOT.glob("*.sh"))
     paths.extend((ROOT / "tools").rglob("*.sh"))
@@ -2841,13 +5489,13 @@ tools\clean_check.py
 ==============================================================================
 """Install and verify a clean Windows source copy without sharing its environment."""
 
-from pathlib import Path
 import json
 import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -2951,10 +5599,10 @@ Usage: python tools/commit_milestone.py DATE MESSAGE -- path ...
 Repository identity must already be configured locally. No remote is contacted.
 """
 
-from datetime import date
 import os
 import subprocess
 import sys
+from datetime import date
 
 
 def main():
@@ -3194,6 +5842,124 @@ if __name__ == "__main__":
 
 
 ==============================================================================
+tools\make_replay_example.py
+==============================================================================
+"""Generate a real replay frame and optional GIF for reviewing the feature branch."""
+# ruff: noqa: E402
+
+import argparse
+import json
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
+from PIL import Image
+
+from fortune.geometry import Box
+from fortune.io import read_sites
+from fortune.replay import SweepReplay
+from fortune.replay_view import PANEL_RECT, PLOT_RECT, draw_replay
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, default=ROOT / "examples/sites.txt")
+    parser.add_argument(
+        "--gif", action="store_true", help="Also write the offline GIF preview"
+    )
+    args = parser.parse_args()
+    model = SweepReplay(read_sites(args.input), Box(0, 0, 1, 1))
+    fig = Figure(figsize=(12, 7), dpi=80)
+    canvas = FigureCanvasAgg(fig)
+    axes = fig.add_axes(PLOT_RECT)
+    panel = fig.add_axes(PANEL_RECT)
+    status = fig.text(
+        0.07,
+        0.05,
+        "Program-generated replay preview | same event engine as the app",
+        fontsize=10,
+    )
+    frames = []
+    selected = None
+    png = ROOT / "examples/sweep-replay.png"
+    gif = ROOT / "examples/sweep-replay.gif"
+
+    def render_frame():
+        draw_replay(model, axes, panel)
+        status.set_text(
+            f"Replay | {model.event_count} heap entries processed | sweep y = {model.sweep_y:.4g}"
+        )
+        if args.gif:
+            canvas.draw()
+            im = Image.frombuffer(
+                "RGBA",
+                canvas.get_width_height(),
+                canvas.buffer_rgba(),
+                "raw",
+                "RGBA",
+                0,
+                1,
+            )
+            frames.append(
+                im.convert("RGB").convert(
+                    "P", palette=Image.Palette.ADAPTIVE, colors=192
+                )
+            )
+
+    render_frame()
+    while not model.done:
+        event = model.tick(2)
+        render_frame()
+        if (
+            selected is None
+            and event
+            and event.kind == 1
+            and not model.last_stale
+            and not model.done
+        ):
+            fig.savefig(png, dpi=160)
+            selected = dict(
+                event_count=model.event_count,
+                site_events=model.sweep.statistics["site_events"],
+                circle_events=model.sweep.statistics["circle_events"],
+                sweep_y=model.sweep_y,
+            )
+    if selected is None:
+        fig.savefig(png, dpi=160)
+    if args.gif:
+        durations = [180] * len(frames)
+        durations[0] = 700
+        durations[-1] = 1500
+        frames[0].save(
+            gif, save_all=True, append_images=frames[1:], duration=durations, loop=0
+        )
+    meta = dict(
+        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        input=str(args.input.relative_to(ROOT))
+        if args.input.is_relative_to(ROOT)
+        else args.input.name,
+        generated_by="tools/make_replay_example.py using actual SweepReplay state",
+        png="examples/sweep-replay.png",
+        selected_frame=selected,
+        gif="examples/sweep-replay.gif" if args.gif else None,
+        frames=len(frames),
+    )
+    (ROOT / "evidence/animation-preview.json").write_text(
+        json.dumps(meta, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(meta, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
 tools\package_project.py
 ==============================================================================
 """Assemble the requested review ZIP without including environments or credentials."""
@@ -3217,9 +5983,14 @@ Install Python 3.12+ x64 (3.14.7 was tested) with Python on PATH.
 Open 02_SourceCode and run install.bat once, then:
   run.bat --input examples\sites.txt --bbox 0 0 1 1 --output output\demo.png --csv output\cells.csv --json output\diagram.json
   run.bat --interactive
+  run.bat --animate --input examples\sites.txt --bbox 0 0 1 1
   test.bat -q
 The launcher 03_Executable\run.bat calls the same source implementation.
 Internet is required for the first pinned dependency installation.
+Animate opens an offline pointer-controlled browser replay (up to 200 distinct
+sites). Hover moves the sweep line; click freezes/resumes it. The saved history
+is separate from ordinary batch construction. Node.js is optional for two
+JavaScript validation tests and is not needed to run the program or viewer.
 
 REPRODUCE RESULTS FROM 02_SourceCode
   .venv\Scripts\python tools\stress.py
@@ -3291,6 +6062,7 @@ def main():
                 continue
             if path.is_file() and not any(
                 p in ("__pycache__", ".pytest_cache", ".venv", "tmp")
+                or p.endswith(".egg-info")
                 for p in path.parts
             ):
                 copy(path, Path(relative) / path.relative_to(source))
@@ -3336,6 +6108,8 @@ def main():
         "pi-tiny-cell-code-continuation.png",
         "pi-interaction-tests.png",
         "pi-tests-summary.png",
+        "canvas-preview.jpg",
+        "canvas-export.png",
     ):
         copy(ROOT / "evidence" / name, Path("01_Report/figures") / name)
     tree(ROOT / "tests", "tests")
@@ -3351,7 +6125,7 @@ def main():
     )
     write(
         "03_Executable/README.txt",
-        "Windows entry point: run.bat --interactive or run.bat --input examples\\sites.txt --output output\\demo.png --csv output\\cells.csv. Dependencies install into 02_SourceCode/.venv on first use. Read the root README.txt.\n",
+        "Windows entry point: run.bat --interactive, run.bat --animate, or run.bat --input examples\\sites.txt --output output\\demo.png --csv output\\cells.csv. Dependencies install into 02_SourceCode/.venv on first use. Read the root README.txt.\n",
     )
     try:
         revision = subprocess.check_output(
@@ -3391,19 +6165,62 @@ def main():
         "01_Report/preamble.tex",
         "01_Report/references.bib",
         "01_Report/sections/01-introduction.tex",
+        "01_Report/sections/appendix-c.tex",
+        "01_Report/figures/canvas-preview.jpg",
         "02_SourceCode/src/fortune/sweep.py",
+        "02_SourceCode/src/fortune/replay_canvas.py",
+        "02_SourceCode/src/fortune/replay_canvas.html",
+        "02_SourceCode/src/fortune/replay_canvas.js",
+        "02_SourceCode/tools/verify_package.py",
         "03_Executable/run.bat",
         "04_Demo/script.md",
+        "04_Demo/recording-checklist.md",
+        "04_Demo/examples/sweep-pointer-replay.html",
         "tests/test_diagram.py",
         "README.txt",
         "devlog.md",
     ]
-    missing = [p for p in required if not (stage / p).is_file()]
+    staged_names = {p.relative_to(stage).as_posix() for p in files}
+    missing = [p for p in required if p not in staged_names]
     owner = dict(
         subscription_plan=bool(metadata.get("subscription_plan")),
         ai_screenshot_1=(ROOT / "evidence" / "ai-interaction-1.png").is_file(),
         ai_screenshot_2=(ROOT / "evidence" / "ai-interaction-2.png").is_file(),
         narrated_recording=(ROOT / "demo" / "walkthrough.mp4").is_file(),
+    )
+    verified = ROOT / "evidence/package-verification.json"
+    runtime_check = dict(matches_tested_payload=False, compared_files=0)
+    if verified.is_file():
+        record = json.loads(verified.read_text(encoding="utf-8"))
+        expected = record.get("source_and_test_sha256", {})
+        changed = [
+            name
+            for name, expected_hash in expected.items()
+            if not (stage / "02_SourceCode" / name).is_file()
+            or hashlib.sha256((stage / "02_SourceCode" / name).read_bytes()).hexdigest()
+            != expected_hash
+        ]
+        runtime_check = dict(
+            matches_tested_payload=bool(expected) and not changed,
+            compared_files=len(expected),
+            changed_files=changed,
+            installed_tests_passed=record.get("tests_passed"),
+            installed_module_assertions=record.get(
+                "all_tested_fortune_modules_installed", False
+            ),
+            verification_record="02_SourceCode/evidence/package-verification.json",
+        )
+    report_audit = json.loads(
+        (ROOT / "evidence/report-audit.json").read_text(encoding="utf-8")
+    )
+    report_hash = hashlib.sha256(
+        (stage / "01_Report/report.pdf").read_bytes()
+    ).hexdigest()
+    report_check = dict(
+        matches_audited_pdf=report_hash == report_audit.get("pdf_sha256"),
+        sha256=report_hash,
+        pages=report_audit.get("pages"),
+        body_pages=report_audit.get("main_body_pages"),
     )
     manifest = dict(
         generated_at=datetime.now(timezone(timedelta(hours=8))).isoformat(),
@@ -3413,8 +6230,13 @@ def main():
         ai_artifacts_present=not missing,
         owner_evidence_present=owner,
         owner_review_required=not metadata.get("owner_review_complete", False),
+        runtime_verification=runtime_check,
+        report_verification=report_check,
         complete_against_reference=not missing
         and all(owner.values())
+        and runtime_check["matches_tested_payload"]
+        and runtime_check.get("installed_module_assertions", False)
+        and report_check["matches_audited_pdf"]
         and metadata.get("owner_review_complete", False),
         note="Review copy; file presence alone does not verify video duration, narration or screenshot authenticity.",
     )
@@ -3459,6 +6281,212 @@ if __name__ == "__main__":
 
 
 ==============================================================================
+tools\profile_replay.py
+==============================================================================
+"""Reproduce replay rendering CPU measurements; these are not desktop FPS."""
+# ruff: noqa: E402
+
+import argparse
+import cProfile
+import io
+import json
+import platform
+import pstats
+import statistics
+import sys
+import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
+
+from fortune.geometry import Box
+from fortune.io import random_sites
+from fortune.replay import SweepReplay
+from fortune.replay_view import PANEL_RECT, PLOT_RECT, ReplayController
+
+
+def make_controller(n, *, comparison_rects=False):
+    fig = Figure(figsize=(12, 7))
+    FigureCanvasAgg(fig)
+    plot = (0.07, 0.22, 0.58, 0.69) if comparison_rects else PLOT_RECT
+    panel = (0.71, 0.25, 0.27, 0.64) if comparison_rects else PANEL_RECT
+    return ReplayController(
+        fig,
+        fig.add_axes(plot),
+        fig.add_axes(panel),
+        SweepReplay(random_sites(n, 2026), Box(0, 0, 1, 1)),
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "results/animation-preview/render-after.json",
+    )
+    args = parser.parse_args()
+    profiler = cProfile.Profile()
+    rows = []
+    for n in (9, 50):
+        ui = make_controller(n, comparison_rects=True)
+        ui.redraw()
+        geometry = []
+        paint = []
+        for _ in range(48):
+            start = time.perf_counter()
+            ui.model.tick(5)
+            geometry.append(time.perf_counter() - start)
+            start = time.perf_counter()
+            if n == 9:
+                profiler.enable()
+            ui.redraw()
+            if n == 9:
+                profiler.disable()
+            paint.append(time.perf_counter() - start)
+        rows.append(
+            dict(
+                sites=n,
+                frames=48,
+                median_geometry_ms=1000 * statistics.median(geometry),
+                median_redraw_ms=1000 * statistics.median(paint),
+                p95_redraw_ms=1000 * sorted(paint)[45],
+                median_frame_ms=1000
+                * statistics.median([a + b for a, b in zip(geometry, paint)]),
+            )
+        )
+        ui.close()
+    scrub = []
+    for n in (9, 50, 200):
+        ui = make_controller(n)
+        samples = []
+        for position in (70, 20, 85, 35, 90, 45, 95, 60, 30, 80):
+            start = time.perf_counter()
+            ui.position.set_val(position)
+            samples.append(time.perf_counter() - start)
+        scrub.append(
+            dict(
+                sites=n,
+                samples=len(samples),
+                median_ms=1000 * statistics.median(samples),
+                max_ms=1000 * max(samples),
+            )
+        )
+        ui.close()
+    stream = io.StringIO()
+    pstats.Stats(profiler, stream=stream).strip_dirs().sort_stats(
+        "cumulative"
+    ).print_stats(20)
+    result = dict(
+        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        python=sys.version,
+        platform=platform.platform(),
+        scope="Same 1200x700 Agg canvas, inputs, 48-frame sequence and axes geometry as render-before.json; CPU rendering, not end-to-end desktop FPS. Nine-site measurements include cProfile overhead in both versions; 50-site measurements are unprofiled.",
+        results=rows,
+        position_scrubbing=scrub,
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    args.output.with_suffix(".profile.txt").write_text(
+        stream.getvalue(), encoding="utf-8"
+    )
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
+tools\profile_replay_tk.py
+==============================================================================
+"""Measure the actual Tk playback timer and canvas on this desktop."""
+# ruff: noqa: E402
+
+import json
+import statistics
+import sys
+import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+import matplotlib
+
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
+
+from fortune.geometry import Box
+from fortune.io import random_sites
+from fortune.replay_view import launch
+
+
+def main():
+    ui = launch(
+        random_sites(50, 2026),
+        Box(0, 0, 1, 1),
+        ROOT / "examples/sweep-replay-live.png",
+        block=False,
+    )
+    starts = []
+    draws = []
+    ui.timer.remove_callback(ui.tick)
+
+    def measured_tick():
+        start = time.perf_counter()
+        ui.tick()
+        draws.append(time.perf_counter() - start)
+        starts.append(start)
+
+    ui.timer.add_callback(measured_tick)
+    root = ui.figure.canvas.get_tk_widget().winfo_toplevel()
+    result = {}
+
+    def finish():
+        ui.pause()
+        intervals = [b - a for a, b in zip(starts, starts[1:])]
+        if intervals:
+            result.update(
+                actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+                sites=50,
+                backend=matplotlib.get_backend(),
+                callbacks=len(starts),
+                observed_window_seconds=8.0,
+                median_callback_interval_ms=1000 * statistics.median(intervals),
+                median_callback_rate_hz=1 / statistics.median(intervals),
+                median_tick_render_ms=1000 * statistics.median(draws),
+                p95_tick_render_ms=1000 * sorted(draws)[int(0.95 * (len(draws) - 1))],
+                scope="Actual visible Tk window, timer callbacks and blit submission; not a measurement of display scanout.",
+                event_count=ui.model.event_count,
+            )
+            ui.save_frame()
+        ui.close()
+        plt.close(ui.figure)
+
+    root.after(250, ui.toggle_play)
+    root.after(8250, finish)
+    plt.show()
+    if not result:
+        raise RuntimeError(
+            "Native playback was interrupted before measurements completed"
+        )
+    (ROOT / "results/animation-preview/render-tk.json").write_text(
+        json.dumps(result, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+
+
+==============================================================================
 tools\stress.py
 ==============================================================================
 """Independent stress validation, including every 10,000-site circle vertex.
@@ -3466,20 +6494,23 @@ tools\stress.py
 NumPy is used only as a validation utility to accelerate brute-force distance
 scans. It is not imported by the Fortune construction engine.
 """
+# ruff: noqa: E402
+# Standalone execution sets the project source/test paths before local imports.
 
 import argparse
 import json
-from pathlib import Path
 import random
 import sys
 import time
 import traceback
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 import numpy as np
-from fortune import construct, Box
 from validation import validate_cells, validate_empty_circles
+
+from fortune import Box, construct
 
 
 def check_all_vertices(diagram):
@@ -3560,4 +6591,254 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+==============================================================================
+tools\verify_package.py
+==============================================================================
+"""Verify a delivered ZIP in a fresh Windows environment, retaining real logs."""
+
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from zipfile import ZipFile
+
+ROOT = Path(__file__).resolve().parents[1]
+
+# Load Fortune before pytest and verify every loaded submodule's actual location.
+INSTALLED_TEST_RUNNER = """
+from pathlib import Path
+import sys
+import fortune
+import pytest
+folder = Path(fortune.__file__).resolve().parent
+assert "site-packages" in str(folder), folder
+print("Tested installed package:", folder)
+result = pytest.main(sys.argv[1:])
+modules = {name: Path(module.__file__).resolve()
+           for name, module in sys.modules.items()
+           if name == "fortune" or name.startswith("fortune.")}
+assert modules and all(path.is_relative_to(folder) for path in modules.values()), modules
+print("All loaded Fortune modules came from the installed package:", len(modules))
+raise SystemExit(result)
+"""
+
+
+def installed_test_command(python, junit):
+    return [
+        str(python),
+        "-I",
+        "-c",
+        INSTALLED_TEST_RUNNER,
+        "-c",
+        "pytest-package.ini",
+        "tests",
+        "-q",
+        "--basetemp",
+        "pytest-temp",
+        "--junitxml",
+        str(junit),
+    ]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("archive", type=Path)
+    args = parser.parse_args()
+    archive = args.archive.resolve()
+    if os.name != "nt":
+        parser.error("This check exercises the delivered Windows launcher.")
+    stamp = datetime.now(timezone(timedelta(hours=8)))
+    target = (ROOT / "tmp" / stamp.strftime("package-check-%Y%m%d-%H%M%S")).resolve()
+    assert target.is_relative_to((ROOT / "tmp").resolve())
+    target.mkdir(parents=True, exist_ok=False)
+    log = ROOT / "evidence/package-verification.log"
+    log.write_text("", encoding="utf-8")
+    with ZipFile(archive) as bundle:
+        if bundle.testzip() is not None:
+            raise RuntimeError("Archive CRC verification failed")
+        for name in bundle.namelist():
+            if not (target / name).resolve().is_relative_to(target):
+                raise RuntimeError(f"Unsafe archive member: {name}")
+        bundle.extractall(target)
+    source = target / "02_SourceCode"
+    temporary = target / "temporary"
+    temporary.mkdir()
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env["TEMP"] = env["TMP"] = str(temporary)
+    env["MPLBACKEND"] = "Agg"
+    env["MPLCONFIGDIR"] = str(target / "mplconfig")
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    def run(name, command, *, cwd=source):
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            env=env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=600,
+            check=False,
+        )
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write(f"=== {name} ===\n{result.stdout}\n")
+        print(f"{name}: exit {result.returncode}", flush=True)
+        if result.returncode:
+            raise RuntimeError(f"{name} failed; inspect {log}")
+        return result.stdout
+
+    python = source / ".venv/Scripts/python.exe"
+    run(
+        "new isolated environment",
+        [sys.executable, "-m", "venv", str(source / ".venv")],
+    )
+    run(
+        "pinned dependencies",
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "-q",
+            "-r",
+            "requirements.txt",
+        ],
+    )
+    run(
+        "install delivered package",
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "-q",
+            "--no-deps",
+            ".",
+        ],
+    )
+    installed = run(
+        "isolated import and Canvas assets",
+        [
+            str(python),
+            "-I",
+            "-c",
+            (
+                "from pathlib import Path; import fortune; "
+                "from fortune.replay_canvas import write_replay; "
+                "folder=Path(fortune.__file__).parent; "
+                "assert 'site-packages' in str(folder); "
+                "assert (folder/'replay_canvas.html').is_file(); "
+                "assert (folder/'replay_canvas.js').is_file(); "
+                "r=write_replay([(0,0),(1,0),(0.5,1)], output='clean-replay.html'); "
+                "text=r.path.read_text(encoding='utf-8'); "
+                "assert '<canvas' in text and '__FORTUNE_DATA__' not in text; "
+                "print(fortune.__file__)"
+            ),
+        ],
+    ).strip()
+    # Block ancestor configuration discovery, including the primary checkout's
+    # pythonpath option when an archive is extracted beneath that checkout.
+    (target / "pytest-package.ini").write_text(
+        "[pytest]\naddopts = -ra\n", encoding="utf-8"
+    )
+    run(
+        "delivered independent test suite",
+        installed_test_command(python, ROOT / "evidence/package-tests.xml"),
+        cwd=target,
+    )
+    run(
+        "03_Executable batch launcher",
+        [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "03_Executable\\run.bat",
+            "--input",
+            "examples\\sites.txt",
+            "--bbox",
+            "0",
+            "0",
+            "1",
+            "1",
+            "--output",
+            "output\\package.png",
+            "--csv",
+            "output\\package.csv",
+            "--json",
+            "output\\package.json",
+        ],
+        cwd=target,
+    )
+    for name in ("package.png", "package.csv", "package.json"):
+        if (source / "output" / name).stat().st_size <= 0:
+            raise RuntimeError(f"Empty batch output: {name}")
+    tree = ET.parse(ROOT / "evidence/package-tests.xml")
+    cases = list(tree.iter("testcase"))
+    failures = sum(len(list(tree.iter(tag))) for tag in ("failure", "error"))
+    skipped = len(list(tree.iter("skipped")))
+    if failures:
+        raise RuntimeError("Delivered tests failed")
+    hashes = {
+        str(p.relative_to(source)).replace("\\", "/"): hashlib.sha256(
+            p.read_bytes()
+        ).hexdigest()
+        for folder in ("src/fortune", "tests")
+        for p in sorted((source / folder).rglob("*"))
+        if p.is_file() and "__pycache__" not in p.parts
+    }
+    for name in (
+        "pyproject.toml",
+        "requirements.txt",
+        "run.bat",
+        "test.bat",
+        "install.bat",
+        "run.sh",
+    ):
+        hashes[name] = hashlib.sha256((source / name).read_bytes()).hexdigest()
+    summary = dict(
+        status="passed",
+        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
+        archive=archive.name,
+        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+        extracted_to=str(target),
+        separate_environment=True,
+        installed_import=installed,
+        installed_import_isolated=True,
+        pytest_configuration_isolated=True,
+        all_tested_fortune_modules_installed=True,
+        canvas_assets_and_offline_export="passed",
+        delivered_windows_launcher="passed",
+        tests_passed=len(cases) - skipped,
+        tests_skipped=skipped,
+        test_failures=failures,
+        source_and_test_sha256=hashes,
+        source_hash_scope="Delivered src/fortune, tests, package configuration and launchers; excludes generated egg-info and caches",
+        log="evidence/package-verification.log",
+        junit="evidence/package-tests.xml",
+    )
+    (ROOT / "evidence/package-verification.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+    print(
+        json.dumps(
+            {k: v for k, v in summary.items() if k != "source_and_test_sha256"},
+            indent=2,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
 

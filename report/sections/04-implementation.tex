@@ -25,7 +25,7 @@ self.schedule(left)
 self.schedule(right)
 \end{lstlisting}
 
-AI-generated code was integrated incrementally. Geometry first passed ten tests, then geometry plus AVL operations passed seventeen. Queue, detection, triangle and cocircular-square checks raised the total to twenty-one. The larger validation suite then contradicted the apparent success of these examples. That failure prompted changes to clipping and numerical construction rather than a claim that the first implementation was complete.
+AI-generated code was integrated incrementally: geometry passed ten tests, geometry plus AVL operations seventeen, and queue/circle examples twenty-one. The first complete cell suite then produced three genuine failures. Independent checks prompted corrections to clipping and numerical construction, documented in Section~\ref{sec:6}.
 
 The snippets above are excerpts from the actual source. Complete editable modules and a companion source listing are included in the package. No public implementation was copied into the algorithmic core.
 
@@ -35,13 +35,17 @@ The file parser accepts one whitespace- or comma-separated pair per line, ignore
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.92\linewidth,height=0.59\textheight,keepaspectratio]{gui-native.png}
+\includegraphics[width=0.92\linewidth,height=0.55\textheight,keepaspectratio]{gui-native.png}
 \caption{Native Windows interface after a successful five-site export.}
 \label{fig:4}
 \end{figure}
 
-The interface provides click insertion, double-click or Compute, Clear and Export. Callback tests exercise insertion, computation, clearing and output without relying on physical mouse timing. A native Tk window was also observed and its Export control produced PNG, CSV and JSON files. Figure~\ref{fig:4} is a real window capture, not a redrawn mockup. The five-site state in that capture is retained in \path{examples/interactive.json}.
+The interface supports click insertion, Compute, Clear, Export and Animate. Callback tests exercise input and output; native Export produced PNG, CSV and JSON. Figure~\ref{fig:4} is a real capture of the earlier interface, before Animate was added. Its five-site state is retained in \path{examples/interactive.json}.
 
-Each CSV row gives one ordered vertex and the next endpoint, so closure is explicit. It also identifies the neighbouring site or box boundary and records line/ray information. JSON includes defining sites for vertices and ray origins/directions. Static rendering can use an off-screen backend; interactive rendering needs a working GUI backend \cite{matplotlibbackends}.
+CSV rows give ordered vertices, next endpoints, neighbours and ray information. JSON includes defining sites and ray origins/directions. Static rendering supports an off-screen backend; interactive rendering needs a GUI backend \cite{matplotlibbackends}.
 
-Genuine AI review captures in Appendix~\ref{sec:b} connect the arc/event invariants, the retained tiny-cell failure and its correction to the actual source. They also show a separate Pi test run.
+\subsection{Pointer-Controlled Sweep Replay}
+
+Animate, or \code{--animate}, exports offline HTML. Python records live arc orders, queue previews, stale flags and edges from \code{FortuneSweep.step()}. Pointer movement selects a state by binary search; Canvas draws its parabolas as quadratic Bezier curves without rerunning Fortune. Play and Next event expose the same sequence. Appendix~\ref{sec:c} provides the capture and measurements.
+
+The educational history can occupy $O(n^2)$ space and is capped at 200 distinct sites. It is excluded from ordinary $O(n\log n)$ construction benchmarks. The viewer explicitly identifies the production sorted-neighbour special case for collinear/minimal inputs.

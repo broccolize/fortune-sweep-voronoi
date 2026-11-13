@@ -23,7 +23,9 @@ def main(argv=None):
     parser.add_argument(
         "--bbox", type=float, nargs=4, metavar=("XMIN", "YMIN", "XMAX", "YMAX")
     )
-    parser.add_argument("--output", help="PNG or SVG image path")
+    parser.add_argument(
+        "--output", help="Batch PNG/SVG path, or standalone HTML with Canvas --animate"
+    )
     parser.add_argument(
         "--csv", help="Ordered cell boundaries and explicit clipped-edge records"
     )
@@ -72,7 +74,7 @@ def main(argv=None):
         if args.animate:
             if args.csv or args.json_path:
                 parser.error(
-                    "Use batch mode for CSV/JSON; replay --output saves the current frame."
+                    "Use batch mode for CSV/JSON; Canvas replay --output saves HTML."
                 )
             if args.animation_backend == "canvas":
                 from .replay_canvas import launch

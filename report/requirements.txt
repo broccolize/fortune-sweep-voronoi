@@ -1,3 +1,4 @@
 # Optional Python dependencies for PDF auditing; LaTeX compilation uses stdlib.
 pypdf==6.21.4
+pypdfium2==5.13.0
 Pillow==13.0.0

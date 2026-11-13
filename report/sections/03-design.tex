@@ -2,7 +2,7 @@
 \section{Algorithm Design and Data Structures}
 \label{sec:3}
 
-The architecture separates construction from validation and presentation. Geometry, event management and the AVL tree use the Python standard library. Matplotlib and its numerical dependencies are used for drawing, not for a hidden Voronoi core. The validators live under tests and are never called to construct cells.
+The architecture separates construction from validation and presentation. Geometry, event management and the AVL tree use the Python standard library. Matplotlib draws the static diagrams and point-entry interface; an offline browser Canvas presents the sweep replay. Neither renderer supplies a Voronoi core. The validators live under tests and are never called to construct cells.
 
 \begin{figure}[!htbp]
 \centering
@@ -25,6 +25,7 @@ The architecture separates construction from validation and presentation. Geomet
 \path{sweep.py} & Site splits, arc removal, vertices and traced edges \\
 \path{clipping.py} and \path{diagram.py} & Neighbour constraints and ordered clipped cells \\
 \path{io.py}, \path{cli.py}, \path{visualize.py} & Inputs, exports, batch and interactive display \\
+\path{replay.py} and \path{replay_canvas.py} & Real event stepping and offline replay export \\
 \bottomrule
 \end{tabularx}
 \end{table}

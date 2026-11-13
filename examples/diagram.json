@@ -58,8 +58,8 @@
     "cells": 9,
     "vertices": 10,
     "edges": 16,
-    "sweep_seconds": 0.0017102000419981778,
-    "construction_seconds": 0.0031196000054478645
+    "sweep_seconds": 0.0036432999768294394,
+    "construction_seconds": 0.006846000032965094
   },
   "cells": [
     {

@@ -1,9 +1,7 @@
 # Fortune Sweep Voronoi
 
-> Optional preview branch: **codex/sweep-animation**. Pointer-following Canvas
-> replay is available with `run.bat --animate`; see [the feature notes](docs/animation.md).
-> The main project, report and submission ZIP are unchanged. The report copied
-> into this branch is the baseline, pending a decision to include the feature.
+Pointer-following sweep replay is included in **main**. Run `run.bat --animate`
+or use Animate in the point-entry window. See [the viewer guide](docs/animation.md).
 
 From-scratch Python implementation of Fortune's sweep-line algorithm, with an
 AVL beach line, lazy circle-event invalidation, clipped ordered cells, interactive
@@ -14,10 +12,11 @@ project using the supplied course specification as its quality benchmark.
 
 ## Status
 
-- 139 automated tests pass on this optional branch, including the original
+- 139 automated tests pass on the integrated version, including the original
   86-test suite, replay controls and Canvas event/presentation checks.
-- A separate clean environment installed all pinned dependencies, built the
-  package, passed the original 82-test suite and produced batch PNG/CSV/JSON output.
+- An extracted ZIP installed all pinned dependencies into a separate environment,
+  passed 139 tests and produced batch PNG/CSV/JSON plus an offline replay from
+  the installed package. See evidence/package-verification.json.
 - 300 seeded random and 40 tight-cluster configurations passed independent checks.
 - At n=10,000, all 19,978 emitted circle vertices and 100 cell queries were checked.
 - Native Windows GUI display and Export were observed; real screenshot retained.
@@ -101,8 +100,8 @@ test.bat --junitxml=evidence\tests-current.xml
 .venv\Scripts\python tools\make_figures.py
 ```
 
-The benchmark uses separate timing and memory runs. The recorded medians are
-0.03294 / 0.40641 / 4.35665 seconds at 100 / 1,000 / 10,000 sites. Traced Python
+The benchmark uses separate timing and memory runs. The 18 November 2026 medians
+are 0.08210 / 0.66062 / 6.66119 seconds at 100 / 1,000 / 10,000 sites. Traced Python
 peaks are 0.70 / 7.38 / 65.08 MiB. Process RSS includes interpreter and tracing
 overhead. See results/benchmark.json for raw runs, exact scope and environment.
 Measurements vary by machine; these values are observations, not promised speed.
@@ -124,7 +123,8 @@ The document uses A4, 2.5 cm margins, Times New Roman 12 pt and 1.5 spacing,
 numbered equations, highlighted code listings, automatic contents and IEEE-style
 numbered references. report/report.md is retained only as the legacy draft.
 Figures are original generated outputs/diagrams. The native GUI capture is real.
-AI-interaction screenshots and the personal narration must be supplied by the owner.
+Genuine owner-supplied AI-interaction screenshots are included. Personal narration
+and final owner review remain pending.
 
 ## Architecture and limits
 

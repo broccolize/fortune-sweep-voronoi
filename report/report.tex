@@ -9,11 +9,17 @@
 
 \pagenumbering{roman}
 \hypersetup{pageanchor=true}
+\begingroup
+\setstretch{1.05}
 \tableofcontents
+\endgroup
 \clearpage
+\begingroup
+\setstretch{1.08}
 \listoffigures
 \vspace{1.5em}
 \listoftables
+\endgroup
 \clearpage
 
 \pagenumbering{arabic}
@@ -21,7 +27,6 @@
 \input{sections/02-ai-methodology}
 \input{sections/03-design}
 \input{sections/04-implementation}
-\clearpage
 \input{sections/05-validation}
 \clearpage
 \input{sections/06-problems}
@@ -43,4 +48,6 @@
 \input{sections/appendix-a}
 \clearpage
 \input{sections/appendix-b}
+\clearpage
+\input{sections/appendix-c}
 \end{document}

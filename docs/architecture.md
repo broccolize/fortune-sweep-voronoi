@@ -51,7 +51,8 @@ their defining sites for independent empty-circle validation.
 
 ## Optional renderer complexity
 
-Canvas replay is an opt-in feature branch. Its event-state export may retain
+Canvas replay is included in main and enabled with Animate or --animate. Its
+event-state export may retain
 O(n^2) arc-order data at a 200-site cap; normal construction records no replay
 history. Browser movement is a binary search plus drawing of the selected state.
-See docs/animation.md for the measured scope and preserved baseline-report status.
+See docs/animation.md for the measured scope and report Appendix C for evidence.

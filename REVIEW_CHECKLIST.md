@@ -1,7 +1,8 @@
-# Start Here When You Return
+# Final Review and Recording
 
-The software is implemented and tested; this checklist covers your review and
-the evidence that requires your participation. It is not a claim of a grade.
+The approved Canvas viewer is included in main. The software and technical draft
+are ready for review. This checklist distinguishes completed checks from your
+final reading and narrated recording. It is not a claim of a grade.
 
 ## 1 Run and understand the program
 
@@ -9,7 +10,8 @@ the evidence that requires your participation. It is not a claim of a grade.
 - [x] Run `test.bat -q`; confirm the current passing count from the actual output.
   Owner reported `82 passed in 5.14s` on 16 November 2026. On 17 November,
   the owner supplied genuine Pi execution captures: `86 passed in 7.09s`.
-- [ ] Run the nine-site batch example and inspect PNG, CSV and JSON.
+- [x] Run the nine-site batch example and inspect PNG, CSV and JSON.
+  Owner supplied its statistics and confirmed seeing all three outputs.
 - [x] Start `run.bat --interactive`, insert points, Compute and Export.
   Confirmed 16 November 2026: owner supplied the five-site diagram and Export
   success message; output/review.png, review.csv and review.json were checked.
@@ -17,6 +19,10 @@ the evidence that requires your participation. It is not a claim of a grade.
 - [ ] Explain the AVL beach-line invariant and circle-event generation checks.
 - [ ] Explain why final cells use only sweep-generated neighbour constraints.
 - [ ] Read docs/problems.md, including the late tiny-cell regression and fix.
+- [x] Approve and include the pointer-controlled Canvas viewer in main.
+  Owner authorized integration on 18 November 2026. Use `run.bat --animate`
+  or Animate in the point-entry window; the feature-worktree path is no longer needed.
+- [x] Integrated main test suite: 139 passed in 14.48s on 18 November 2026.
 
 ## 2 Review the report
 
@@ -25,6 +31,8 @@ the evidence that requires your participation. It is not a claim of a grade.
 - [ ] Check that explanations match your understanding of the actual code.
 - [ ] Review all five main problem analyses, the real retained failures and fixes.
 - [ ] Review the measurement scope and raw results/benchmark.json.
+  The updated construction medians are 0.08210 / 0.66062 / 6.66119 seconds.
+  Section 4 and Appendix C explain the replay and its separate rendering measurements.
 - [x] Add your personal observations to the critical reflection; do not claim
   experiences or checks you have not had or performed.
   Owner supplied and clarified their learning, Pi debugging workflow and
@@ -61,15 +69,20 @@ help you choose which real interactions to capture.
 - [ ] Record your own audible narration, below five minutes.
 - [ ] Show batch and interactive modes, architecture, both invariants and three
   actual problems or design decisions.
+- [ ] Show the pointer-controlled replay and explain that it presents recorded
+  Python event states, with a 200-site cap separate from normal construction.
 - [ ] Play the recording all the way through and check readable text and audio.
 - [ ] Save it as demo/walkthrough.mp4; it is excluded from Git and added to the ZIP.
 
 ## 5 Rebuild and review the package
 
-- [ ] Rebuild the report after your text/screenshots/metadata changes.
-- [ ] Run `.venv\Scripts\python tools\package_project.py`.
-- [ ] Check submission/completeness.json and inspect the ZIP contents.
-- [ ] Verify the launcher in 03_Executable and root README.txt.
+- [x] Rebuild and visually check the technical report: 28 pages, 16 body pages,
+  with the included viewer and real evidence. Rebuild again if you edit its text.
+- [x] Prepare the review ZIP using tools/package_project.py; rebuild after adding video.
+- [x] Check required folders, CRC and the completeness manifest. It deliberately
+  reports the missing personal video and pending owner review.
+- [x] Verify the 03_Executable launcher, installed Canvas assets and 139 tests in
+  the extracted package's separate environment.
 - [ ] Check GitHub's latest Actions run and compare the latest source revision.
 - [ ] After all checks and personal evidence are complete, set owner_review_complete
   to true in owner-metadata.json and rebuild. The manifest will still report missing
@@ -77,4 +90,5 @@ help you choose which real interactions to capture.
 
 The cover and archive naming use the owner's provided identity:
 Mineth Lohiru Ariyarathna, 2024380145, Computer Geometry. The archive remains a
-review copy until personal review and the remaining evidence are complete.
+review copy until the personal report/package review and narrated video are
+complete. Existing AI screenshots and subscription disclosure are already supplied.

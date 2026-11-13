@@ -65,6 +65,10 @@ def source_listing():
     paths = []
     for directory in ("src", "tests", "tools"):
         paths.extend((ROOT / directory).rglob("*.py"))
+    # The browser renderer is part of the editable implementation, too.
+    paths.extend((ROOT / "src/fortune").glob("*.html"))
+    paths.extend((ROOT / "src/fortune").glob("*.js"))
+    paths.extend((ROOT / "tests").glob("*.js"))
     paths.extend(ROOT.glob("*.bat"))
     paths.extend(ROOT.glob("*.sh"))
     paths.extend((ROOT / "tools").rglob("*.sh"))

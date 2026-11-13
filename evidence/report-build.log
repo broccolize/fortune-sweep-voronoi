@@ -109,8 +109,8 @@ Package epstopdf Warning: Shell escape feature is not enabled.
 [3]
 [4<../figures/architecture.png>]) (./sections/04-implementation.tex
 [5]
-[6])
-[7<../evidence/gui-native.png>] (./sections/05-validation.tex
+[6]
+[7<../evidence/gui-native.png>]) (./sections/05-validation.tex
 [8]
 [9<../figures/degenerate-1.png>])
 [10<../figures/degenerate-2.png>] (./sections/06-problems.tex
@@ -129,23 +129,21 @@ Package epstopdf Warning: Shell escape feature is not enabled.
 [21<../evidence/ai-interaction-2.png><../evidence/pi-tiny-cell-code-continuatio
 n.png>]
 [22<../evidence/pi-interaction-tests.png>]
-[23<../evidence/pi-tests-summary.png>])
+[23<../evidence/pi-tests-summary.png>]) (./sections/appendix-c.tex
+[24<../evidence/canvas-preview.jpg>])
+[25]
 ("/mnt/c/Users/Mines/Documents/ChatGPT/Computer Geometry/tmp/latex-build/report
 .aux")
 
 LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
 
 )
- 654 words of node memory still in use:
+ 638 words of node memory still in use:
    7 hlist, 2 vlist, 2 rule, 1 local_par, 4 glue, 4 kern, 1 penalty, 1 margin_k
-ern, 3 glyph, 26 attribute, 57 glue_spec, 26 attribute_list, 2 write, 2 pdf_act
+ern, 3 glyph, 24 attribute, 56 glue_spec, 24 attribute_list, 1 write, 2 pdf_act
 ion nodes
-   avail lists: 1:3,2:2018,3:254,4:4421,5:3695,6:79,7:7546,8:57,9:9332,10:27,11
-:671
-
-warning  (pdf backend): unreferenced destination with name 'figure.15'
-
-warning  (pdf backend): unreferenced destination with name 'figure.7'
+   avail lists: 1:4,2:1992,3:284,4:4415,5:3690,6:88,7:7655,8:57,9:9320,10:27,11
+:693
 </mnt/c/Windows/Fonts/timesi.ttf></mnt/c/Windows/Fonts/courbd.ttf></mnt/c/Windo
 ws/Fonts/cour.ttf></mnt/c/Windows/Fonts/timesbd.ttf></mnt/c/Windows/Fonts/times
 .ttf></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><
@@ -156,7 +154,7 @@ exmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dis
 t/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/font
 s/type1/public/amsfonts/cm/cmsy8.pfb></usr/share/texlive/texmf-dist/fonts/type1
 /public/amsfonts/symbols/msbm10.pfb>
-Output written on report.pdf (26 pages, 2125750 bytes).
+Output written on report.pdf (28 pages, 2173847 bytes).
 SyncTeX written on report.synctex.gz.
 Transcript written on report.log.
 
@@ -277,8 +275,8 @@ Package epstopdf Warning: Shell escape feature is not enabled.
 [3]
 [4<../figures/architecture.png>]) (./sections/04-implementation.tex
 [5]
-[6])
-[7<../evidence/gui-native.png>] (./sections/05-validation.tex
+[6]
+[7<../evidence/gui-native.png>]) (./sections/05-validation.tex
 [8]
 [9<../figures/degenerate-1.png>])
 [10<../figures/degenerate-2.png>] (./sections/06-problems.tex
@@ -297,15 +295,17 @@ Package epstopdf Warning: Shell escape feature is not enabled.
 [21<../evidence/ai-interaction-2.png><../evidence/pi-tiny-cell-code-continuatio
 n.png>]
 [22<../evidence/pi-interaction-tests.png>]
-[23<../evidence/pi-tests-summary.png>])
+[23<../evidence/pi-tests-summary.png>]) (./sections/appendix-c.tex
+[24<../evidence/canvas-preview.jpg>])
+[25]
 ("/mnt/c/Users/Mines/Documents/ChatGPT/Computer Geometry/tmp/latex-build/report
 .aux"))
- 654 words of node memory still in use:
+ 638 words of node memory still in use:
    7 hlist, 2 vlist, 2 rule, 1 local_par, 4 glue, 4 kern, 1 penalty, 1 margin_k
-ern, 3 glyph, 26 attribute, 57 glue_spec, 26 attribute_list, 2 write, 2 pdf_act
+ern, 3 glyph, 24 attribute, 56 glue_spec, 24 attribute_list, 1 write, 2 pdf_act
 ion nodes
-   avail lists: 1:3,2:2018,3:254,4:4421,5:3695,6:79,7:7546,8:57,9:9332,10:27,11
-:671
+   avail lists: 1:4,2:1992,3:284,4:4415,5:3690,6:88,7:7655,8:57,9:9320,10:27,11
+:693
 </mnt/c/Windows/Fonts/timesi.ttf></mnt/c/Windows/Fonts/courbd.ttf></mnt/c/Windo
 ws/Fonts/cour.ttf></mnt/c/Windows/Fonts/timesbd.ttf></mnt/c/Windows/Fonts/times
 .ttf></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><
@@ -316,7 +316,7 @@ exmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dis
 t/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/font
 s/type1/public/amsfonts/cm/cmsy8.pfb></usr/share/texlive/texmf-dist/fonts/type1
 /public/amsfonts/symbols/msbm10.pfb>
-Output written on report.pdf (26 pages, 2125701 bytes).
+Output written on report.pdf (28 pages, 2173840 bytes).
 SyncTeX written on report.synctex.gz.
 Transcript written on report.log.
 
@@ -431,8 +431,8 @@ Package epstopdf Warning: Shell escape feature is not enabled.
 [3]
 [4<../figures/architecture.png>]) (./sections/04-implementation.tex
 [5]
-[6])
-[7<../evidence/gui-native.png>] (./sections/05-validation.tex
+[6]
+[7<../evidence/gui-native.png>]) (./sections/05-validation.tex
 [8]
 [9<../figures/degenerate-1.png>])
 [10<../figures/degenerate-2.png>] (./sections/06-problems.tex
@@ -451,15 +451,17 @@ Package epstopdf Warning: Shell escape feature is not enabled.
 [21<../evidence/ai-interaction-2.png><../evidence/pi-tiny-cell-code-continuatio
 n.png>]
 [22<../evidence/pi-interaction-tests.png>]
-[23<../evidence/pi-tests-summary.png>])
+[23<../evidence/pi-tests-summary.png>]) (./sections/appendix-c.tex
+[24<../evidence/canvas-preview.jpg>])
+[25]
 ("/mnt/c/Users/Mines/Documents/ChatGPT/Computer Geometry/tmp/latex-build/report
 .aux"))
- 654 words of node memory still in use:
+ 638 words of node memory still in use:
    7 hlist, 2 vlist, 2 rule, 1 local_par, 4 glue, 4 kern, 1 penalty, 1 margin_k
-ern, 3 glyph, 26 attribute, 57 glue_spec, 26 attribute_list, 2 write, 2 pdf_act
+ern, 3 glyph, 24 attribute, 56 glue_spec, 24 attribute_list, 1 write, 2 pdf_act
 ion nodes
-   avail lists: 1:3,2:2018,3:254,4:4421,5:3695,6:79,7:7546,8:57,9:9332,10:27,11
-:671
+   avail lists: 1:4,2:1992,3:284,4:4415,5:3690,6:88,7:7655,8:57,9:9320,10:27,11
+:693
 </mnt/c/Windows/Fonts/timesi.ttf></mnt/c/Windows/Fonts/courbd.ttf></mnt/c/Windo
 ws/Fonts/cour.ttf></mnt/c/Windows/Fonts/timesbd.ttf></mnt/c/Windows/Fonts/times
 .ttf></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><
@@ -470,6 +472,6 @@ exmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dis
 t/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/font
 s/type1/public/amsfonts/cm/cmsy8.pfb></usr/share/texlive/texmf-dist/fonts/type1
 /public/amsfonts/symbols/msbm10.pfb>
-Output written on report.pdf (26 pages, 2125701 bytes).
+Output written on report.pdf (28 pages, 2173840 bytes).
 SyncTeX written on report.synctex.gz.
 Transcript written on report.log.

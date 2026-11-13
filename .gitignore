@@ -15,6 +15,13 @@ dist/
 submission/
 tmp/
 output/
+
+# Default interactive/replay outputs; retained examples live under examples/.
+/replay.html
+/replay.png
+/interactive.png
+/interactive.csv
+/interactive.json
 .coverage
 htmlcov/
 

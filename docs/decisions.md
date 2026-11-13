@@ -30,3 +30,13 @@ The tree provides a worst-case logarithmic height bound.
 Query ownership must be checked in the constructed polygons before comparison
 with a brute-force nearest-site scan. No Voronoi/Delaunay library or all-pairs
 cell-construction substitute may be used in the production algorithm.
+
+## D005 Include the approved offline Canvas replay
+
+The owner approved the pointer-controlled viewer and authorized its main-branch
+integration on 18 November 2026. Keep Matplotlib for point entry, static exports
+and the optional native inspector; use Canvas as the default sweep presentation.
+The browser presents immutable facts recorded from the same Python event engine.
+Document the O(n^2) worst-case educational history and 200-site cap separately
+from the batch constructor's O(n log n) time / O(n) space target. The report,
+source package and demonstration guide must describe this same integrated version.

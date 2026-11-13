@@ -55,8 +55,10 @@ on 17 November 2026; no email submission has been made.
 - [x] Complete source/build scripts and clean-checkout verification.
 - [x] Git history or Git log export if version control is used.
 - [x] Required folders plus root `README.txt`; reproducible figure commands.
-- [ ] Archive `CG_Assignment_<StudentID>_<Name>.zip`; split/link if over 50 MB.
+- [x] Archive `CG_Assignment_<StudentID>_<Name>.zip`, with required folders and
+  CRC verification. Current size/hash are in evidence/package-audit.json.
 - [ ] Personal submission by email before 11 November 2026, 23:59 GMT+8.
+  Not applicable to this personal project; no course email has been sent.
 
 ## AI evidence — Section 5
 
@@ -103,11 +105,12 @@ on 17 November 2026; no email submission has been made.
 - [ ] Three actual problems or design decisions explained by the student.
 - [ ] Playback and duration checked before packaging.
 
-## Optional animation branch
+## Included animation feature
 
 - [x] Real-engine animated sweep replay, with sweep, live beach-line geometry,
   pending events and stale predictions shown.
 - [x] Pointer-following Canvas viewer; offline export and PNG download verified.
 - [x] Per-event stepping, playback, seeking, reset and completion controls.
 - [x] Separate renderer timing and explicit bounded replay-history complexity.
-- [ ] Owner decision to merge/include the optional branch and update the report.
+- [x] Owner authorized main integration on 18 November 2026; report and package
+  updated to include the viewer, measured scope and explicit replay limits.

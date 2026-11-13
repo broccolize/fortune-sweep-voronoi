@@ -25,5 +25,7 @@ Lua font support; the global TeX installation and system packages were unchanged
 The report remains a review draft while the narrated demonstration and final
 owner review are pending. Owner observations are incorporated into Section 8;
 seven genuine ChatGPT/Pi originals are reproduced in Appendix B, using landscape
-pages for the wide terminal captures. The PDF has 26 pages, including 16 body
-pages. See the retained build, image-provenance and visual-review audits.
+pages for the wide terminal captures. Appendix C records the included Canvas
+viewer and the scope of its rendering measurements. Current page counts and
+checksums are in evidence/report-latex-audit.json; retained build, provenance
+and visual-review audits document the actual checks.

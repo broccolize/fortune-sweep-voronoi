@@ -4,10 +4,10 @@ Usage: python tools/commit_milestone.py DATE MESSAGE -- path ...
 Repository identity must already be configured locally. No remote is contacted.
 """
 
-from datetime import date
 import os
 import subprocess
 import sys
+from datetime import date
 
 
 def main():

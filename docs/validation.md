@@ -1,22 +1,27 @@
 # Validation and Benchmark Evidence
 
-Status as recorded on 10 November 2026: no project tests or benchmarks have
-been run in this workspace. Environment checks are not correctness tests.
-Do not describe unchecked earlier results as passing.
+Current integration: 18 November 2026, GMT+8. The native main suite passed
+139 tests in 14.48 seconds. Raw JUnit, separate installation evidence, stress
+results and measured benchmarks retain their own execution scope and timestamps.
 
 ## Test run record
 
-| Field | Value to record |
+| Field | Recorded evidence |
 | --- | --- |
-| Actual timestamp and timezone | Pending run |
-| Commit or source snapshot | Pending source inspection |
-| OS and interpreter | Record separately for Windows and WSL |
-| Dependency versions | Exact installed versions |
-| Command and working directory | Literal reproducible invocation |
-| Input/seed | File, generator and seed |
-| Result | Passed / failed / skipped counts and reasons |
-| Raw evidence | stdout/stderr or machine-readable result path |
-| Interpretation | What the checks establish and what remains unverified |
+| Actual timestamp and timezone | JUnit and benchmark records; review dated 18 November GMT+8 |
+| Source snapshot | Integrated main; package verification records source/test hashes |
+| OS and interpreter | Native Windows 11, Python 3.14.7; CI Windows/Ubuntu 3.12 and 3.14 |
+| Dependency versions | requirements.txt; optional PDF audit dependencies in report/requirements.txt |
+| Command and directory | Project root: test.bat -q --junitxml=evidence/tests-current.xml |
+| Inputs | Explicit pytest inputs, seeded stress loops and benchmark seed 2026 |
+| Main result | 139 passed, zero failures/errors/skips on the verified Node-enabled host |
+| Raw evidence | evidence/tests-current.xml; evidence/stress-final.json; results/benchmark.json |
+| Independent delivery | tools/verify_package.py installs an extracted ZIP in its own environment |
+| Limits | Sampled ownership is not exhaustive coverage; finite-precision construction is not universally certified |
+
+The two optional JavaScript checks explicitly skip if Node is unavailable.
+Node is not required to use the offline viewer. The earlier Pi screenshot
+records its actual 86-test run and is not relabelled as a 139-test execution.
 
 ## Validation design
 
@@ -32,7 +37,7 @@ Check polygon area, coverage, containment and shared boundaries in addition to
 vertices. Exercise repeated runs, input permutations and coordinate scaling.
 Define tie handling explicitly for equidistant queries and duplicate sites.
 
-## Benchmark protocol to finalize
+## Applied benchmark protocol
 
 Measure n = 100, 1,000, 10,000 seeded sites on the same environment and settings.
 Keep plotting and file export outside construction timing, and state exactly
@@ -43,3 +48,10 @@ runs from timing runs if instrumentation materially affects time.
 Keep raw per-run results rather than only a final mean. Record repetition count,
 hardware, OS, Python/dependency versions, seed and bounding box. Compare time
 against n log n and memory against n; report discrepancies instead of forcing a fit.
+
+The current protocol uses three uninstrumented timing runs per size and a fresh
+memory subprocess per size. Medians are 0.08210 / 0.66062 / 6.66119 seconds;
+traced Python peaks are 0.70 / 7.38 / 65.08 MiB. Process working-set peaks include
+the interpreter and allocation tracing. The 10,000-site timings ranged from
+5.25015 to 6.92806 seconds on this shared desktop. Replay export and drawing are
+excluded; the earlier faster benchmark is preserved separately rather than reused.

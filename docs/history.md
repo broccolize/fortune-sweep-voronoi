@@ -24,6 +24,9 @@ from commit timestamps. The development log records actual verification.
 | 8 Nov | Report draft |
 | 9 Nov | Report verification |
 | 10 Nov | Demo preparation and packaging |
+| 11 Nov | Real-engine replay model (owner-requested Git date) |
+| 12 Nov | Approved pointer-controlled viewer (owner-requested Git date) |
+| 18 Nov | Main integration, updated technical draft and package verification |
 
 Use the supplied repository-local identity. Do not create empty commits to
 pretend unfinished features exist. Actual commands, failures and results belong

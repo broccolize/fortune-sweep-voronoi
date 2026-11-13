@@ -1,17 +1,24 @@
 {
+  "actual_timestamp": "2026-11-18T01:29:12.065101+08:00",
   "ai_production_ready_for_review": true,
-  "automated_tests": 82,
+  "animation_included_in_main": true,
+  "automated_tests": 139,
+  "local_pytest_seconds": 14.48,
+  "installed_package_tests": 139,
+  "installed_pytest_seconds": 27.97,
+  "installed_fortune_modules_checked": 18,
+  "tested_runtime_files_match_current_source": 39,
   "stress_configurations": 340,
   "largest_sites": 10000,
   "largest_vertices_checked": 19978,
-  "pdf_pages": 19,
+  "pdf_pages": 28,
   "body_pages": 16,
   "zip_extracted_launcher": "passed",
-  "zip_extracted_tests": 82,
+  "zip_extracted_tests": 139,
+  "genuine_ai_screenshots_present": true,
+  "subscription_plan_confirmed": true,
   "pending_owner": [
-    "review and understanding",
-    "subscription plan",
-    "two authentic AI interaction screenshots",
-    "personal narrated video"
+    "read and approve the final report/package",
+    "record and play back a personally narrated video of no more than five minutes"
   ]
 }

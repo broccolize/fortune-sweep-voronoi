@@ -1,22 +1,24 @@
 """Reproducible timing plus isolated Python-allocation/Windows RSS measurements."""
+# ruff: noqa: E402
+# Standalone execution sets the project source path before local imports.
 
 import argparse
 import csv
 import ctypes
 import gc
 import json
-from pathlib import Path
 import platform
 import statistics
 import subprocess
 import sys
 import time
 import tracemalloc
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from fortune import construct, Box
+from fortune import Box, construct
 from fortune.io import random_sites
 
 

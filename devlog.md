@@ -1,5 +1,60 @@
 # Development Log
 
+## 18 November 2026 Main integration and complete technical review draft
+
+- Request: the owner approved pushing the smoother viewer into main, completing
+  the review draft from that version and preparing for their personal video.
+- Preserved and checked all 169 reviewed primary files against the pre-feature
+  hashes, with no intervening edits, before integrating the two tested feature
+  commits. The original November 11/12 feature metadata is retained. This entry
+  and all new measurement records use their actual execution date.
+- Updated the report, module descriptions, requirements, README and timed demo
+  guide to describe the integrated Canvas viewer, genuine event snapshots,
+  pointer controls, explicit O(n^2) history cost and 200-site replay cap. The
+  ordinary constructor retains its separately analysed complexity and no replay cap.
+- Verification: the integrated native suite passed 139 tests in 14.48s. Fresh
+  three-run construction medians were 0.08210 / 0.66062 / 6.66119 seconds at
+  100 / 1,000 / 10,000 sites, with separate memory runs. The report uses these
+  values and discloses their variability; earlier faster results are archived.
+- Added reproducible PDF structure/render auditing and clean ZIP installation
+  verification, including the installed HTML/JavaScript assets and delivered
+  Windows launcher. Full results are retained in evidence/ rather than inferred
+  from environment checks.
+- Actual tooling issues: the first stash saved the files but an excluded ignored
+  path interrupted its cleanup; an explicit-path checkpoint completed it without
+  losing reviewed files. An archive check began while the writer was still
+  active and reported a CRC read error; it was restarted after the completed ZIP
+  passed its own CRC check. This was an orchestration race, not a geometry failure.
+- Visual inspection found an orphaned contents entry and two residual validation
+  lines on nearly empty pages in the initial 31-page revision. Condensed front
+  navigation and repeated interface text while retaining 12 pt / 1.5 body format.
+  The initial layout record is preserved; final renders/audits record the result.
+- The wider lint check found six old import-order issues plus intentional
+  source-path bootstrap warnings in utilities. Sorted imports and documented
+  those bootstrap locations; all configured lint checks then passed.
+- The first extracted-suite run passed, but its pytest setup could inherit the
+  primary checkout's configuration. Corrected the verifier to use explicit local
+  configuration, Python -I, preloaded installed Fortune and post-run module-path
+  assertions. Reran the 139 tests in the fresh ZIP-created environment: 139 passed
+  in 27.97s; all eighteen loaded Fortune modules came from site-packages. Initial
+  records are preserved separately instead of claiming the earlier run proved
+  isolation. Installed Canvas assets/offline export and the delivered launcher
+  also passed. The current verification JSON distinguishes the corrected run.
+- The owner supplied all required genuine AI screenshots and plan information
+  previously. Their final reading, own explanation and narrated video remain
+  personal tasks; no recording or final-review approval is invented.
+- Final PDF: 28 searchable A4 pages, including 16 body pages, fifteen numbered
+  figures and six tables. Inspected every rendered page in contact sheets and
+  checked the code, test matrix and performance pages at full resolution. All
+  nine screenshot images match their original pixels. The initial image check
+  was affected by the PDF extractor re-encoding JPEGs; reading the original DCT
+  streams established the correct identity without changing any original image.
+- The current 39 runtime, test, configuration and launcher files match the
+  installed, tested payload. Generated egg-info is excluded from this comparison
+  and the delivery tree. Utility clean-up preserved non-import ASTs. The package
+  manifest now reports this tested-payload match and the audited PDF checksum,
+  separately from the still-pending personal recording/review flags.
+
 ## 17-18 November 2026 Optional replay: performance and pointer interaction
 
 - The owner found the first replay extremely slow, then clarified the intended

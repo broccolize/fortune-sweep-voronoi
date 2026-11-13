@@ -6,6 +6,8 @@
 - [ ] Run install.bat and test.bat yourself; review the actual output.
 - [ ] Run the batch command in script.md and inspect PNG, CSV and JSON.
 - [ ] Try click insertion, Compute and Export yourself.
+- [ ] Open Animate, move the pointer, freeze it and step through an event.
+  The same integrated viewer is available with run.bat --animate.
 - [ ] Close unrelated windows and notifications; do not expose credentials.
 - [ ] Open the architecture, source excerpts and scaling plot in advance.
 - [ ] Set recorder to capture the application/terminal at readable resolution.
@@ -14,10 +16,12 @@
 
 ## Required content
 
-- [ ] State GPT-6.1 assistance and actual plan accurately.
+- [ ] State GPT-6.1 / ChatGPT Plus and Pi's actual contributions accurately.
 - [ ] Show both batch and interactive input.
 - [ ] Show image and machine-readable exports and statistics.
 - [ ] Explain the beach-line and event-queue invariants.
+- [ ] Explain that replay presents recorded Python event states; mention its
+  200-site limit separately from normal construction.
 - [ ] Discuss three actual decisions/problems from the implementation.
 - [ ] Show test results, real benchmarks and a numerical limitation.
 - [ ] Narrate personally; answer questions in your own words.

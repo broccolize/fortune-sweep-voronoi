@@ -11,6 +11,8 @@
   "subscription_plan": "ChatGPT Plus",
   "subscription_plan_confirmed_on": "2026-11-17",
   "owner_review_complete": false,
+  "animation_included_in_main": true,
+  "animation_inclusion_approved_on": "2026-11-18",
   "pi_version": "0.86.0",
   "pi_used_for_code_generation": true,
   "pi_code_generation_scope": "Retained session: four pytest regressions; no production changes in that session",

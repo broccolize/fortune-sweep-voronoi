@@ -1,19 +1,12 @@
-# Optional pointer-following sweep replay
+# Pointer-following sweep replay
 
-This feature is isolated on `codex/sweep-animation`. The primary project folder,
-reviewed PDF and submission ZIP are unchanged. The report files copied into this
-branch describe the baseline; incorporate the optional viewer into the report
-and rebuild the submission only if the feature is selected for inclusion.
+The owner approved this viewer and authorized its integration into `main` on
+18 November 2026. The report and review package now include it. The original
+`codex/sweep-animation` branch preserves the separately tested preview.
 
 ## Try the default viewer
 
-In this session's primary project folder, run:
-
-```powershell
-.\tmp\worktrees\sweep-animation\run.bat --animate --input examples\sites.txt --bbox 0 0 1 1
-```
-
-In a checkout of the feature branch itself:
+From the main project folder or a fresh checkout, run:
 
 ```powershell
 .\run.bat --animate --input examples\sites.txt --bbox 0 0 1 1
@@ -51,7 +44,7 @@ The retained Matplotlib version now uses persistent artists, cached background
 layers, bounded text bitmap caching, dirty-region blits, time-based playback and
 a bounded checkpoint index. Its native Tk test reached about 44.5 timer updates
 per second. The owner still found its interaction less fluid than pointer-following
-web examples, so Canvas became the default optional renderer.
+web examples, so Canvas became the default replay renderer.
 
 ## How the Canvas version stays fast and faithful
 

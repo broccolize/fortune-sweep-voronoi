@@ -1,40 +1,18 @@
 {
-  "pages": 26,
+  "pages": 28,
   "body_pages": 16,
   "all_pages_visually_reviewed": true,
-  "review_date_gmt8": "2026-11-17",
+  "review_date_gmt8": "2026-11-18",
   "render_dpi": 105,
-  "changed_or_new_pages": [
-    2,
-    3,
-    6,
-    10,
-    11,
-    12,
-    13,
-    18,
-    19,
-    21,
-    22,
-    23,
-    24,
-    25,
-    26
-  ],
-  "changed_pages_visually_inspected": true,
-  "unchanged_pages_verified_by_pixel_equality": [
-    1,
-    4,
-    5,
-    7,
-    8,
+  "method": "All 28 pages inspected in rendered contact sheets; full-resolution checks of code, test matrix, benchmark and renderer evidence pages.",
+  "render_directory": "tmp/report-pages-20261118-012537",
+  "full_resolution_detail_pages": [
     9,
-    14,
-    15,
-    16,
+    11,
     17,
-    20
+    28
   ],
-  "method": "Full PNG inspection of changed/new pages, with pixel comparison against the previous 21-page visual review.",
-  "pdf_sha256": "70d6b3113f8790d559b559727ebafd62265af3dcddb5ecf1e013c959f9a92450"
+  "layout_defects": [],
+  "pdf_sha256": "7e18d7b6b80859f5e285fc76eda479c912928ef491a871233d754beb95ee7a2c",
+  "original_screenshot_pixels_match": true
 }
