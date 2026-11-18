@@ -1,49 +1,34 @@
-% Owner-provided originals; their bytes are preserved in evidence/.
-\section{AI Interaction Evidence}
+% Development record condensed from the retained technical entries.
+\section{Development Record}
 \label{sec:b}
 
-The owner supplied these genuine captures on 17 November 2026. They record current reviews and verification. The originals are preserved unchanged, with SHA-256 provenance in \path{evidence/}. Landscape pages keep the terminal text readable. The startup view identifies the environment; the substantive exchanges show prompts and responses.
+The development record tracks the construction of the program, the failures that changed it, and the checks used before accepting each stage. The earlier technical entries are dated 10 November 2026, while the current verification is summarized at the end of this appendix. That record is retained in \path{data/development-record.txt}, with the test and measurement records under \path{data/}.
 
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.94\linewidth,height=0.61\textheight,keepaspectratio]{ai-interaction-1.png}
-\caption[ChatGPT review of beach-line and event invariants.]{ChatGPT review of the AVL beach-line order and generation-based rejection guard. The owner's prompt, answer and selected model label are visible.}
-\label{fig:chatgpt-review}
-\end{figure}
+\input{sections/git-history-table}
 
-The personal narrated demonstration remains pending. Use \path{04_Demo/script.md} and the recording checklist, explain the architecture and both invariants, and discuss three real problems or design decisions within five minutes.
 
-\EvidenceLandscape{pi-environment.png}
-  {Pi environment opened in the project directory.}
-  {Owner-provided Pi startup view in the project directory. The installed version is 0.86.0; the visible update notice is not evidence that an update was installed.}
-  {fig:pi-environment}
+\subsection{Requirements and Architecture}
 
-\EvidenceLandscape{pi-interaction-invariants.png}
-  {Pi review of AVL ordering and stale-event rejection.}
-  {Pi reads the beach-line, event and sweep modules, then explains sequence-preserving AVL rotations and the generation guard. This is a tool-enabled review, distinct from the earlier tool-disabled test-generation session.}
-  {fig:pi-invariants}
+The initial checklist covered input, output, validation and delivery. The selected architecture used an AVL beach line, a heap event queue and validators separate from construction.
 
-\clearpage
-\begin{landscape}
-\thispagestyle{empty}
-\captionsetup{hypcap=false}
-\centering
-\vspace*{\fill}
-\includegraphics[width=\linewidth,height=116mm,keepaspectratio]{ai-interaction-2.png}
-\par\vspace{3pt}
-\includegraphics[width=0.42\linewidth,height=15mm,keepaspectratio]{pi-tiny-cell-code-continuation.png}
-\captionof{figure}[Pi review of the retained tiny-cell failure and correction.]{Pi reviews the recorded tiny-cell failures, exact-topology correction and positive-cell regression. The second original is the response's code continuation. Neither capture is an image of the original debugging date.}
-\label{fig:pi-tiny-cell}
-\vspace*{\fill}
-{\fontsize{10}{12}\selectfont\thepage\par}
-\end{landscape}
+\subsection{Geometry and Sweep Construction}
 
-\EvidenceLandscape{pi-interaction-tests.png}
-  {Pi executes the full test suite; a later search fails.}
-  {Pi's actual command reports 86 tests passed in 7.09 seconds. The red block is a subsequent inspection search that exited with code 2; the capture also shows recovery by reading the validation module. The model footer is visible.}
-  {fig:pi-tests}
+Geometry initially passed ten tests; adding the beach line raised this to seventeen, and sweep integration to twenty-one. Seeded AVL updates checked parent pointers, balance and neighbour order. Triangle and simultaneous-circle cases checked event processing.
 
-\EvidenceLandscape{pi-tests-summary.png}
-  {Pi summarizes the test result and validation scope.}
-  {Continuation of the test interaction: Pi repeats the real command and result, explains nearest-site and empty-circle checks, and states the limit of sampling. This capture documents the 86-test version preceding the later animation work.}
-  {fig:pi-test-summary}
+\subsection{Cell Construction and Numerical Corrections}
+
+The first complete cell suite had 59 passes and three failures. Corrections to rounded zero-length edges and output-coordinate tolerances produced 62 passes. Tight clusters exposed the further conditioning and membership problems discussed in Section~\ref{sec:6}. Per-site checks then exposed missing microscopic cells. Exact concurrence and input-circle identities preserved their topology, bringing the earlier suite to 82 tests.
+
+\subsection{Stress Tests and Measurements}
+
+The earlier campaign checked 300 random and forty clustered configurations, plus every vertex in the large cases. The separate November 10 benchmark used three construction timings per size; a new November 18 run repeats the procedure for the current engine. An exact twelve-site integer circle also exposed redundant diagonals: hull adjacency separated its twelve rays from zero-length edges, leaving one central vertex.
+
+\subsection{Clean Installation and Delivery Checks}
+
+Earlier clean-environment checks verified import, the 82-test suite and PNG, CSV and JSON exports. Their original records remain under the core filenames in \path{data/}.
+
+\subsection{Replay and Current Verification}
+
+Shared event stepping, seek checkpoints, Canvas replay and a Matplotlib inspector extended the implementation. Pi contributed four retained regressions; replay and interface coverage brought the suite to 139 tests. Precision, Delaunay and reference checks bring the current total to 171.
+
+Current verification passed 800 precision configurations and repeated the random/cluster stress campaign, including all 19,978 vertices at 10,000 sites. All 45 reference datasets passed exact clipped-cell checks, with 39 complete SciPy comparisons and six recorded reference limitations. The source archive matches the implementation associated with these results.

@@ -2,6 +2,7 @@
 # ruff: noqa: E402
 # Standalone execution needs the source path and Agg backend before local imports.
 
+import argparse
 import json
 import math
 import os
@@ -40,6 +41,11 @@ def report_diagram(diagram, path, *, labels=True):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--benchmark", type=Path, default=ROOT / "results/benchmark.json"
+    )
+    args = parser.parse_args()
     plt.rcParams.update(
         {
             "font.family": "serif",
@@ -154,7 +160,7 @@ def main():
     fig.tight_layout()
     fig.savefig(OUT / "beachline.png", dpi=220, bbox_inches="tight")
     plt.close(fig)
-    data = json.loads((ROOT / "results" / "benchmark.json").read_text())["results"]
+    data = json.loads(args.benchmark.read_text(encoding="utf-8"))["results"]
     ns = [row["n"] for row in data]
     ts = [row["median_seconds"] for row in data]
     fig, axes = plt.subplots(1, 2, figsize=(6.3, 3.1))

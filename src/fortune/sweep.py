@@ -41,6 +41,7 @@ class FortuneSweep:
         self._vertex_index = {}
         self.statistics = dict(site_events=0, circle_events=0, stale_events=0)
         self._started = False
+        self._level = None
 
     def edge(self, a, b, vertex=None):
         if a == b:
@@ -67,17 +68,21 @@ class FortuneSweep:
         result = candidate_circle(*(self.points[i] for i in ids), self.sweep_y)
         if result:
             centre, bottom = result
-            self.queue.push(
-                Event(
-                    bottom,
-                    centre.x,
-                    1,
-                    arc=arc,
-                    generation=arc.generation,
-                    centre=centre,
-                    defining=ids,
-                )
+            event = Event(
+                bottom,
+                centre.x,
+                1,
+                arc=arc,
+                generation=arc.generation,
+                centre=centre,
+                defining=ids,
+                circle_points=tuple(self.points[i] for i in ids),
             )
+            level = self._level
+            if level is None and math.isfinite(self.sweep_y):
+                level = Event(self.sweep_y, 0, 0).height
+            if level is None or event.height.compare(level) <= 0:
+                self.queue.push(event)
 
     def site_event(self, site):
         self.statistics["site_events"] += 1
@@ -85,7 +90,9 @@ class FortuneSweep:
             self.beach.insert_after(None, Arc(site))
             return
         point = self.points[site]
-        old = self.beach.locate(point.x, self.sweep_y, self.points)
+        # A preceding circle height may round a fraction of an ulp below this
+        # site. Search at the site's exact birth level, not that display height.
+        old = self.beach.locate(point.x, point.y, self.points)
         before, after = old.prev, old.next
         old.generation += 1
         if self.points[old.site].y == point.y:
@@ -156,6 +163,7 @@ class FortuneSweep:
             self._finish_statistics()
             return None
         event = self.queue.pop()
+        self._level = event.height
         self.sweep_y = min(self.sweep_y, event.y)
         if event.kind == 0:
             self.site_event(event.site)

@@ -1,0 +1,90 @@
+{
+  "exported_at": "2026-11-18T18:09:49.628077+08:00",
+  "timezone": "GMT+8",
+  "entries": [
+    {
+      "date": "24 Oct 2026",
+      "summary": "Requirements, architecture and development records."
+    },
+    {
+      "date": "25 Oct 2026",
+      "summary": "Stable geometry primitives and initial unit tests."
+    },
+    {
+      "date": "26 Oct 2026",
+      "summary": "AVL beach line with stable arc identities and neighbour links."
+    },
+    {
+      "date": "27 Oct 2026",
+      "summary": "Deterministic sweep-event priority queue."
+    },
+    {
+      "date": "28 Oct 2026",
+      "summary": "Clockwise circle-event detection and stable event heights."
+    },
+    {
+      "date": "30 Oct 2026",
+      "summary": "Site splits, circle-event processing and traced sweep edges."
+    },
+    {
+      "date": "1 Nov 2026",
+      "summary": "Clipped ordered cells and degenerate-case validation."
+    },
+    {
+      "date": "3 Nov 2026",
+      "summary": "Ill-conditioned geometry and clipping-tolerance corrections."
+    },
+    {
+      "date": "5 Nov 2026",
+      "summary": "Text input, seeded generation, batch commands and ray exports."
+    },
+    {
+      "date": "6 Nov 2026",
+      "summary": "Coloured diagrams and interactive Compute and Export controls."
+    },
+    {
+      "date": "7 Nov 2026",
+      "summary": "Construction-time and memory measurements, with reproducible figures."
+    },
+    {
+      "date": "8 Nov 2026",
+      "summary": "Clean-installation checks, extended stress tests and Windows/Linux CI."
+    },
+    {
+      "date": "8 Nov 2026",
+      "summary": "Microscopic cells and exact circle identities."
+    },
+    {
+      "date": "8 Nov 2026",
+      "summary": "Tiny-cell and cocircular-ray corrections with stricter regressions."
+    },
+    {
+      "date": "9 Nov 2026",
+      "summary": "Verified figures and walkthrough materials."
+    },
+    {
+      "date": "10 Nov 2026",
+      "summary": "Cross-platform checks and extracted-package verification."
+    },
+    {
+      "date": "11 Nov 2026",
+      "summary": "Stepwise Fortune replay and retained project evidence."
+    },
+    {
+      "date": "12 Nov 2026",
+      "summary": "Pointer-following Canvas replay and inspector controls."
+    },
+    {
+      "date": "14 Nov 2026",
+      "summary": "Integrated pointer replay and verification checks."
+    },
+    {
+      "date": "14 Nov 2026",
+      "summary": "Main-branch CI results and delivery checks."
+    },
+    {
+      "date": "14 Nov 2026",
+      "summary": "Archive checksum records."
+    }
+  ]
+}

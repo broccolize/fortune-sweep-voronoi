@@ -37,6 +37,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--seeds", type=int, default=300)
     p.add_argument("--largest", type=int, default=10000)
+    p.add_argument("--output", type=Path, default=ROOT / "evidence/stress-final.json")
     args = p.parse_args()
     started = time.perf_counter()
     failures = []
@@ -91,9 +92,8 @@ def main():
         failures=failures,
         seconds=time.perf_counter() - started,
     )
-    (ROOT / "evidence" / "stress-final.json").write_text(
-        json.dumps(result, indent=2), encoding="utf-8"
-    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
     return bool(failures)
 

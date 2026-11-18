@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -56,11 +57,13 @@ def main():
     archive = args.archive.resolve()
     if os.name != "nt":
         parser.error("This check exercises the delivered Windows launcher.")
+    if not shutil.which("node"):
+        parser.error("Install Node.js 24.22.1 to run the complete JavaScript checks")
     stamp = datetime.now(timezone(timedelta(hours=8)))
     target = (ROOT / "tmp" / stamp.strftime("package-check-%Y%m%d-%H%M%S")).resolve()
     assert target.is_relative_to((ROOT / "tmp").resolve())
     target.mkdir(parents=True, exist_ok=False)
-    log = ROOT / "evidence/package-verification.log"
+    log = ROOT / "evidence/final-package-verification.log"
     log.write_text("", encoding="utf-8")
     with ZipFile(archive) as bundle:
         if bundle.testzip() is not None:
@@ -114,7 +117,7 @@ def main():
             "--disable-pip-version-check",
             "-q",
             "-r",
-            "requirements.txt",
+            "requirements-reference.txt",
         ],
     )
     run(
@@ -157,7 +160,7 @@ def main():
     )
     run(
         "delivered independent test suite",
-        installed_test_command(python, ROOT / "evidence/package-tests.xml"),
+        installed_test_command(python, ROOT / "evidence/final-package-tests.xml"),
         cwd=target,
     )
     run(
@@ -180,18 +183,19 @@ def main():
             "output\\package.csv",
             "--json",
             "output\\package.json",
+            "--delaunay",
         ],
         cwd=target,
     )
     for name in ("package.png", "package.csv", "package.json"):
         if (source / "output" / name).stat().st_size <= 0:
             raise RuntimeError(f"Empty batch output: {name}")
-    tree = ET.parse(ROOT / "evidence/package-tests.xml")
+    tree = ET.parse(ROOT / "evidence/final-package-tests.xml")
     cases = list(tree.iter("testcase"))
     failures = sum(len(list(tree.iter(tag))) for tag in ("failure", "error"))
     skipped = len(list(tree.iter("skipped")))
-    if failures:
-        raise RuntimeError("Delivered tests failed")
+    if failures or skipped:
+        raise RuntimeError("Delivered tests must pass without failures or skips")
     hashes = {
         str(p.relative_to(source)).replace("\\", "/"): hashlib.sha256(
             p.read_bytes()
@@ -203,6 +207,7 @@ def main():
     for name in (
         "pyproject.toml",
         "requirements.txt",
+        "requirements-reference.txt",
         "run.bat",
         "test.bat",
         "install.bat",
@@ -227,10 +232,11 @@ def main():
         test_failures=failures,
         source_and_test_sha256=hashes,
         source_hash_scope="Delivered src/fortune, tests, package configuration and launchers; excludes generated egg-info and caches",
-        log="evidence/package-verification.log",
-        junit="evidence/package-tests.xml",
+        node=subprocess.check_output(["node", "--version"], text=True).strip(),
+        log="evidence/final-package-verification.log",
+        junit="evidence/final-package-tests.xml",
     )
-    (ROOT / "evidence/package-verification.json").write_text(
+    (ROOT / "evidence/final-package-verification.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"
     )
     print(

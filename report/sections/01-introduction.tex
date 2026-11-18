@@ -2,7 +2,7 @@
 \section{Introduction and Theoretical Background}
 \label{sec:1}
 
-This project constructs planar Voronoi diagrams from a finite set of point sites using a from-scratch Fortune sweep. The implementation includes a balanced beach line, event queue, circle-event invalidation, traced vertices and edges, clipped ordered cells, batch commands, a graphical point-entry interface and a pointer-controlled sweep replay. Independent tests check the geometry of the output rather than judging diagrams by appearance. The integrated version has 139 passing automated tests and construction has been measured up to 10,000 sites on native Windows.
+The geometric core implements Fortune's sweep-line algorithm to construct planar Voronoi diagrams from point sites. The program maintains a balanced beach line and an event queue, handles circle-event invalidation, and builds ordered cells clipped to a bounding rectangle. Batch commands and a graphical point-entry interface provide image and machine-readable exports. A 171-test suite, independent geometric checks and a separate reference comparison check the output. The program also provides an event replay and a Delaunay overlay. This report covers the implementation and verification available on 18 November 2026; the current construction benchmark was measured on the same date, with earlier measurements retained separately. The finite-precision limits of the implementation remain important when interpreting those results.
 
 For sites \(P=\{p_1,\ldots,p_n\}\subset\mathbb{R}^2\), the Voronoi cell of \(p_i\) contains each query \(q\) at least as close to \(p_i\) as to every other site:
 \begin{equation}
@@ -11,7 +11,9 @@ For sites \(P=\{p_1,\ldots,p_n\}\subset\mathbb{R}^2\), the Voronoi cell of \(p_i
   \quad\text{for every }j\neq i\right\}.
   \label{eq:cell}
 \end{equation}
-Each comparison defines a half-plane bounded by a perpendicular bisector. Their intersection is convex and may be unbounded. A clipping rectangle makes its visible portion finite without changing ownership inside that rectangle.
+Each comparison defines a half-plane bounded by a perpendicular bisector. Their intersection is convex and may be unbounded. A clipping rectangle makes its visible portion finite without changing ownership inside that rectangle. Sites on the boundary of the convex hull have unbounded cells; sites strictly inside the hull have bounded cells.
+
+The straight-line dual connects two sites when their Voronoi cells share an edge of positive length. In general position, this gives the Delaunay triangulation. A finite Voronoi vertex is the centre of an empty circumcircle through the sites of its dual triangle. Four or more cocircular sites create a higher-degree Voronoi vertex, so a triangulation of the corresponding Delaunay face is not unique. This distinction matters when choosing which adjacencies represent real Voronoi edges and which are zero-length diagonals.
 
 \begin{figure}[!htbp]
 \centering
@@ -45,6 +47,6 @@ A site event inserts a limiting arc and normally splits an existing arc into thr
 \end{equation}
 Changes to neighbouring arcs can invalidate a pending event before it reaches the front of the queue.
 
-Fortune's original work establishes the sweep approach and its $O(n \log n)$ time and $O(n)$ space targets \cite{fortune1987}. The present implementation follows the familiar beach-line formulation summarized in the supplied specification. It uses ordinary Python containers and mathematics, not an existing Voronoi or Delaunay implementation.
+Fortune's original work establishes the sweep approach and its $O(n \log n)$ time and $O(n)$ space bounds \cite{fortune1987}. The core follows the beach-line formulation and uses Python containers and mathematics. Existing Voronoi and Delaunay implementations are not used to construct the diagram.
 
 Degeneracies need explicit policies. Exact duplicates share one cell and retain all original indices. Exactly collinear inputs reduce to consecutive one-dimensional neighbours and parallel bisectors. Equal-height events use limiting arcs. Cocircular events may share one emitted vertex. Near-coincident sites remain distinct, subject to finite-precision representation; no blanket distance threshold silently merges them.

@@ -1,11 +1,10 @@
 @echo off
 setlocal
-pushd "%~dp0.."
-if exist ".venv\Scripts\python.exe" (
-  ".venv\Scripts\python.exe" tools\build_report.py %*
+set "report_root=%~dp0.."
+if not exist "%report_root%\tools\build_report.py" set "report_root=%~dp0..\02_SourceCode"
+if exist "%report_root%\.venv\Scripts\python.exe" (
+  "%report_root%\.venv\Scripts\python.exe" "%~dp0build_snapshot.py" %*
 ) else (
-  py -3 tools\build_report.py %*
+  py -3 "%~dp0build_snapshot.py" %*
 )
-set "report_exit=%errorlevel%"
-popd
-exit /b %report_exit%
+exit /b %errorlevel%

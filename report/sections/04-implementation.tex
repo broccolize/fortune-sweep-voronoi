@@ -25,27 +25,51 @@ self.schedule(left)
 self.schedule(right)
 \end{lstlisting}
 
-AI-generated code was integrated incrementally: geometry passed ten tests, geometry plus AVL operations seventeen, and queue/circle examples twenty-one. The first complete cell suite then produced three genuine failures. Independent checks prompted corrections to clipping and numerical construction, documented in Section~\ref{sec:6}.
+Implementation proceeded incrementally, adding generated code one component at a time. Geometry passed ten tests, geometry plus AVL operations seventeen, and the queue/circle examples twenty-one. The first complete cell suite then produced three failures. Independent checks led to corrections in clipping and numerical construction, described in Section~\ref{sec:6}.
 
-The snippets above are excerpts from the actual source. Complete editable modules and a companion source listing are included in the package. No public implementation was copied into the algorithmic core.
+Listings~\ref{lst:1} and~\ref{lst:2} show the local updates used by the two event handlers. The complete code is supplied in the companion \href{source_appendix.pdf}{source listing PDF (Appendix A)} and the editable source archive. The algorithmic core contains no copied Voronoi implementation.
 
-\subsection{Interfaces, Exports and Native Display}
+\subsection{Interfaces and Exports}
 
 The file parser accepts one whitespace- or comma-separated pair per line, ignores blank lines and comments, and reports malformed line numbers. Seeded generation uses Python's random generator. Exact duplicates retain their input-index groups. Batch commands print counts and construction timing, then optionally write an image, CSV and JSON.
 
-\begin{figure}[!htbp]
+
+\begin{center}\begin{minipage}{\linewidth}\captionsetup{hypcap=false}
 \centering
-\includegraphics[width=0.92\linewidth,height=0.55\textheight,keepaspectratio]{gui-native.png}
-\caption{Native Windows interface after a successful five-site export.}
+\includegraphics[width=0.92\linewidth,height=0.45\textheight,keepaspectratio]{gui-current.png}
+\captionof{figure}{Interactive plotting interface with inferred bounds and the Delaunay overlay.}
 \label{fig:4}
-\end{figure}
+\end{minipage}\end{center}
 
-The interface supports click insertion, Compute, Clear, Export and Animate. Callback tests exercise input and output; native Export produced PNG, CSV and JSON. Figure~\ref{fig:4} is a real capture of the earlier interface, before Animate was added. Its five-site state is retained in \path{examples/interactive.json}.
+The interface provides click insertion, Compute, Animate, Clear and Export, plus a Delaunay checkbox. Compute or a double-click constructs the diagram; Export saves the image, CSV and JSON. File input without explicit bounds uses a padded view of its sites, while an empty click canvas starts with the unit square. Figure~\ref{fig:4} uses sites around $(100,100)$, where the earlier fixed unit-square view hid the input. Tests exercise the CLI, computation, exports and the actual checkbox callback.
 
-CSV rows give ordered vertices, next endpoints, neighbours and ray information. JSON includes defining sites and ray origins/directions. Static rendering supports an off-screen backend; interactive rendering needs a GUI backend \cite{matplotlibbackends}.
+CSV rows give ordered vertices, next endpoints, neighbours and ray information. JSON includes defining sites, ray origins/directions, Delaunay edges and the cocircular policy. Static rendering supports an off-screen backend; interactive rendering needs a GUI backend \cite{matplotlibbackends}.
 
-\subsection{Pointer-Controlled Sweep Replay}
 
-Animate, or \code{--animate}, exports offline HTML. Python records live arc orders, queue previews, stale flags and edges from \code{FortuneSweep.step()}. Pointer movement selects a state by binary search; Canvas draws its parabolas as quadratic Bezier curves without rerunning Fortune. Play and Next event expose the same sequence. Appendix~\ref{sec:c} provides the capture and measurements.
+\clearpage
+\subsection{Sweep Replay}
 
-The educational history can occupy $O(n^2)$ space and is capped at 200 distinct sites. It is excluded from ordinary $O(n\log n)$ construction benchmarks. The viewer explicitly identifies the production sorted-neighbour special case for collinear/minimal inputs.
+The replay uses \code{FortuneSweep.step()}, the same event handlers used by batch construction. Its beach curves and event queue come from intermediate engine states, rather than an animation inferred from completed cell polygons. The Canvas viewer follows the pointer vertically and provides Play, Next event, Reset and Finish controls. Clicking freezes or resumes pointer following. A Matplotlib event inspector remains available as an alternative.
+
+\begin{center}\begin{minipage}{\linewidth}\captionsetup{hypcap=false}
+\centering
+\includegraphics[width=0.78\linewidth,height=0.52\textheight,keepaspectratio]{canvas-replay.jpg}
+\captionof{figure}{Canvas replay with the sweep line, beach curves, traced edges and playback controls.}
+\label{fig:replay}
+\end{minipage}\end{center}
+
+The replay is limited to 200 distinct sites. The Python model keeps a bounded number of checkpoints for seeking, while the exported browser replay stores event states and can require quadratic total storage. This visualization cost is separate from the linear-storage construction engine. Tests check event stepping, stale-event handling, reset, seeking, frame geometry and pointer controls.
+
+\clearpage
+\subsection{Delaunay Overlay}
+
+The \code{--delaunay} option draws the straight-line dual in batch images; the interactive checkbox turns it on or off without recomputing the cells. Its edges come from the full sweep adjacency, so shrinking the clipping box does not discard an adjacency whose Voronoi edge lies outside the view.
+
+\begin{center}\begin{minipage}{\linewidth}\captionsetup{hypcap=false}
+\centering
+\includegraphics[width=0.89\linewidth,height=0.48\textheight,keepaspectratio]{delaunay.png}
+\captionof{figure}{The nine-site diagram with its Delaunay triangulation in dashed purple.}
+\label{fig:delaunay}
+\end{minipage}\end{center}
+
+For an exactly cocircular face, several triangulations are valid. The implementation first removes zero-length Voronoi diagonals, then triangulates the convex face as a fan from its lexicographically first site. This gives reproducible noncrossing diagonals under input permutations. Collinear sites use the consecutive-site chain. Tests cover these policies, planarity and the independence of the dual from the clipping box.

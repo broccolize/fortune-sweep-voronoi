@@ -1,5 +1,5 @@
 ==============================================================================
-.github\workflows\tests.yml
+.github/workflows/tests.yml
 ==============================================================================
 name: Tests
 on:
@@ -19,14 +19,19 @@ jobs:
       MPLBACKEND: Agg
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.22.1'
+          package-manager-cache: false
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip
-      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install -r requirements-reference.txt
       - run: python -m pip install --no-deps .
       - run: python -m pytest -q --junitxml=results/ci-tests.xml
-      - run: python -m fortune --random 100 --seed 2026 --output results/ci.png --csv results/ci.csv --json results/ci.json
+      - run: python tests/reference_compare/compare.py --seeds 10 --queries 100 --output results/ci-reference-comparison.json
+      - run: python -m fortune --random 100 --seed 2026 --delaunay --output results/ci.png --csv results/ci.csv --json results/ci.json
 
 
 ==============================================================================
@@ -57,6 +62,7 @@ dependencies = ["matplotlib==3.11.2"]
 
 [project.optional-dependencies]
 test = ["pytest==9.2.0"]
+reference = ["scipy==1.18.1"]
 
 [project.scripts]
 voronoi = "fortune.cli:main"
@@ -80,19 +86,18 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 
 ==============================================================================
-report\build.bat
+requirements-dev.txt
 ==============================================================================
-@echo off
-setlocal
-pushd "%~dp0.."
-if exist ".venv\Scripts\python.exe" (
-  ".venv\Scripts\python.exe" tools\build_report.py %*
-) else (
-  py -3 tools\build_report.py %*
-)
-set "report_exit=%errorlevel%"
-popd
-exit /b %report_exit%
+-r requirements.txt
+ruff==0.17.4
+
+
+==============================================================================
+requirements-reference.txt
+==============================================================================
+# Validation only. The Fortune construction engine never imports SciPy.
+-r requirements.txt
+scipy==1.18.1
 
 
 ==============================================================================
@@ -148,7 +153,7 @@ exec .venv-wsl/bin/python -m fortune "$@"
 
 
 ==============================================================================
-src\fortune\__init__.py
+src/fortune/__init__.py
 ==============================================================================
 """An independently implemented Fortune sweep; no Voronoi libraries are used."""
 
@@ -161,7 +166,7 @@ __all__ = ["construct", "Point", "Box", "__version__"]
 
 
 ==============================================================================
-src\fortune\__main__.py
+src/fortune/__main__.py
 ==============================================================================
 from .cli import main
 
@@ -169,7 +174,7 @@ raise SystemExit(main())
 
 
 ==============================================================================
-src\fortune\beachline.py
+src/fortune/beachline.py
 ==============================================================================
 """An AVL sequence of arcs, with O(1) links to neighbouring arcs.
 
@@ -179,7 +184,7 @@ rather than copying a payload, because queued events refer to arc objects.
 
 from dataclasses import dataclass
 
-from .geometry import breakpoint_x
+from .geometry import breakpoint_side
 
 
 @dataclass(eq=False, slots=True)
@@ -324,12 +329,20 @@ class BeachLine:
     def locate(self, x, directrix, points):
         node = self.root
         while node:
-            if node.prev and x < breakpoint_x(
-                points[node.prev.site], points[node.site], directrix
+            if (
+                node.prev
+                and breakpoint_side(
+                    points[node.prev.site], points[node.site], directrix, x
+                )
+                < 0
             ):
                 node = node.left
-            elif node.next and x > breakpoint_x(
-                points[node.site], points[node.next.site], directrix
+            elif (
+                node.next
+                and breakpoint_side(
+                    points[node.site], points[node.next.site], directrix, x
+                )
+                > 0
             ):
                 node = node.right
             else:
@@ -367,7 +380,7 @@ class BeachLine:
 
 
 ==============================================================================
-src\fortune\circle.py
+src/fortune/circle.py
 ==============================================================================
 """Circle-event eligibility for three consecutive arcs in a downward sweep."""
 
@@ -393,7 +406,7 @@ def candidate_circle(a, b, c, sweep_y):
 
 
 ==============================================================================
-src\fortune\cli.py
+src/fortune/cli.py
 ==============================================================================
 """Documented batch and interactive entry points."""
 
@@ -452,6 +465,11 @@ def main(argv=None):
     parser.add_argument(
         "--no-labels", action="store_true", help="Hide indices for dense previews"
     )
+    parser.add_argument(
+        "--delaunay",
+        action="store_true",
+        help="Overlay the dual Delaunay triangulation in batch/interactive views",
+    )
     args = parser.parse_args(argv)
     try:
         sites = (
@@ -469,6 +487,8 @@ def main(argv=None):
             else None
         )
         if args.animate:
+            if args.delaunay:
+                parser.error("Use --delaunay with batch or --interactive mode.")
             if args.csv or args.json_path:
                 parser.error(
                     "Use batch mode for CSV/JSON; Canvas replay --output saves HTML."
@@ -500,7 +520,7 @@ def main(argv=None):
         if args.interactive or not argv:
             from .interactive import launch
 
-            launch(sites, box, args.output or "interactive.png")
+            launch(sites, box, args.output or "interactive.png", delaunay=args.delaunay)
             return 0
         if not sites:
             parser.error("Specify --input FILE, --random N, or --interactive")
@@ -512,7 +532,13 @@ def main(argv=None):
         if args.output or args.show:
             from .visualize import render
 
-            render(diagram, args.output, show=args.show, labels=not args.no_labels)
+            render(
+                diagram,
+                args.output,
+                show=args.show,
+                labels=not args.no_labels,
+                delaunay=args.delaunay,
+            )
         print(json.dumps(diagram.statistics, indent=2))
     except (ValueError, ArithmeticError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -521,7 +547,7 @@ def main(argv=None):
 
 
 ==============================================================================
-src\fortune\clipping.py
+src/fortune/clipping.py
 ==============================================================================
 """Bounded half-plane intersection over sweep-generated neighbours only.
 
@@ -721,7 +747,7 @@ def clipped_cell(site, neighbours, points, box):
 
 
 ==============================================================================
-src\fortune\diagram.py
+src/fortune/diagram.py
 ==============================================================================
 """Public construction API and ordered clipped-cell output model."""
 
@@ -730,6 +756,7 @@ from dataclasses import dataclass, field
 from time import perf_counter
 
 from .clipping import clipped_cell
+from .frame import CoordinateFrame, inferred_box
 from .geometry import Box, Point, orient, polygon_area
 from .sweep import FortuneSweep, Vertex, all_collinear, collinear_neighbours
 
@@ -762,6 +789,7 @@ class Diagram:
     vertices: list[Vertex]
     box: Box
     statistics: dict = field(default_factory=dict)
+    delaunay_edges: list[tuple[int, int]] = field(default_factory=list)
 
 
 def hull_order(points):
@@ -785,12 +813,31 @@ def hull_order(points):
     return lower[:-1] + upper[:-1]
 
 
+def delaunay_triangulation(sites, sweep, zero_edges):
+    """Dual edges, with a deterministic fan for each exactly cocircular face.
+
+    A Voronoi vertex shared by more than three sites defines a convex polygon
+    with several valid Delaunay triangulations. Use its lexicographically first
+    site as the fan anchor, so the diagonals do not depend on event/input order.
+    Collinear input retains the consecutive-site chain.
+    """
+    edges = set(sweep.edges) - zero_edges
+    for vertex in sweep.vertices:
+        if len(vertex.defining) <= 3:
+            continue
+        ids = sorted(vertex.defining)
+        ring = [ids[i] for i in hull_order([sites[i] for i in ids])]
+        for other in ring[2:-1]:
+            edges.add(tuple(sorted((ring[0], other))))
+    return sorted(edges)
+
+
 def construct(coordinates, box=None, *, debug=False):
     """Build a Voronoi diagram; exact duplicates share one cell and index list.
 
-    Geometric calculations use a translated, uniformly scaled frame. Distinct
-    near-coincident points are not deliberately merged. Extremely disparate
-    coordinates that collapse in normalization are rejected explicitly.
+    Geometric calculations use an exactly representable uniform transform.
+    Distinct near-coincident points are not deliberately merged. Coordinate
+    ranges that lose subnormal bits in that transform are rejected explicitly.
     """
     started = perf_counter()
     sites, groups, index = [], [], {}
@@ -812,35 +859,14 @@ def construct(coordinates, box=None, *, debug=False):
         input_count += 1
     if not sites:
         raise ValueError("At least one finite site is required")
-    xmin, xmax = min(p.x for p in sites), max(p.x for p in sites)
-    ymin, ymax = min(p.y for p in sites), max(p.y for p in sites)
-    scale = max(xmax - xmin, ymax - ymin)
-    if not scale:
-        scale = max(1.0, abs(xmin) * 1e-6, abs(ymin) * 1e-6)
-    if not math.isfinite(scale):
-        raise ValueError("Coordinate extent exceeds supported floating-point range")
-    ox, oy = xmin + (xmax - xmin) / 2, ymin + (ymax - ymin) / 2
-
-    def normalize(p):
-        return Point((p.x - ox) / scale, (p.y - oy) / scale)
-
-    def world(p):
-        return Point(ox + scale * p.x, oy + scale * p.y)
-
+    frame = CoordinateFrame.for_sites(sites)
+    world = frame.world
     if box is None:
-        pad = scale * 0.1
-        box = Box(xmin - pad, ymin - pad, xmax + pad, ymax + pad)
+        box = inferred_box(sites)
     elif not isinstance(box, Box):
         box = Box(*box)
-    nbox = Box(
-        (box.xmin - ox) / scale,
-        (box.ymin - oy) / scale,
-        (box.xmax - ox) / scale,
-        (box.ymax - oy) / scale,
-    )
-    normalized = [normalize(p) for p in sites]
-    if len(set(normalized)) != len(sites):
-        raise ValueError("Distinct sites collapse at this floating-point scale")
+    nbox = frame.normalize_box(box)
+    normalized = [frame.normalize(p) for p in sites]
     collinear = all_collinear(sites)
     sweep_start = perf_counter()
     sweep = (
@@ -859,6 +885,7 @@ def construct(coordinates, box=None, *, debug=False):
         for key, edge in sweep.edges.items()
         if len(edge.vertices) == 1 and key not in hull_edges and not collinear
     }
+    dual = delaunay_triangulation(sites, sweep, zero_edges)
     vertices = [Vertex(world(v.point), set(v.defining)) for v in sweep.vertices]
     for identity, i in sweep._vertex_index.items():
         vertices[i].point = Point(float(identity[0]), float(identity[1]))
@@ -933,23 +960,82 @@ def construct(coordinates, box=None, *, debug=False):
         cells=len(cells),
         vertices=len(vertices),
         edges=len(edges),
+        delaunay_edges=len(dual),
         sweep_seconds=sweep_seconds,
         construction_seconds=perf_counter() - started,
     )
-    return Diagram(sites, cells, edges, vertices, box, statistics)
+    return Diagram(sites, cells, edges, vertices, box, statistics, dual)
 
 
 ==============================================================================
-src\fortune\events.py
+src/fortune/events.py
 ==============================================================================
 """Deterministic priority queue: descending y, sites before circles, then x."""
 
 import heapq
 import itertools
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
+from fractions import Fraction
 
 from .beachline import Arc
-from .geometry import Point
+from .geometry import Point, circle_identity
+
+
+def radical_difference_sign(a, b, c, d):
+    """Exact sign of (a - sqrt(b)) - (c - sqrt(d)), for rational b,d >= 0."""
+    delta = a - c
+    if delta < 0:
+        return -radical_difference_sign(c, d, a, b)
+    if not delta:
+        return (d > b) - (d < b)
+    remainder = b - d - delta * delta
+    if remainder < 0:
+        return 1
+    value = 4 * delta * delta * d - remainder * remainder
+    return (value > 0) - (value < 0)
+
+
+class SweepHeight:
+    """Descending heap height, with exact radical comparisons near a tie.
+
+    Most comparisons use doubles. Exact circumcircles are evaluated lazily only
+    when the error intervals overlap; no rounded centre or epsilon decides a tie.
+    """
+
+    __slots__ = ("approx", "error", "points", "_exact")
+
+    def __init__(self, event):
+        self.approx = event.y
+        centre = event.centre or Point(0, 0)
+        self.error = 128 * math.ulp(
+            max(1.0, abs(event.y), abs(centre.x), abs(centre.y))
+        )
+        self.points = event.circle_points
+        self._exact = None
+
+    def exact(self):
+        if self._exact is None:
+            if self.points is None:
+                self._exact = Fraction(self.approx), Fraction(0)
+            else:
+                _, y, radius_squared = circle_identity(*self.points)
+                self._exact = y, radius_squared
+        return self._exact
+
+    def compare(self, other):
+        difference = self.approx - other.approx
+        if abs(difference) > self.error + other.error:
+            return 1 if difference > 0 else -1
+        return radical_difference_sign(*self.exact(), *other.exact())
+
+    def __lt__(self, other):
+        return self.compare(other) > 0
+
+    def __eq__(self, other):
+        if not isinstance(other, SweepHeight):
+            return NotImplemented
+        return self.compare(other) == 0
 
 
 @dataclass(slots=True)
@@ -962,6 +1048,14 @@ class Event:
     generation: int = 0
     centre: Point | None = None
     defining: tuple[int, int, int] | None = None
+    circle_points: tuple[Point, Point, Point] | None = None
+    _height: SweepHeight | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def height(self):
+        if self._height is None:
+            self._height = SweepHeight(self)
+        return self._height
 
 
 class EventQueue:
@@ -973,7 +1067,7 @@ class EventQueue:
 
     def push(self, event):
         heapq.heappush(
-            self._heap, (-event.y, event.kind, event.x, next(self._serial), event)
+            self._heap, (event.height, event.kind, event.x, next(self._serial), event)
         )
         self.pushed += 1
         self.peak_size = max(self.peak_size, len(self._heap))
@@ -999,7 +1093,98 @@ class EventQueue:
 
 
 ==============================================================================
-src\fortune\geometry.py
+src/fortune/frame.py
+==============================================================================
+"""A uniform coordinate frame that preserves the input doubles exactly."""
+
+import math
+from dataclasses import dataclass
+
+from .geometry import Box, Point
+
+
+def site_extent(sites):
+    xmin, xmax = min(p.x for p in sites), max(p.x for p in sites)
+    ymin, ymax = min(p.y for p in sites), max(p.y for p in sites)
+    span = max(xmax - xmin, ymax - ymin)
+    if not span:
+        span = max(1.0, abs(xmin) * 1e-6, abs(ymin) * 1e-6)
+    if not math.isfinite(span):
+        raise ValueError("Coordinate extent exceeds supported floating-point range")
+    return xmin, ymin, xmax, ymax, span
+
+
+def inferred_box(sites):
+    """Pad supplied sites; use the unit square for an empty click canvas."""
+    if not sites:
+        return Box(0, 0, 1, 1)
+    xmin, ymin, xmax, ymax, span = site_extent(sites)
+    pad = span * 0.1
+    return Box(
+        min(xmin - pad, math.nextafter(xmin, -math.inf)),
+        min(ymin - pad, math.nextafter(ymin, -math.inf)),
+        max(xmax + pad, math.nextafter(xmax, math.inf)),
+        max(ymax + pad, math.nextafter(ymax, math.inf)),
+    )
+
+
+def _origin(lo, hi):
+    # Sterbenz's lemma makes this subtraction exact when the endpoints have
+    # the same sign and lie within a factor of two. Otherwise, leave zero as
+    # the origin: subtracting an arbitrary midpoint can erase small offsets.
+    if lo == hi or (lo > 0 and hi <= 2 * lo):
+        return lo
+    if hi < 0 and lo >= 2 * hi:
+        return hi
+    return 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class CoordinateFrame:
+    ox: float
+    oy: float
+    exponent: int
+
+    @classmethod
+    def for_sites(cls, sites):
+        xmin, ymin, xmax, ymax, span = site_extent(sites)
+        exponent = min(1023, math.frexp(span)[1])
+        frame = cls(_origin(xmin, xmax), _origin(ymin, ymax), exponent)
+        for p in sites:
+            q = frame.normalize(p)
+            # Scaling by a power of two is exact unless it loses subnormal
+            # bits. Reject that range rather than silently changing topology.
+            if (
+                math.ldexp(q.x, exponent) != p.x - frame.ox
+                or math.ldexp(q.y, exponent) != p.y - frame.oy
+            ):
+                raise ValueError("Site distinctions exceed supported coordinate range")
+        return frame
+
+    @property
+    def scale(self):
+        return math.ldexp(1.0, self.exponent)
+
+    def normalize(self, p):
+        return Point(
+            math.ldexp(p.x - self.ox, -self.exponent),
+            math.ldexp(p.y - self.oy, -self.exponent),
+        )
+
+    def world(self, p):
+        return Point(
+            self.ox + math.ldexp(p.x, self.exponent),
+            self.oy + math.ldexp(p.y, self.exponent),
+        )
+
+    def normalize_box(self, box):
+        lo = self.normalize(Point(box.xmin, box.ymin))
+        hi = self.normalize(Point(box.xmax, box.ymax))
+        return Box(lo.x, lo.y, hi.x, hi.y)
+
+
+==============================================================================
+src/fortune/geometry.py
 ==============================================================================
 """Small geometric primitives, with explicit singular cases and filtered signs."""
 
@@ -1064,12 +1249,25 @@ def circumcircle(a: Point, b: Point, c: Point):
     Translation to a local origin avoids subtracting large squared coordinates.
     For cancellation-prone determinants, recompute the construction in Decimal.
     """
+    # Anchor at the closest pair. Subtracting a distant origin from two very
+    # close sites can destroy their separation in the squared-length numerators
+    # even when the determinant itself is well conditioned.
+    a, b, c = min(
+        ((a, b, c), (b, c, a), (c, a, b)),
+        key=lambda triple: triple[0].distance(triple[1]),
+    )
     ux, uy = b.x - a.x, b.y - a.y
     vx, vy = c.x - a.x, c.y - a.y
     cross = ux * vy - uy * vx
     # A reliable determinant sign alone does not imply an accurate centre.
     # Ill-conditioned (almost collinear) triples need high-precision coordinates.
-    if abs(cross) <= 1e-8 * (abs(ux * vy) + abs(uy * vx)):
+    u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
+    nx, ny = u2 * vy - v2 * uy, ux * v2 - vx * u2
+    if (
+        abs(cross) <= 1e-8 * (abs(ux * vy) + abs(uy * vx))
+        or abs(nx) <= 1e-8 * (abs(u2 * vy) + abs(v2 * uy))
+        or abs(ny) <= 1e-8 * (abs(ux * v2) + abs(vx * u2))
+    ):
         with localcontext() as ctx:
             ctx.prec = 80
             ax, ay = Decimal(a.x), Decimal(a.y)
@@ -1083,10 +1281,9 @@ def circumcircle(a: Point, b: Point, c: Point):
                 float(ax + (u2 * t - s2 * v) / d), float(ay + (u * s2 - s * u2) / d)
             )
     else:
-        u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
         centre = Point(
-            a.x + (u2 * vy - v2 * uy) / (2 * cross),
-            a.y + (ux * v2 - vx * u2) / (2 * cross),
+            a.x + nx / (2 * cross),
+            a.y + ny / (2 * cross),
         )
     radius = centre.distance(a)
     if not math.isfinite(radius):
@@ -1106,17 +1303,19 @@ def breakpoint_x(left: Point, right: Point, directrix: float) -> float:
 
     Equal-height sites give a linear equation. A focus on the directrix gives
     a vertical limiting arc. The remaining quadratic is solved with a stable
-    two-root formula, in coordinates translated to the left focus.
+    two-root formula, in coordinates translated to the lower focus. That origin
+    avoids subtracting a distant upper focus from a breakpoint near a new site.
     """
     if left.y == right.y:
         return left.x + (right.x - left.x) / 2
-    dp, dq = left.y - directrix, right.y - directrix
-    if dp <= 0:
+    if left.y <= directrix:
         return left.x
-    if dq <= 0:
+    if right.y <= directrix:
         return right.x
-    dx = right.x - left.x
-    aa = right.y - left.y
+    a, b = (left, right) if left.y < right.y else (right, left)
+    dp, dq = a.y - directrix, b.y - directrix
+    dx = b.x - a.x
+    aa = b.y - a.y
     bb = 2 * dp * dx
     cc = -dp * dx * dx - aa * dp * dq
     discr = bb * bb - 4 * aa * cc
@@ -1128,7 +1327,7 @@ def breakpoint_x(left: Point, right: Point, directrix: float) -> float:
     q = -0.5 * (bb + math.copysign(math.sqrt(discr), bb))
     roots = (q / aa, cc / q) if q else (-bb / (2 * aa),) * 2
     root = min(roots) if left.y > right.y else max(roots)
-    return left.x + root
+    return a.x + root
 
 
 def circle_bottom(centre: Point, through: Point) -> float:
@@ -1138,6 +1337,43 @@ def circle_bottom(centre: Point, through: Point) -> float:
     if dy >= 0 and radius + dy:
         return through.y - dx * dx / (radius + dy)
     return centre.y - radius
+
+
+def breakpoint_side(left, right, directrix, x):
+    """Compare x with a breakpoint, resolving close searches exactly.
+
+    The quadratic's vertex separates its two roots. On the selected branch,
+    evaluating its sign compares x to that root without rounding a square root.
+    """
+    boundary = breakpoint_x(left, right, directrix)
+    error = 32 * math.ulp(max(1.0, abs(left.x), abs(right.x), abs(x), abs(boundary)))
+    if abs(x - boundary) > error:
+        return -1 if x < boundary else 1
+    lx, ly, rx, ry, s, query = map(
+        Fraction, (left.x, left.y, right.x, right.y, directrix, x)
+    )
+    if ly == ry:
+        value = 2 * query - lx - rx
+    elif ly <= s:
+        value = query - lx
+    elif ry <= s:
+        value = query - rx
+    else:
+        ax, ay, bx, by = (lx, ly, rx, ry) if ly < ry else (rx, ry, lx, ly)
+        dp, dq, dx, u = ay - s, by - s, bx - ax, query - ax
+        aa, bb = by - ay, 2 * dp * dx
+        cc = -dp * dx * dx - aa * dp * dq
+        side_of_axis = 2 * aa * u + bb
+        value_at_query = aa * u * u + bb * u + cc
+        if ly > ry:
+            if side_of_axis >= 0:
+                return 1
+            value = -value_at_query
+        else:
+            if side_of_axis <= 0:
+                return -1
+            value = value_at_query
+    return (value > 0) - (value < 0)
 
 
 def circle_identity(a, b, c):
@@ -1173,21 +1409,36 @@ def polygon_area(points) -> float:
 
 
 ==============================================================================
-src\fortune\interactive.py
+src/fortune/interactive.py
 ==============================================================================
 """Click-to-add interface with explicit computation, clear and export buttons."""
 
 from .diagram import construct
-from .geometry import Box, Point
+from .frame import inferred_box
+from .geometry import Point
 from .io import write_csv, write_json
 from .visualize import draw
 
 
 class InteractiveController:
-    def __init__(self, figure, axes, sites=(), box=None, output="interactive.png"):
+    def __init__(
+        self,
+        figure,
+        axes,
+        sites=(),
+        box=None,
+        output="interactive.png",
+        *,
+        delaunay=False,
+    ):
         self.figure, self.axes = figure, axes
         self.sites = list(sites)
-        self.box = box or Box(0, 0, 1, 1)
+        self.sites = [
+            p if isinstance(p, Point) else Point(float(p[0]), float(p[1]))
+            for p in self.sites
+        ]
+        self.box = box if box is not None else inferred_box(self.sites)
+        self.delaunay = delaunay
         self.output = output
         self.diagram = None
         self.replays = []
@@ -1236,7 +1487,7 @@ class InteractiveController:
             return
         try:
             self.diagram = construct(self.sites, self.box)
-            draw(self.diagram, self.axes)
+            draw(self.diagram, self.axes, delaunay=self.delaunay)
             stats = self.diagram.statistics
             self.status.set_text(
                 f"{stats['unique_sites']} cells; {stats['construction_seconds']:.4f} s. Export saves image, CSV and JSON."
@@ -1244,6 +1495,12 @@ class InteractiveController:
         except (ValueError, ArithmeticError) as exc:
             self.status.set_text(str(exc))
         self.figure.canvas.draw_idle()
+
+    def toggle_delaunay(self, label=None):
+        self.delaunay = not self.delaunay
+        if self.diagram is not None:
+            draw(self.diagram, self.axes, delaunay=self.delaunay)
+            self.figure.canvas.draw_idle()
 
     def clear(self, event=None):
         self.sites.clear()
@@ -1292,13 +1549,17 @@ class InteractiveController:
         self.figure.canvas.draw_idle()
 
 
-def launch(sites=(), box=None, output="interactive.png"):
+def launch(sites=(), box=None, output="interactive.png", *, delaunay=False):
     import matplotlib.pyplot as plt
-    from matplotlib.widgets import Button
+    from matplotlib.widgets import Button, CheckButtons
 
     fig, axes = plt.subplots(figsize=(9, 8))
-    fig.subplots_adjust(bottom=0.17)
-    controller = InteractiveController(fig, axes, sites, box, output)
+    fig.subplots_adjust(bottom=0.22)
+    controller = InteractiveController(fig, axes, sites, box, output, delaunay=delaunay)
+    controller.dual_control = CheckButtons(
+        fig.add_axes([0.12, 0.14, 0.2, 0.04]), ["Delaunay"], [delaunay]
+    )
+    controller.dual_control.on_clicked(controller.toggle_delaunay)
     controller.buttons = []
     for x, label, callback in (
         (0.12, "Compute", controller.compute),
@@ -1314,7 +1575,7 @@ def launch(sites=(), box=None, output="interactive.png"):
 
 
 ==============================================================================
-src\fortune\io.py
+src/fortune/io.py
 ==============================================================================
 """Coordinate parsing and explicit ordered-cell, clipped-edge exports."""
 
@@ -1426,6 +1687,8 @@ def write_json(diagram, path):
         bbox=diagram.box.as_tuple(),
         sites=[pair(p) for p in diagram.sites],
         statistics=diagram.statistics,
+        delaunay_edges=diagram.delaunay_edges,
+        delaunay_policy="lexicographic fan for exactly cocircular faces; collinear chain",
         cells=[
             dict(
                 site=c.site,
@@ -1459,7 +1722,7 @@ def write_json(diagram, path):
 
 
 ==============================================================================
-src\fortune\replay.py
+src/fortune/replay.py
 ==============================================================================
 """Bounded, on-demand replay of the actual Fortune event engine.
 
@@ -1473,6 +1736,7 @@ import math
 from dataclasses import dataclass
 
 from .diagram import construct
+from .frame import CoordinateFrame
 from .geometry import Box, Point, breakpoint_x, parabola_y
 from .replay_state import clone_sweep
 from .sweep import FortuneSweep, all_collinear, collinear_neighbours
@@ -1509,10 +1773,9 @@ class SweepReplay:
         self.debug = debug
         xmin, xmax = min(p.x for p in self.sites), max(p.x for p in self.sites)
         ymin, ymax = min(p.y for p in self.sites), max(p.y for p in self.sites)
-        self.scale = max(xmax - xmin, ymax - ymin) or max(
-            1.0, abs(xmin) * 1e-6, abs(ymin) * 1e-6
-        )
-        self.ox, self.oy = xmin + (xmax - xmin) / 2, ymin + (ymax - ymin) / 2
+        self.frame = CoordinateFrame.for_sites(self.sites)
+        self.scale = self.frame.scale
+        self.ox, self.oy = self.frame.ox, self.frame.oy
         self.points = [self.normalize(p) for p in self.sites]
         b = self.box
         self.view = Box(
@@ -1535,10 +1798,10 @@ class SweepReplay:
             self.reset()
 
     def normalize(self, p):
-        return Point((p.x - self.ox) / self.scale, (p.y - self.oy) / self.scale)
+        return self.frame.normalize(p)
 
     def world(self, p):
-        return Point(self.ox + self.scale * p.x, self.oy + self.scale * p.y)
+        return self.frame.world(p)
 
     @property
     def done(self):
@@ -1778,7 +2041,7 @@ class SweepReplay:
 
 
 ==============================================================================
-src\fortune\replay_artists.py
+src/fortune/replay_artists.py
 ==============================================================================
 """Persistent replay artists and a cached-background painter.
 
@@ -2189,7 +2452,7 @@ class CachedPainter:
 
 
 ==============================================================================
-src\fortune\replay_canvas.html
+src/fortune/replay_canvas.html
 ==============================================================================
 <!doctype html>
 <html lang="en">
@@ -2233,7 +2496,7 @@ aside{padding:5px 3px;min-width:0}h2{font-size:12px;letter-spacing:.09em;color:#
 
 
 ==============================================================================
-src\fortune\replay_canvas.js
+src/fortune/replay_canvas.js
 ==============================================================================
 /* Presentation geometry only. Python supplies every arc order and event state. */
 (function (root) {
@@ -2484,7 +2747,7 @@ src\fortune\replay_canvas.js
 
 
 ==============================================================================
-src\fortune\replay_canvas.py
+src/fortune/replay_canvas.py
 ==============================================================================
 """Export an offline, pointer-following Canvas replay of real Python events.
 
@@ -2624,7 +2887,7 @@ def launch(
 
 
 ==============================================================================
-src\fortune\replay_state.py
+src/fortune/replay_state.py
 ==============================================================================
 """Copy the small mutable event state for at most eight replay checkpoints.
 
@@ -2672,6 +2935,8 @@ def clone_sweep(source, extra_event=None):
             generation=event.generation,
             centre=event.centre,
             defining=event.defining,
+            circle_points=event.circle_points,
+            _height=event._height,
         )
 
     result.queue._heap = [
@@ -2691,13 +2956,14 @@ def clone_sweep(source, extra_event=None):
     result._vertex_index = dict(source._vertex_index)
     result.statistics = dict(source.statistics)
     result._started = source._started
+    result._level = source._level
     if result.debug:
         result.beach.validate()
     return result, clone_event(extra_event)
 
 
 ==============================================================================
-src\fortune\replay_view.py
+src/fortune/replay_view.py
 ==============================================================================
 """Responsive playback, direct sweep dragging and position scrubbing."""
 
@@ -3005,7 +3271,7 @@ def launch(sites, box=None, output="replay.png", *, block=True, labels=True):
 
 
 ==============================================================================
-src\fortune\sweep.py
+src/fortune/sweep.py
 ==============================================================================
 """Fortune's event-driven sweep, producing adjacency and traced Voronoi edges.
 
@@ -3050,6 +3316,7 @@ class FortuneSweep:
         self._vertex_index = {}
         self.statistics = dict(site_events=0, circle_events=0, stale_events=0)
         self._started = False
+        self._level = None
 
     def edge(self, a, b, vertex=None):
         if a == b:
@@ -3076,17 +3343,21 @@ class FortuneSweep:
         result = candidate_circle(*(self.points[i] for i in ids), self.sweep_y)
         if result:
             centre, bottom = result
-            self.queue.push(
-                Event(
-                    bottom,
-                    centre.x,
-                    1,
-                    arc=arc,
-                    generation=arc.generation,
-                    centre=centre,
-                    defining=ids,
-                )
+            event = Event(
+                bottom,
+                centre.x,
+                1,
+                arc=arc,
+                generation=arc.generation,
+                centre=centre,
+                defining=ids,
+                circle_points=tuple(self.points[i] for i in ids),
             )
+            level = self._level
+            if level is None and math.isfinite(self.sweep_y):
+                level = Event(self.sweep_y, 0, 0).height
+            if level is None or event.height.compare(level) <= 0:
+                self.queue.push(event)
 
     def site_event(self, site):
         self.statistics["site_events"] += 1
@@ -3094,7 +3365,9 @@ class FortuneSweep:
             self.beach.insert_after(None, Arc(site))
             return
         point = self.points[site]
-        old = self.beach.locate(point.x, self.sweep_y, self.points)
+        # A preceding circle height may round a fraction of an ulp below this
+        # site. Search at the site's exact birth level, not that display height.
+        old = self.beach.locate(point.x, point.y, self.points)
         before, after = old.prev, old.next
         old.generation += 1
         if self.points[old.site].y == point.y:
@@ -3165,6 +3438,7 @@ class FortuneSweep:
             self._finish_statistics()
             return None
         event = self.queue.pop()
+        self._level = event.height
         self.sweep_y = min(self.sweep_y, event.y)
         if event.kind == 0:
             self.site_event(event.site)
@@ -3208,7 +3482,7 @@ def all_collinear(points):
 
 
 ==============================================================================
-src\fortune\ui_text.py
+src/fortune/ui_text.py
 ==============================================================================
 """Cached bitmap text for the live Agg/Tk UI, with normal vector export.
 
@@ -3329,16 +3603,16 @@ def replace_widget_text(axes, old):
 
 
 ==============================================================================
-src\fortune\visualize.py
+src/fortune/visualize.py
 ==============================================================================
 """Matplotlib static rendering; the geometric core has no plotting dependency."""
 
 from .io import ensure_parent
 
 
-def draw(diagram, axes, *, labels=True):
+def draw(diagram, axes, *, labels=True, delaunay=False):
     from matplotlib import colormaps
-    from matplotlib.collections import PolyCollection
+    from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.patches import Rectangle
 
     axes.clear()
@@ -3353,6 +3627,22 @@ def draw(diagram, axes, *, labels=True):
             alpha=0.65,
         )
     )
+    if delaunay and diagram.delaunay_edges:
+        segments = [
+            [(diagram.sites[i].x, diagram.sites[i].y) for i in edge]
+            for edge in diagram.delaunay_edges
+        ]
+        axes.add_collection(
+            LineCollection(
+                segments,
+                colors="#6d28d9",
+                linewidths=1.25,
+                linestyles="--",
+                zorder=2,
+                label="Delaunay triangulation",
+            )
+        )
+        axes.legend(loc="upper right", fontsize=8)
     axes.scatter(
         [p.x for p in diagram.sites],
         [p.y for p in diagram.sites],
@@ -3390,7 +3680,7 @@ def draw(diagram, axes, *, labels=True):
     axes.set_aspect("equal", adjustable="box")
 
 
-def render(diagram, path=None, *, show=False, labels=True):
+def render(diagram, path=None, *, show=False, labels=True, delaunay=False):
     if show:
         import matplotlib.pyplot as plt
 
@@ -3402,7 +3692,7 @@ def render(diagram, path=None, *, show=False, labels=True):
         fig = Figure(figsize=(8, 7))
         FigureCanvasAgg(fig)
         axes = fig.subplots()
-    draw(diagram, axes, labels=labels)
+    draw(diagram, axes, labels=labels, delaunay=delaunay)
     fig.tight_layout()
     if path:
         fig.savefig(ensure_parent(path), dpi=160)
@@ -3426,7 +3716,7 @@ exit /b %errorlevel%
 
 
 ==============================================================================
-tests\canvas_pointer_check.js
+tests/canvas_pointer_check.js
 ==============================================================================
 // Source-level event test: pointer movement must work without a pressed button.
 const fs=require('fs');
@@ -3466,7 +3756,479 @@ process.stdout.write(JSON.stringify({first,second}));
 
 
 ==============================================================================
-tests\test_adversarial.py
+tests/data/precision-grid.json
+==============================================================================
+[
+  [
+    1.0000000000000007,
+    3.000000000000001
+  ],
+  [
+    1.0000000000000002,
+    7.379879911334173E-16
+  ],
+  [
+    4.000000000000001,
+    1.0000000000000009
+  ],
+  [
+    7.536828510260793E-16,
+    4.0
+  ],
+  [
+    1.0,
+    8.113713864350453E-16
+  ],
+  [
+    2.0000000000000004,
+    1.0
+  ],
+  [
+    3.0000000000000004,
+    4.0
+  ],
+  [
+    2.0000000000000004,
+    6.511566859964491E-17
+  ],
+  [
+    3.0,
+    2.0
+  ],
+  [
+    3.4409209396120933E-16,
+    4.0
+  ],
+  [
+    2.000000000000001,
+    3.2542867396100243E-16
+  ],
+  [
+    1.0000000000000009,
+    4.000000000000001
+  ],
+  [
+    2.0000000000000004,
+    3.000000000000001
+  ],
+  [
+    1.0000000000000009,
+    6.317556020588231E-16
+  ],
+  [
+    1.0000000000000009,
+    4.0
+  ],
+  [
+    4.000000000000001,
+    8.97615871684532E-16
+  ],
+  [
+    2.0000000000000004,
+    3.0000000000000004
+  ],
+  [
+    3.0,
+    3.000000000000001
+  ],
+  [
+    1.0000000000000002,
+    2.0000000000000004
+  ],
+  [
+    2.000000000000001,
+    3.0000000000000004
+  ]
+]
+
+
+==============================================================================
+tests/reference_compare/__init__.py
+==============================================================================
+"""Optional independent validation; never imported by the production package."""
+
+
+==============================================================================
+tests/reference_compare/compare.py
+==============================================================================
+"""Compare Fortune with SciPy/Qhull and a separate exact clipping oracle.
+
+Setup: python -m pip install -r requirements-reference.txt
+Run: python tests/reference_compare/compare.py --output evidence/reference-comparison.json
+
+SciPy supplies independent Voronoi ridges and Delaunay triangles. A validation-
+only Sutherland-Hodgman clipper uses exact Fraction inequalities against ALL
+sites, independently of the production sweep and angle-sorted clipping code.
+This also covers collinear inputs and records Qhull's precision limits rather
+than perturbing sites with QJ or silently treating missing sites as a pass.
+
+API: https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.Voronoi.html
+"""
+
+import argparse
+import json
+import math
+import platform
+import random
+import sys
+from datetime import datetime, timezone
+from fractions import Fraction
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if __name__ == "__main__":
+    sys.path.insert(0, str(ROOT / "src"))
+
+import numpy as np  # noqa: E402
+import scipy  # noqa: E402
+from scipy.spatial import Delaunay, QhullError, Voronoi, cKDTree  # noqa: E402
+
+from fortune.diagram import construct  # noqa: E402
+
+QHULL_OPTIONS = "Qbb Qc Qz"
+
+
+def _fraction_points(points):
+    return [(Fraction(p.x), Fraction(p.y)) for p in points]
+
+
+def clip(polygon, a, b, c):
+    """Independent iterative exact clipping by a*x+b*y <= c."""
+    result = []
+    if not polygon:
+        return result
+    previous = polygon[-1]
+    before = a * previous[0] + b * previous[1] - c
+    for current in polygon:
+        after = a * current[0] + b * current[1] - c
+        if (before > 0) != (after > 0):
+            t = before / (before - after)
+            result.append(tuple(p + t * (q - p) for p, q in zip(previous, current)))
+        if after <= 0:
+            result.append(current)
+        previous, before = current, after
+    return result
+
+
+def reference_cells(points, box, neighbours=None):
+    """Exact all-pairs oracle, or exact clipping of SciPy-generated neighbours."""
+    points = _fraction_points(points)
+    xmin, ymin, xmax, ymax = map(Fraction, box.as_tuple())
+    rectangle = [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+    cells = []
+    for i, p in enumerate(points):
+        polygon = rectangle[:]
+        for j in range(len(points)) if neighbours is None else sorted(neighbours[i]):
+            if j == i:
+                continue
+            q = points[j]
+            a, b = q[0] - p[0], q[1] - p[1]
+            c = (q[0] * q[0] + q[1] * q[1] - p[0] * p[0] - p[1] * p[1]) / 2
+            polygon = clip(polygon, a, b, c)
+            if not polygon:
+                break
+        cells.append([(float(x), float(y)) for x, y in polygon])
+    return cells
+
+
+def _area(polygon):
+    if not polygon:
+        return 0.0
+    x0, y0 = polygon[0]
+    return (
+        abs(
+            math.fsum(
+                (a[0] - x0) * (b[1] - y0) - (a[1] - y0) * (b[0] - x0)
+                for a, b in zip(polygon, polygon[1:] + polygon[:1])
+            )
+        )
+        / 2
+    )
+
+
+def _boundary_distance(point, polygon):
+    closest = math.inf
+    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        length2 = dx * dx + dy * dy
+        t = (
+            max(0, min(1, ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / length2))
+            if length2
+            else 0
+        )
+        closest = min(
+            closest, math.hypot(point[0] - a[0] - t * dx, point[1] - a[1] - t * dy)
+        )
+    return closest
+
+
+def cell_discrepancies(actual, expected, distance_tolerance, area_tolerance):
+    issues = []
+    if len(actual) != len(expected):
+        issues.append(
+            dict(kind="cell_count", actual=len(actual), expected=len(expected))
+        )
+    for i, (polygon, reference) in enumerate(zip(actual, expected)):
+        if bool(polygon) != bool(reference):
+            issues.append(dict(cell=i, kind="empty_cell_mismatch"))
+            continue
+        if not polygon:
+            continue
+        error = max(
+            max(_boundary_distance(p, reference) for p in polygon),
+            max(_boundary_distance(p, polygon) for p in reference),
+        )
+        area_error = abs(_area(polygon) - _area(reference))
+        if error > distance_tolerance or area_error > area_tolerance:
+            issues.append(
+                dict(
+                    cell=i,
+                    kind="cell_geometry",
+                    boundary_error=error,
+                    area_error=area_error,
+                )
+            )
+    return issues
+
+
+def _contains(polygon, point, tolerance):
+    if not polygon:
+        return False
+    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        if dx * (point[1] - a[1]) - dy * (point[0] - a[0]) < -tolerance * math.hypot(
+            dx, dy
+        ):
+            return False
+    return True
+
+
+def compare_case(
+    name, coordinates, *, seed=2026, queries=200, box=None, topology=False, diagram=None
+):
+    diagram = construct(coordinates, box) if diagram is None else diagram
+    sites, box = diagram.sites, diagram.box
+    span = max(box.xmax - box.xmin, box.ymax - box.ymin)
+    ulp = math.ulp(max(abs(v) for v in box.as_tuple()))
+    distance_tolerance = 2e-8 * span + 16 * ulp
+    area_tolerance = 2e-8 * span**2 + 32 * ulp * span
+    actual = [[(p.x, p.y) for p in cell.vertices] for cell in diagram.cells]
+    oracle = reference_cells(sites, box)
+    issues = cell_discrepancies(actual, oracle, distance_tolerance, area_tolerance)
+
+    # Check query ownership against a separate nearest-neighbour implementation.
+    rng = random.Random(seed)
+    tree = cKDTree([(p.x, p.y) for p in sites])
+    for _ in range(queries):
+        point = (rng.uniform(box.xmin, box.xmax), rng.uniform(box.ymin, box.ymax))
+        nearest, _ = tree.query(point)
+        owners = [
+            i
+            for i, poly in enumerate(actual)
+            if _contains(poly, point, distance_tolerance)
+        ]
+        if not owners or any(
+            math.hypot(sites[i].x - point[0], sites[i].y - point[1])
+            > nearest + distance_tolerance
+            for i in owners
+        ):
+            issues.append(dict(kind="query_ownership", point=point, owners=owners))
+            break
+
+    reference = dict(engine="scipy.spatial.Voronoi/Qhull", qhull_options=QHULL_OPTIONS)
+    values = np.array([(p.x, p.y) for p in sites])
+    # Give Qhull a separate local frame so a large world-coordinate offset does
+    # not dominate its precision checks. Exact clipping still uses original
+    # input doubles and the original bounding box.
+    origin = values[0].copy()
+    reference_scale = max(float(np.ptp(values, axis=0).max()), 1e-300)
+    values = (values - origin) / reference_scale
+    reference.update(origin=origin.tolist(), scale=reference_scale)
+    try:
+        voronoi = Voronoi(values, qhull_options=QHULL_OPTIONS)
+        neighbours = [set() for _ in sites]
+        for i, j in voronoi.ridge_points:
+            neighbours[i].add(int(j))
+            neighbours[j].add(int(i))
+        missing = [i for i, adjacent in enumerate(neighbours) if not adjacent]
+        scipy_cells = reference_cells(sites, box, neighbours)
+        reference_issues = cell_discrepancies(
+            scipy_cells, oracle, distance_tolerance, area_tolerance
+        )
+        reference.update(
+            status="passed",
+            ridge_count=len(voronoi.ridge_points),
+            missing_sites=missing,
+        )
+        if missing or reference_issues:
+            reference.update(status="precision_limited", discrepancies=reference_issues)
+        else:
+            issues += [
+                dict(issue, source="SciPy")
+                for issue in cell_discrepancies(
+                    actual, scipy_cells, distance_tolerance, area_tolerance
+                )
+            ]
+        if topology and reference["status"] == "passed":
+            triangulation = Delaunay(values, qhull_options=QHULL_OPTIONS + " Q12")
+            reference_edges = {
+                tuple(sorted((int(a), int(b))))
+                for triangle in triangulation.simplices
+                for a, b in zip(triangle, np.roll(triangle, -1))
+            }
+            actual_edges = set(diagram.delaunay_edges)
+            if actual_edges != reference_edges:
+                issues.append(
+                    dict(
+                        kind="delaunay_adjacency",
+                        missing=sorted(reference_edges - actual_edges),
+                        extra=sorted(actual_edges - reference_edges),
+                    )
+                )
+            reference["delaunay_edges_compared"] = len(reference_edges)
+    except QhullError as exc:
+        reference.update(status="unsupported", reason=str(exc).splitlines()[0])
+    return dict(
+        name=name,
+        seed=seed,
+        input=[list(p) if not hasattr(p, "x") else [p.x, p.y] for p in coordinates],
+        bbox=box.as_tuple(),
+        unique_sites=len(sites),
+        queries=queries,
+        tolerances=dict(distance=distance_tolerance, area=area_tolerance),
+        oracle="independent exact all-pairs Sutherland-Hodgman clipping",
+        reference=reference,
+        discrepancies=issues,
+        status="failed" if issues else "passed",
+    )
+
+
+def cases(seeds):
+    for seed in range(seeds):
+        rng = random.Random(seed)
+        yield dict(
+            name=f"uniform-{seed}",
+            seed=seed,
+            topology=True,
+            coordinates=[(rng.random(), rng.random()) for _ in range(10 + seed % 31)],
+        )
+    rng = random.Random(2026)
+    base = [(rng.random(), rng.random()) for _ in range(20)]
+    for scale, offset in ((1e-8, 0), (1e8, 0), (1, 1e9)):
+        yield dict(
+            name=f"scaled-{scale}-{offset}",
+            topology=True,
+            coordinates=[(offset + scale * x, offset + scale * y) for x, y in base],
+        )
+    fixed = {
+        "single": [(0, 0)],
+        "two": [(0, 0), (1, 1)],
+        "horizontal": [(i, 0) for i in range(8)],
+        "vertical": [(0, i) for i in range(8)],
+        "slanted": [(i, 3 * i + 1) for i in range(8)],
+        "square": [(0, 0), (1, 0), (1, 1), (0, 1)],
+        "integer-circle": [
+            (5, 0),
+            (4, 3),
+            (3, 4),
+            (0, 5),
+            (-3, 4),
+            (-4, 3),
+            (-5, 0),
+            (-4, -3),
+            (-3, -4),
+            (0, -5),
+            (3, -4),
+            (4, -3),
+        ],
+        "grid": [(x, y) for x in range(5) for y in range(5)],
+        "equal-rows": [(0, 2), (1, 2), (2, 2), (0.5, 1), (1.5, 1), (1, 0)],
+        "duplicates": base + base[:3],
+        "near-collinear": [(0, 0), (2, 1e-16), (3, 0), (3, 2)],
+        "near-cluster": [
+            (8.997599999142925e-16, 2.5500793136439805e-16),
+            (8.650989386813507e-16, 3.134167580549946e-16),
+            (0.11917669984214596, 0.2747612452227174),
+            (0.6654330524247978, 0.11252900539650945),
+        ],
+    }
+    for name, points in fixed.items():
+        yield dict(name=name, coordinates=points, topology=name == "duplicates")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--output", type=Path, default=ROOT / "evidence/reference-comparison.json"
+    )
+    parser.add_argument("--seeds", type=int, default=30)
+    parser.add_argument("--queries", type=int, default=200)
+    args = parser.parse_args(argv)
+    if args.seeds < 1 or args.queries < 1:
+        parser.error("--seeds and --queries must be positive")
+    records = []
+    for case in cases(args.seeds):
+        try:
+            records.append(compare_case(**case, queries=args.queries))
+        except Exception as exc:
+            records.append(
+                dict(
+                    name=case["name"],
+                    status="failed",
+                    input=case["coordinates"],
+                    discrepancies=[dict(kind="exception", error=repr(exc))],
+                )
+            )
+    failed = sum(r["status"] == "failed" for r in records)
+    limitations = [
+        r["name"]
+        for r in records
+        if r.get("reference", {}).get("status") in ("unsupported", "precision_limited")
+    ]
+    result = dict(
+        schema_version=1,
+        executed_at=datetime.now(timezone.utc).isoformat(),
+        python=platform.python_version(),
+        scipy=scipy.__version__,
+        numpy=np.__version__,
+        status="failed"
+        if failed
+        else "passed_with_reference_limitations"
+        if limitations
+        else "passed",
+        summary=dict(
+            cases=len(records),
+            passed=len(records) - failed,
+            failed=failed,
+            scipy_fully_compared=sum(
+                r.get("reference", {}).get("status") == "passed" for r in records
+            ),
+            reference_limitations=limitations,
+        ),
+        criteria="Exact clipped cells and sampled ownership for every case; SciPy cells when all sites resolve; Delaunay edge equality for general-position cases. Cocircular triangulations may use different valid diagonals.",
+        cases=records,
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(
+        json.dumps(result, indent=2, allow_nan=False), encoding="utf-8"
+    )
+    print(
+        json.dumps(
+            dict(status=result["status"], **result["summary"], output=str(args.output)),
+            indent=2,
+        )
+    )
+    return int(bool(failed))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+==============================================================================
+tests/test_adversarial.py
 ==============================================================================
 import math
 import random
@@ -3520,7 +4282,7 @@ def test_every_distinct_cluster_site_retains_a_positive_cell(exponent):
 
 
 ==============================================================================
-tests\test_beachline.py
+tests/test_beachline.py
 ==============================================================================
 import math
 import random
@@ -3571,7 +4333,180 @@ def test_removed_arc_cannot_be_deleted_again():
 
 
 ==============================================================================
-tests\test_diagram.py
+tests/test_delaunay.py
+==============================================================================
+import itertools
+
+import pytest
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.collections import LineCollection
+from matplotlib.figure import Figure
+from validation import validate_cells
+
+from fortune.cli import main
+from fortune.diagram import construct
+from fortune.geometry import Box, Point, orient
+from fortune.interactive import InteractiveController
+from fortune.visualize import draw
+
+
+def _coordinate_edges(diagram):
+    return {
+        frozenset(diagram.sites[i] for i in edge) for edge in diagram.delaunay_edges
+    }
+
+
+def test_full_dual_is_retained_when_box_hides_voronoi_edges():
+    d = construct([(0, 0), (2, 0), (0, 2)], Box(-0.1, -0.1, 0.1, 0.1))
+    assert len(d.edges) == 0
+    assert d.delaunay_edges == [(0, 1), (0, 2), (1, 2)]
+
+
+def test_cocircular_triangulation_is_deterministic_and_has_one_diagonal():
+    points = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    expected = _coordinate_edges(construct(points))
+    for order in itertools.permutations(points):
+        d = construct(order)
+        assert len(d.delaunay_edges) == 5
+        assert _coordinate_edges(d) == expected
+    assert frozenset((Point(0, 0), Point(1, 1))) in expected
+    assert frozenset((Point(0, 1), Point(1, 0))) not in expected
+
+
+def test_cocircular_fan_is_planar_and_complete():
+    ring = [
+        (5, 0),
+        (4, 3),
+        (3, 4),
+        (0, 5),
+        (-3, 4),
+        (-4, 3),
+        (-5, 0),
+        (-4, -3),
+        (-3, -4),
+        (0, -5),
+        (3, -4),
+        (4, -3),
+    ]
+    d = construct(ring)
+    assert len(d.delaunay_edges) == 2 * len(ring) - 3
+    for first, second in itertools.combinations(d.delaunay_edges, 2):
+        if set(first) & set(second):
+            continue
+        a, b = (d.sites[i] for i in first)
+        c, e = (d.sites[i] for i in second)
+        assert not (
+            orient(a, b, c) * orient(a, b, e) < 0
+            and orient(c, e, a) * orient(c, e, b) < 0
+        )
+
+
+@pytest.mark.parametrize(
+    "points,count",
+    [([(0, 0)], 0), ([(0, 0), (1, 1)], 1), ([(i, 0) for i in range(5)], 4)],
+)
+def test_degenerate_dual_is_a_consecutive_chain(points, count):
+    assert len(construct(points).delaunay_edges) == count
+
+
+def test_nonunit_interactive_input_infers_bounds_and_toggles_overlay(tmp_path):
+    fig = Figure()
+    FigureCanvasAgg(fig)
+    axes = fig.subplots()
+    points = [Point(100, 100), Point(101, 100), Point(100, 101)]
+    ui = InteractiveController(fig, axes, points, output=str(tmp_path / "ui.png"))
+    assert axes.get_xlim() == pytest.approx((99.9, 101.1))
+    assert axes.get_ylim() == pytest.approx((99.9, 101.1))
+    ui.compute()
+    assert ui.diagram is not None and all(c.vertices for c in ui.diagram.cells)
+    validate_cells(ui.diagram)
+    assert not any(isinstance(c, LineCollection) for c in axes.collections)
+    ui.toggle_delaunay()
+    lines = [c for c in axes.collections if isinstance(c, LineCollection)]
+    assert len(lines) == 1 and len(lines[0].get_segments()) == 3
+    ui.export()
+    assert (tmp_path / "ui.json").is_file()
+    ui.toggle_delaunay()
+    assert axes.get_legend() is None
+
+
+def test_empty_interactive_canvas_and_explicit_bounds_are_preserved():
+    fig = Figure()
+    FigureCanvasAgg(fig)
+    axes = fig.subplots()
+    assert InteractiveController(fig, axes).box == Box(0, 0, 1, 1)
+    bounds = Box(-2, -3, 2, 3)
+    assert InteractiveController(fig, axes, [(100, 100)], bounds).box == bounds
+
+
+def test_interactive_cli_file_and_real_checkbox(monkeypatch, tmp_path):
+    import matplotlib.pyplot as plt
+
+    from fortune import interactive
+
+    source = tmp_path / "nonunit.txt"
+    source.write_text("100 100\n101 100\n100 101\n")
+    original_launch = interactive.launch
+    controllers = []
+
+    def launch(*args, **kwargs):
+        controller = original_launch(*args, **kwargs)
+        controllers.append(controller)
+        return controller
+
+    monkeypatch.setattr(plt, "show", lambda: None)
+    monkeypatch.setattr(interactive, "launch", launch)
+    assert main(["--interactive", "--input", str(source), "--delaunay"]) == 0
+    controller = controllers[0]
+    controller.compute()
+    assert controller.diagram is not None
+    assert controller.box == controller.diagram.box == Box(99.9, 99.9, 101.1, 101.1)
+    assert controller.delaunay and controller.dual_control.get_status() == [True]
+    controller.dual_control.set_active(0)
+    assert not controller.delaunay
+    assert not any(isinstance(c, LineCollection) for c in controller.axes.collections)
+    plt.close(controller.figure)
+
+
+def test_delaunay_batch_cli_writes_overlay_and_export(tmp_path, capsys):
+    import json
+
+    image, output = tmp_path / "dual.png", tmp_path / "dual.json"
+    assert (
+        main(
+            [
+                "--random",
+                "12",
+                "--delaunay",
+                "--output",
+                str(image),
+                "--json",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(output.read_text())
+    assert payload["delaunay_edges"]
+    assert image.read_bytes().startswith(b"\x89PNG")
+    assert json.loads(capsys.readouterr().out)["delaunay_edges"] == len(
+        payload["delaunay_edges"]
+    )
+
+
+def test_drawing_removes_overlay_when_disabled():
+    fig = Figure()
+    axes = fig.subplots()
+    d = construct([(0, 0), (1, 0), (0, 1)])
+    draw(d, axes, delaunay=True)
+    assert axes.get_legend() is not None
+    draw(d, axes)
+    assert axes.get_legend() is None
+    assert not any(isinstance(c, LineCollection) for c in axes.collections)
+
+
+==============================================================================
+tests/test_diagram.py
 ==============================================================================
 import math
 import random
@@ -3676,7 +4611,7 @@ def test_custom_box_can_clip_away_outside_sites():
 
 
 ==============================================================================
-tests\test_events.py
+tests/test_events.py
 ==============================================================================
 from fortune.circle import candidate_circle
 from fortune.events import Event, EventQueue
@@ -3720,7 +4655,7 @@ def test_cocircular_square_merges_simultaneous_vertices():
 
 
 ==============================================================================
-tests\test_geometry.py
+tests/test_geometry.py
 ==============================================================================
 import math
 
@@ -3804,7 +4739,7 @@ def test_circle_identity_merges_only_the_same_exact_circle():
 
 
 ==============================================================================
-tests\test_interfaces.py
+tests/test_interfaces.py
 ==============================================================================
 import csv
 import json
@@ -3889,7 +4824,7 @@ def test_interactive_callbacks_compute_clear_and_export(tmp_path):
 
 
 ==============================================================================
-tests\test_pi_regressions.py
+tests/test_pi_regressions.py
 ==============================================================================
 from fortune.beachline import Arc, BeachLine
 from fortune.events import Event, EventQueue
@@ -4158,7 +5093,198 @@ def test_exact_heap_priority_ties_are_fifo_across_interleaved_pushes():
 
 
 ==============================================================================
-tests\test_replay.py
+tests/test_precision_frame.py
+==============================================================================
+"""Regressions for topology lost to normalization and close event arithmetic."""
+
+import itertools
+import json
+from fractions import Fraction
+from pathlib import Path
+
+import pytest
+from validation import validate_cells, validate_empty_circles
+
+from fortune.diagram import construct
+from fortune.events import Event, EventQueue
+from fortune.frame import CoordinateFrame
+from fortune.geometry import Point, circle_identity, polygon_area
+from fortune.replay import SweepReplay
+
+PRECISION_CASES = [
+    [(0, 0), (2, 1e-16), (3, 0), (3, 2)],
+    [
+        (8.997599999142925e-16, 2.5500793136439805e-16),
+        (8.650989386813507e-16, 3.134167580549946e-16),
+        (0.11917669984214596, 0.2747612452227174),
+        (0.6654330524247978, 0.11252900539650945),
+    ],
+    [
+        (6.468485059726204e-16, 8.9716234366157e-16),
+        (3.0739203679811424e-16, 8.956453016212751e-16),
+        (6.046813899453629e-16, 5.270921846937124e-16),
+        (0.8438568281093831, 0.6233620664046762),
+    ],
+    [
+        (7.917505060353695e-16, 3.3305159749536654e-16),
+        (1.2337502719508586e-16, 2.192321092974804e-16),
+        (7.124433658633122e-16, 1.0000000000000009),
+        (6.602117000460554e-16, 2.7987042112321583e-16),
+    ],
+]
+
+
+def exact_empty_circles(diagram):
+    for vertex in diagram.vertices:
+        ids = sorted(vertex.defining)
+        cx, cy, radius2 = circle_identity(*(diagram.sites[i] for i in ids[:3]))
+        for p in diagram.sites:
+            assert (Fraction(p.x) - cx) ** 2 + (Fraction(p.y) - cy) ** 2 >= radius2
+
+
+@pytest.mark.parametrize("points", PRECISION_CASES)
+def test_distinctions_and_empty_circles_survive_all_input_orders(points):
+    for order in itertools.permutations(points):
+        diagram = construct(order, debug=True)
+        validate_cells(diagram, queries=40)
+        validate_empty_circles(diagram)
+        exact_empty_circles(diagram)
+        b = diagram.box
+        assert sum(polygon_area(c.vertices) for c in diagram.cells) == pytest.approx(
+            (b.xmax - b.xmin) * (b.ymax - b.ymin), rel=2e-12
+        )
+
+
+@pytest.mark.parametrize(
+    "points",
+    [
+        PRECISION_CASES[0],
+        PRECISION_CASES[1],
+        [(1e9, 1e9), (1e9 + 0.1, 1e9 + 1), (1e9 + 1, 1e9 + 0.2)],
+        [(-1e9, -1e9), (-1e9 - 0.1, -1e9 - 1), (-1e9 - 1, -1e9 - 0.2)],
+    ],
+)
+def test_frame_is_an_exact_uniform_transform_of_input_doubles(points):
+    sites = [Point(*p) for p in points]
+    frame = CoordinateFrame.for_sites(sites)
+    for p in sites:
+        q = frame.normalize(p)
+        assert Fraction(q.x) == (Fraction(p.x) - Fraction(frame.ox)) / Fraction(
+            frame.scale
+        )
+        assert Fraction(q.y) == (Fraction(p.y) - Fraction(frame.oy)) / Fraction(
+            frame.scale
+        )
+        assert frame.world(q) == p
+
+
+def test_underflow_of_a_site_coordinate_is_rejected_explicitly():
+    with pytest.raises(ValueError, match="coordinate range"):
+        construct([(0, 0), (1e-300, 1e-300), (1e100, 1e100)])
+
+
+def test_exact_circle_height_orders_events_with_identical_float_bottoms():
+    a, c = Point(-1, 0), Point(1, 0)
+    circle = Event(-1, 0, 1, circle_points=(a, Point(0, 1), c))
+    # Its true bottom is slightly above -1, although its float bottom is -1.
+    higher = Event(-1, 0, 1, circle_points=(a, Point(1e-16, 1), c))
+    site = Event(-1, 0, 0, site=3)
+    queue = EventQueue()
+    for event in (circle, site, higher):
+        queue.push(event)
+    assert [queue.pop(), queue.pop(), queue.pop()] == [higher, site, circle]
+
+
+def test_close_grid_event_order_retains_all_cell_boundaries():
+    points = json.loads(
+        (Path(__file__).parent / "data/precision-grid.json").read_text()
+    )
+    for coordinates in (points, list(reversed(points))):
+        diagram = construct(coordinates, debug=True)
+        validate_cells(diagram, queries=400)
+        exact_empty_circles(diagram)
+
+
+def test_replay_and_batch_use_the_same_precision_frame_and_topology():
+    replay = SweepReplay(PRECISION_CASES[0], debug=True)
+    replay.seek(1)
+    assert replay.points == [replay.frame.normalize(p) for p in replay.diagram.sites]
+    assert len(replay.sweep.vertices) == len(replay.diagram.vertices)
+    assert {frozenset(v.defining) for v in replay.sweep.vertices} == {
+        frozenset(v.defining) for v in replay.diagram.vertices
+    }
+
+
+==============================================================================
+tests/test_reference_compare.py
+==============================================================================
+import pytest
+
+pytest.importorskip(
+    "scipy", reason="Install requirements-reference.txt for independent comparison"
+)
+
+from reference_compare.compare import compare_case, main, reference_cells  # noqa: E402
+
+from fortune.diagram import construct  # noqa: E402
+from fortune.geometry import Box  # noqa: E402
+from fortune.io import random_sites  # noqa: E402
+
+
+@pytest.mark.parametrize("seed", [0, 7, 2026])
+def test_scipy_geometry_and_delaunay_match_independent_engine(seed):
+    points = random_sites(20, seed)
+    result = compare_case("random", points, seed=seed, topology=True, queries=30)
+    assert result["discrepancies"] == []
+    assert result["reference"]["status"] == "passed"
+    assert result["reference"]["delaunay_edges_compared"] > 0
+
+
+@pytest.mark.parametrize(
+    "points",
+    [
+        [(i, 0) for i in range(4)],
+        [(0, 0), (1, 0), (1, 1), (0, 1)],
+        [(0, 0), (2, 1e-16), (3, 0), (3, 2)],
+    ],
+)
+def test_exact_oracle_covers_degenerate_reference_inputs(points):
+    result = compare_case("degenerate", points, queries=30)
+    assert not result["discrepancies"]
+    assert result["reference"]["status"] in (
+        "passed",
+        "unsupported",
+        "precision_limited",
+    )
+
+
+def test_validator_detects_an_intentionally_overlapping_cell():
+    d = construct([(0, 0), (1, 0), (0, 1)])
+    d.cells[0].vertices = d.cells[1].vertices[:]
+    result = compare_case("corrupted", d.sites, diagram=d, queries=40)
+    assert result["status"] == "failed"
+    assert any(issue["kind"] == "cell_geometry" for issue in result["discrepancies"])
+
+
+def test_reference_can_return_empty_clipped_cells():
+    d = construct([(-3, 0), (-2, 0)], Box(0, -1, 1, 1))
+    cells = reference_cells(d.sites, d.box)
+    assert cells[0] == [] and len(cells[1]) == 4
+
+
+def test_cli_writes_reproducible_inputs_and_reference_limitations(tmp_path):
+    import json
+
+    output = tmp_path / "reference.json"
+    assert main(["--seeds", "1", "--queries", "10", "--output", str(output)]) == 0
+    result = json.loads(output.read_text())
+    assert result["summary"]["failed"] == 0
+    assert "horizontal" in result["summary"]["reference_limitations"]
+    assert all("input" in case and "seed" in case for case in result["cases"])
+
+
+==============================================================================
+tests/test_replay.py
 ==============================================================================
 import math
 
@@ -4403,7 +5529,7 @@ def test_scrub_checkpoints_remain_bounded_and_are_not_mutated_by_restoring():
 
 
 ==============================================================================
-tests\test_replay_canvas.py
+tests/test_replay_canvas.py
 ==============================================================================
 import json
 import random
@@ -4543,7 +5669,7 @@ def test_canvas_pointer_follows_without_a_mouse_button():
 
 
 ==============================================================================
-tests\test_replay_view.py
+tests/test_replay_view.py
 ==============================================================================
 from types import SimpleNamespace
 
@@ -4809,7 +5935,7 @@ def test_fast_interface_text_keeps_svg_text_and_multiline_rendering(tmp_path):
 
 
 ==============================================================================
-tests\validation.py
+tests/validation.py
 ==============================================================================
 """Independent O(n) / O(n^2) validators; never imported by the algorithm."""
 
@@ -4881,182 +6007,7 @@ def validate_empty_circles(diagram):
 
 
 ==============================================================================
-tools\audit_report.py
-==============================================================================
-"""Check the compiled report and optionally render numbered pages for visual QA."""
-
-import argparse
-import hashlib
-import importlib.metadata
-import io
-import json
-import re
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-
-from pypdf import PdfReader
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--render", action="store_true")
-    parser.add_argument("--dpi", type=int, default=105)
-    args = parser.parse_args()
-    pdf = ROOT / "report/report.pdf"
-    reader = PdfReader(pdf)
-    aux = (ROOT / "tmp/latex-build/report.aux").read_text(encoding="utf-8")
-    labels = {
-        name: (number, int(page))
-        for name, number, page in re.findall(
-            r"\\newlabel\{([^}]+)\}\{\{([^}]+)\}\{(\d+)\}", aux
-        )
-    }
-    body = labels["last-main-page"][1]
-    text = [page.extract_text() for page in reader.pages]
-    fonts = {}
-    for page in reader.pages:
-        resources = page["/Resources"]
-        font_refs = resources.get("/Font")
-        if font_refs is None:
-            continue
-        for ref in font_refs.get_object().values():
-            font = ref.get_object()
-            children = font.get("/DescendantFonts", [font])
-            for child in children:
-                obj = child.get_object()
-                descriptor = obj.get("/FontDescriptor", {})
-                if hasattr(descriptor, "get_object"):
-                    descriptor = descriptor.get_object()
-                embedded = any(
-                    k in descriptor for k in ("/FontFile", "/FontFile2", "/FontFile3")
-                )
-                fonts[str(obj.get("/BaseFont", font.get("/BaseFont")))] = embedded
-    all_a4 = all(
-        all(
-            abs(a - b) < 1
-            for a, b in zip(
-                sorted(map(float, (p.mediabox.width, p.mediabox.height))),
-                [595.276, 841.890],
-            )
-        )
-        for p in reader.pages
-    )
-    unresolved = bool(re.search(r"\?\?|\b(?:TODO|TBD|PLACEHOLDER)\b", "\n".join(text)))
-    build = json.loads((ROOT / "evidence/report-build.json").read_text())
-    from PIL import Image
-
-    embedded_images = set()
-    for page in reader.pages:
-        for item in page.images:
-            stream = item.indirect_reference.get_object()
-            # The high-level extractor can re-encode JPEGs. Decode the original
-            # DCT stream to compare original pixels without another lossy save.
-            if str(stream.get("/Filter")) == "/DCTDecode":
-                picture = Image.open(io.BytesIO(stream.get_data())).convert("RGB")
-            else:
-                picture = item.image.convert("RGB")
-            embedded_images.add(
-                (picture.size, hashlib.sha256(picture.tobytes()).hexdigest())
-            )
-    screenshot_names = (
-        "gui-native.png",
-        "ai-interaction-1.png",
-        "pi-environment.png",
-        "pi-interaction-invariants.png",
-        "ai-interaction-2.png",
-        "pi-tiny-cell-code-continuation.png",
-        "pi-interaction-tests.png",
-        "pi-tests-summary.png",
-        "canvas-preview.jpg",
-    )
-    screenshot_matches = {}
-    for name in screenshot_names:
-        with Image.open(ROOT / "evidence" / name) as original:
-            picture = original.convert("RGB")
-            key = (picture.size, hashlib.sha256(picture.tobytes()).hexdigest())
-            screenshot_matches[name] = key in embedded_images
-    summary = dict(
-        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
-        report_engine="LuaLaTeX",
-        pdf_sha256=hashlib.sha256(pdf.read_bytes()).hexdigest(),
-        pages=len(reader.pages),
-        main_body_pages=body,
-        section_pages={k: v[1] for k, v in labels.items() if k.startswith("sec:")},
-        counts={
-            prefix: sum(k.startswith(prefix + ":") for k in labels)
-            for prefix in ("fig", "tab", "eq", "lst")
-        },
-        a4_all_pages=all_a4,
-        body_font="Times New Roman 12 pt",
-        body_spacing="1.5 (setspace onehalfspacing)",
-        code_font="Courier New 9.5 pt; line numbers 9 pt",
-        fonts_embedded=fonts,
-        searchable_text=all(len(t.strip()) > 10 for t in text),
-        unresolved_placeholders=unresolved,
-        overflow_warnings=build["overfull_box_warnings"],
-        owner_review_complete=json.loads((ROOT / "owner-metadata.json").read_text())[
-            "owner_review_complete"
-        ],
-        source="report/report.tex",
-        editable_sections=len(list((ROOT / "report/sections").glob("*.tex"))),
-        bibliography_style="IEEE numbered (ieeetr)",
-        bibliography_entries=len(re.findall(r"\\bibcite\{", aux)),
-        embedded_screenshots_match_original_pixels=screenshot_matches,
-        visual_review="Pending inspection of the newly rendered pages",
-    )
-    if args.render:
-        import pypdfium2 as pdfium
-        from PIL import Image, ImageDraw
-
-        stamp = datetime.now(timezone(timedelta(hours=8)))
-        out = ROOT / "tmp" / stamp.strftime("report-pages-%Y%m%d-%H%M%S")
-        out.mkdir(parents=True, exist_ok=False)
-        document = pdfium.PdfDocument(str(pdf))
-        thumbs = []
-        for index in range(len(document)):
-            page = document[index]
-            bitmap = page.render(scale=args.dpi / 72)
-            im = bitmap.to_pil().convert("RGB")
-            im.save(out / f"page-{index + 1:02d}.png")
-            im.thumbnail((420, 595), Image.Resampling.LANCZOS)
-            thumb = Image.new("RGB", (440, 630), "#e4e7eb")
-            ImageDraw.Draw(thumb).text((10, 6), f"PDF page {index + 1}", fill="black")
-            thumb.paste(im, ((440 - im.width) // 2, 27))
-            thumbs.append(thumb)
-            bitmap.close()
-            page.close()
-        document.close()
-        for first in range(0, len(thumbs), 6):
-            sheet = Image.new("RGB", (880, 1890), "#d4d9df")
-            for offset, thumb in enumerate(thumbs[first : first + 6]):
-                sheet.paste(thumb, ((offset % 2) * 440, (offset // 2) * 630))
-            sheet.save(out / f"contact-{first // 6 + 1:02d}.png")
-        summary["render_dpi"] = args.dpi
-        summary["render_directory"] = str(out.relative_to(ROOT)).replace("\\", "/")
-        summary["renderer"] = "pypdfium2 " + importlib.metadata.version("pypdfium2")
-    assert body >= 10 and all_a4 and all(fonts.values())
-    assert summary["searchable_text"] and not unresolved
-    assert summary["overflow_warnings"] == 0
-    assert all(screenshot_matches.values()), screenshot_matches
-    for name in ("report-audit.json", "report-latex-audit.json", "report-layout.json"):
-        (ROOT / "evidence" / name).write_text(
-            json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-        )
-    print(
-        json.dumps(
-            {k: v for k, v in summary.items() if k != "fonts_embedded"}, indent=2
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()
-
-
-==============================================================================
-tools\benchmark.py
+tools/benchmark.py
 ==============================================================================
 """Reproducible timing plus isolated Python-allocation/Windows RSS measurements."""
 # ruff: noqa: E402
@@ -5221,412 +6172,117 @@ if __name__ == "__main__":
 
 
 ==============================================================================
-tools\bootstrap_tex_debian.sh
+tools/check_precision.py
 ==============================================================================
-#!/usr/bin/env bash
-# Add missing LuaLaTeX font support locally, without sudo or system changes.
-set -eu
-report_script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-report_project_dir="$(CDPATH= cd -- "$report_script_dir/.." && pwd)"
-report_tex_deps="$report_project_dir/tmp/tex-deps"
-mkdir -p "$report_tex_deps/packages" "$report_tex_deps/tree"
-cd "$report_tex_deps/packages"
-set -- "$report_tex_deps"/packages/texlive-luatex_*.deb
-if [ ! -f "$1" ]; then
-  apt-get download texlive-luatex
-fi
-for report_tex_package in "$report_tex_deps"/packages/texlive-luatex_*.deb; do
-  dpkg-deb --extract "$report_tex_package" "$report_tex_deps/tree"
-done
-report_cache_base="$(printenv XDG_CACHE_HOME || true)"
-if [ -z "$report_cache_base" ]; then
-  report_cache_base="$HOME/.cache"
-fi
-report_cache_dir="$report_cache_base/fortune-sweep-latex"
-mkdir -p "$report_cache_dir/texmf" "$report_cache_dir/fonts"
-cp -a "$report_tex_deps/tree/usr/share/texlive/texmf-dist/." "$report_cache_dir/texmf/"
-mktexlsr "$report_cache_dir/texmf"
-python3 - "$report_tex_deps/wsl-paths.json" "$report_cache_dir" <<'PY'
-import json
-from pathlib import Path
-import sys
-cache = Path(sys.argv[2])
-Path(sys.argv[1]).write_text(json.dumps({
-    "texmf_home": str(cache / "texmf"),
-    "font_cache": str(cache / "fonts"),
-}, indent=2) + "\n", encoding="utf-8")
-PY
-printf '%s\n' "Local LuaLaTeX support prepared in the Debian user cache; no system packages changed."
+"""Reproduce the expanded normalization/event-order regression sweep.
 
-
-==============================================================================
-tools\build_report.py
-==============================================================================
-"""Compile editable LaTeX with native TeX or an existing WSL installation.
-
-LaTeX section files are authoritative; Markdown is never regenerated or read.
-Shell escape is disabled and actual compiler logs are retained.
+Run: python tools/check_precision.py --output evidence/precision-validation.json
+All 800 deterministic configurations use the production engine and independent
+area, ownership and empty-circle validators from tests/validation.py.
 """
 
 import argparse
 import json
-import os
-import re
-import shutil
-import subprocess
+import math
+import random
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from time import perf_counter
 
 ROOT = Path(__file__).resolve().parents[1]
-REPORT = ROOT / "report"
-BUILD = ROOT / "tmp" / "latex-build"
+sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
+
+from validation import validate_cells, validate_empty_circles  # noqa: E402
+
+from fortune.diagram import construct  # noqa: E402
 
 
-def checked(command, *, cwd=None, timeout=300):
-    return subprocess.run(
-        command,
-        cwd=cwd,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=timeout,
-        check=False,
-    )
-
-
-def select_engine(requested, distro):
-    names = [requested] if requested != "auto" else ["lualatex", "xelatex"]
-    if distro is None:
-        for name in names:
-            executable = shutil.which(name)
-            if (
-                executable
-                and checked([executable, "--version"], timeout=20).returncode == 0
-            ):
-                return executable, None
-        if os.name != "nt":
-            raise RuntimeError("Install LuaLaTeX or XeLaTeX, or specify --engine.")
-        distro = "Debian"
-    for name in names:
-        probe = checked(["wsl.exe", "-d", distro, "--", "which", name], timeout=30)
-        if probe.returncode == 0:
-            return name, distro
-    raise RuntimeError(f"No working LuaLaTeX/XeLaTeX found in WSL {distro}.")
-
-
-def wsl_path(path, distro):
-    result = checked(
-        ["wsl.exe", "-d", distro, "--", "wslpath", "-u", str(path)], timeout=30
-    )
-    if result.returncode:
-        raise RuntimeError(result.stdout)
-    return result.stdout.strip()
-
-
-def source_listing():
-    paths = []
-    for directory in ("src", "tests", "tools"):
-        paths.extend((ROOT / directory).rglob("*.py"))
-    # The browser renderer is part of the editable implementation, too.
-    paths.extend((ROOT / "src/fortune").glob("*.html"))
-    paths.extend((ROOT / "src/fortune").glob("*.js"))
-    paths.extend((ROOT / "tests").glob("*.js"))
-    paths.extend(ROOT.glob("*.bat"))
-    paths.extend(ROOT.glob("*.sh"))
-    paths.extend((ROOT / "tools").rglob("*.sh"))
-    paths.extend(REPORT.glob("*.bat"))
-    paths.extend(
-        [
-            ROOT / "pyproject.toml",
-            ROOT / "requirements.txt",
-            ROOT / ".github/workflows/tests.yml",
-        ]
-    )
-    listing = []
-    for path in sorted(paths):
-        listing.extend(
-            [
-                "=" * 78,
-                str(path.relative_to(ROOT)),
-                "=" * 78,
-                path.read_text(encoding="utf-8"),
-                "",
+def cases():
+    for n in (3, 4, 5, 10, 30, 100):
+        for seed in range(30):
+            rng = random.Random(seed)
+            yield (
+                f"uniform n={n} seed={seed}",
+                [(rng.random(), rng.random()) for _ in range(n)],
+            )
+    for seed in range(60):
+        rng = random.Random(seed)
+        for epsilon in (0, 1e-6, 1e-12, 1e-15):
+            yield (
+                f"grid epsilon={epsilon} seed={seed}",
+                [
+                    (
+                        rng.randrange(5) + epsilon * rng.random(),
+                        rng.randrange(5) + epsilon * rng.random(),
+                    )
+                    for _ in range(20)
+                ],
+            )
+            yield (
+                f"cluster epsilon={epsilon} seed={seed}",
+                [(epsilon * rng.random(), epsilon * rng.random()) for _ in range(10)]
+                + [(rng.random(), rng.random()) for _ in range(10)],
+            )
+    for n in (4, 5, 6, 8, 12, 24, 50):
+        for seed in range(20):
+            rng = random.Random(seed)
+            angle = rng.random() * math.pi
+            points = [
+                (
+                    math.cos(angle + 2 * math.pi * i / n),
+                    math.sin(angle + 2 * math.pi * i / n),
+                )
+                for i in range(n)
             ]
-        )
-    (REPORT / "source_listing.txt").write_text("\n".join(listing), encoding="utf-8")
+            rng.shuffle(points)
+            yield f"ring n={n} seed={seed}", points
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--engine", choices=["auto", "lualatex", "xelatex"], default="auto"
-    )
-    parser.add_argument(
-        "--wsl", metavar="DISTRO", help="Compile in this WSL distribution"
+        "--output", type=Path, default=ROOT / "evidence/precision-validation.json"
     )
     args = parser.parse_args(argv)
-    BUILD.mkdir(parents=True, exist_ok=True)
-    engine, distro = select_engine(args.engine, args.wsl)
-    if distro:
-        report_path, build_path = wsl_path(REPORT, distro), wsl_path(BUILD, distro)
-        command = ["wsl.exe", "-d", distro, "--cd", report_path, "--"]
-        local_tex = ROOT / "tmp/tex-deps/tree/usr/share/texlive/texmf-dist"
-        cached_paths = ROOT / "tmp/tex-deps/wsl-paths.json"
-        if cached_paths.is_file():
-            local_paths = json.loads(cached_paths.read_text(encoding="utf-8"))
-            command.extend(
-                [
-                    "env",
-                    f"TEXMFHOME={local_paths['texmf_home']}",
-                    f"TEXMFVAR={local_paths['font_cache']}",
-                    f"TEXMFCACHE={local_paths['font_cache']}",
-                ]
-            )
-        elif local_tex.is_dir():
-            font_cache = ROOT / "tmp/latex-font-cache"
-            font_cache.mkdir(exist_ok=True)
-            local_path = wsl_path(local_tex, distro)
-            cache_path = wsl_path(font_cache, distro)
-            command.extend(
-                [
-                    "env",
-                    f"TEXMFHOME={local_path}",
-                    f"TEXMFVAR={cache_path}",
-                    f"TEXMFCACHE={cache_path}",
-                ]
-            )
-        command.append(engine)
-        bib_command = [
-            "wsl.exe",
-            "-d",
-            distro,
-            "--cd",
-            build_path,
-            "--",
-            "bibtex",
-            "report",
-        ]
-        build_option = build_path
-    else:
-        command = [engine]
-        bibtex = shutil.which("bibtex")
-        if not bibtex:
-            raise RuntimeError("BibTeX is required for the numbered references.")
-        bib_command = [bibtex, "report"]
-        build_option = str(BUILD)
-    command.extend(
-        [
-            "-interaction=nonstopmode",
-            "-halt-on-error",
-            "-file-line-error",
-            "-no-shell-escape",
-            "-synctex=1",
-            f"-output-directory={build_option}",
-            "report.tex",
-        ]
-    )
-    shutil.copy2(REPORT / "references.bib", BUILD / "references.bib")
-    logs = []
-
-    def run_stage(name, stage_command, cwd):
-        result = checked(stage_command, cwd=cwd)
-        (BUILD / f"{name}.log").write_text(result.stdout, encoding="utf-8")
-        logs.append(f"=== {name} ===\n{result.stdout}")
-        (ROOT / "evidence/report-build.log").write_text(
-            "\n".join(logs), encoding="utf-8"
-        )
-        if result.returncode:
-            raise RuntimeError(
-                f"{name} failed:\n" + "\n".join(result.stdout.splitlines()[-45:])
-            )
-        return result.stdout
-
-    run_stage("latex-pass-1", command, REPORT)
-    run_stage("bibtex", bib_command, BUILD)
-    run_stage("latex-pass-2", command, REPORT)
-    final_output = run_stage("latex-pass-3", command, REPORT)
-    if re.search(
-        r"(?:Citation .* undefined|There were undefined references)", final_output
-    ):
-        raise RuntimeError(
-            "Unresolved citations or references; see evidence/report-build.log"
-        )
-    pdf = BUILD / "report.pdf"
-    if not pdf.is_file():
-        raise RuntimeError("LaTeX did not produce report.pdf")
-    shutil.copy2(pdf, REPORT / "report.pdf")
-    source_listing()
-    summary = {
-        "source": "report/report.tex",
-        "editable_sections": "report/sections/",
-        "engine": Path(engine).name,
-        "wsl_distribution": distro,
-        "bibliography_style": "ieeetr",
-        "latex_passes": 3,
-        "shell_escape": False,
-        "overfull_box_warnings": len(re.findall(r"Overfull \\[hv]box", final_output)),
-        "pdf_bytes": pdf.stat().st_size,
-        "output": "report/report.pdf",
-    }
-    (ROOT / "evidence/report-build.json").write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-    )
-    print(json.dumps(summary, indent=2))
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
-        print(str(error), file=sys.stderr)
-        raise SystemExit(1) from error
-
-
-==============================================================================
-tools\clean_check.py
-==============================================================================
-"""Install and verify a clean Windows source copy without sharing its environment."""
-
-import json
-import os
-import shutil
-import subprocess
-import sys
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def main():
-    target = (ROOT / "tmp" / "clean-check-final").resolve()
-    assert target.is_relative_to(ROOT / "tmp")
-    target.mkdir(parents=True, exist_ok=True)
-    for name in ("src", "tests", "examples"):
-        shutil.copytree(
-            ROOT / name,
-            target / name,
-            dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-        )
-    for name in (
-        "pyproject.toml",
-        "requirements.txt",
-        "install.bat",
-        "run.bat",
-        "test.bat",
-    ):
-        shutil.copy2(ROOT / name, target / name)
-    env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
-    temporary = target / "temporary"
-    temporary.mkdir(exist_ok=True)
-    env["TEMP"] = env["TMP"] = str(temporary)
-    env["MPLBACKEND"] = "Agg"
-    env["MPLCONFIGDIR"] = str(target / "mplconfig")
-    python = target / ".venv" / "Scripts" / "python.exe"
-
-    def run(*args):
-        subprocess.run(args, cwd=target, env=env, check=True)
-
-    if not python.exists():
-        run(sys.executable, "-m", "venv", str(target / ".venv"))
-    run(str(python), "-m", "pip", "install", "-r", "requirements.txt")
-    run(str(python), "-m", "pip", "install", "--no-deps", "--force-reinstall", ".")
-    run(
-        str(python),
-        "-I",
-        "-c",
-        'import fortune;print("Installed package:",fortune.__file__)',
-    )
-    run(
-        str(python),
-        "-m",
-        "pytest",
-        "-q",
-        "--basetemp",
-        "pytest-temp",
-        "--junitxml",
-        str(ROOT / "evidence" / "clean-install-tests.xml"),
-    )
-    run(
-        str(python),
-        "-I",
-        "-m",
-        "fortune",
-        "--input",
-        "examples/sites.txt",
-        "--bbox",
-        "0",
-        "0",
-        "1",
-        "1",
-        "--output",
-        "clean.png",
-        "--csv",
-        "clean.csv",
-        "--json",
-        "clean.json",
-    )
-    for name in ("clean.png", "clean.csv", "clean.json"):
-        assert (target / name).stat().st_size > 0
+    started = perf_counter()
+    failures = []
+    count = 0
+    for name, points in cases():
+        count += 1
+        try:
+            diagram = construct(points, debug=True)
+            validate_cells(diagram, queries=100, seed=13)
+            validate_empty_circles(diagram)
+        except Exception as exc:
+            failures.append(dict(case=name, input=points, error=repr(exc)))
     result = dict(
-        status="passed",
-        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
-        separate_environment=True,
-        wheel_install=True,
-        installed_import_isolated=True,
-        batch_outputs=["clean.png", "clean.csv", "clean.json"],
+        executed_at=datetime.now(timezone.utc).isoformat(),
+        status="failed" if failures else "passed",
+        configurations=count,
+        queries_per_case=100,
+        failed=len(failures),
+        failures=failures,
+        seconds=perf_counter() - started,
     )
-    (ROOT / "evidence" / "clean-install-summary.json").write_text(
-        json.dumps(result, indent=2), encoding="utf-8"
-    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
+    return int(bool(failures))
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
 
 
 ==============================================================================
-tools\commit_milestone.py
-==============================================================================
-"""Commit selected paths using the owner's personal-project milestone date.
-
-Usage: python tools/commit_milestone.py DATE MESSAGE -- path ...
-Repository identity must already be configured locally. No remote is contacted.
-"""
-
-import os
-import subprocess
-import sys
-from datetime import date
-
-
-def main():
-    day, message, separator, *paths = sys.argv[1:]
-    date.fromisoformat(day)
-    if separator != "--" or not paths:
-        raise SystemExit("Expected DATE MESSAGE -- path ...")
-    subprocess.run(["git", "add", "--", *paths], check=True)
-    env = os.environ.copy()
-    env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = day + "T12:00:00+08:00"
-    subprocess.run(["git", "commit", "-m", message], check=True, env=env)
-
-
-if __name__ == "__main__":
-    main()
-
-
-==============================================================================
-tools\make_figures.py
+tools/make_figures.py
 ==============================================================================
 """Reproduce all original program and explanatory figures from recorded data."""
 # ruff: noqa: E402
 # Standalone execution needs the source path and Agg backend before local imports.
 
+import argparse
 import json
 import math
 import os
@@ -5665,6 +6321,11 @@ def report_diagram(diagram, path, *, labels=True):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--benchmark", type=Path, default=ROOT / "results/benchmark.json"
+    )
+    args = parser.parse_args()
     plt.rcParams.update(
         {
             "font.family": "serif",
@@ -5779,7 +6440,7 @@ def main():
     fig.tight_layout()
     fig.savefig(OUT / "beachline.png", dpi=220, bbox_inches="tight")
     plt.close(fig)
-    data = json.loads((ROOT / "results" / "benchmark.json").read_text())["results"]
+    data = json.loads(args.benchmark.read_text(encoding="utf-8"))["results"]
     ns = [row["n"] for row in data]
     ts = [row["median_seconds"] for row in data]
     fig, axes = plt.subplots(1, 2, figsize=(6.3, 3.1))
@@ -5842,7 +6503,7 @@ if __name__ == "__main__":
 
 
 ==============================================================================
-tools\make_replay_example.py
+tools/make_replay_example.py
 ==============================================================================
 """Generate a real replay frame and optional GIF for reviewing the feature branch."""
 # ruff: noqa: E402
@@ -5960,331 +6621,7 @@ if __name__ == "__main__":
 
 
 ==============================================================================
-tools\package_project.py
-==============================================================================
-"""Assemble the requested review ZIP without including environments or credentials."""
-
-import hashlib
-import json
-import re
-import shutil
-import subprocess
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from zipfile import ZIP_DEFLATED, ZipFile
-
-ROOT = Path(__file__).resolve().parents[1]
-
-ROOT_README = r"""FORTUNE SWEEP VORONOI
-Personal project, evaluated against the supplied course specification.
-
-WINDOWS QUICK START
-Install Python 3.12+ x64 (3.14.7 was tested) with Python on PATH.
-Open 02_SourceCode and run install.bat once, then:
-  run.bat --input examples\sites.txt --bbox 0 0 1 1 --output output\demo.png --csv output\cells.csv --json output\diagram.json
-  run.bat --interactive
-  run.bat --animate --input examples\sites.txt --bbox 0 0 1 1
-  test.bat -q
-The launcher 03_Executable\run.bat calls the same source implementation.
-Internet is required for the first pinned dependency installation.
-Animate opens an offline pointer-controlled browser replay (up to 200 distinct
-sites). Hover moves the sweep line; click freezes/resumes it. The saved history
-is separate from ordinary batch construction. Node.js is optional for two
-JavaScript validation tests and is not needed to run the program or viewer.
-
-REPRODUCE RESULTS FROM 02_SourceCode
-  .venv\Scripts\python tools\stress.py
-  .venv\Scripts\python tools\benchmark.py --sizes 100 1000 10000 --repeat 3 --seed 2026
-  .venv\Scripts\python tools\make_figures.py
-To rebuild the LaTeX report, run tools\build_report.py with LuaLaTeX/XeLaTeX
-and BibTeX installed, or add --wsl Debian on this computer.
-Read report\README.md for font support and editing the modular .tex source.
-See 02_SourceCode\README.md for Linux/WSL instructions, output schema and limits.
-
-PACKAGE CONTENTS
-01_Report: searchable PDF, editable LaTeX sections, bibliography, figures and guide.
-02_SourceCode: complete source, build/run files, docs, tests and measured evidence.
-03_Executable: Windows run-script entry point and pinned dependency list.
-04_Demo: input/output examples, narrated script and recording checklist.
-tests: independent test suite (also included inside the self-contained source tree).
-devlog.md: actual verification process and corrections.
-completeness.json: required files, owner evidence and source revision.
-
-REVIEW STATUS
-The AI-produced software and report have executable evidence. Owner review
-and the personally narrated video remain required unless completeness.json
-says present. Genuine ChatGPT and Pi captures are included in the report.
-The actual owner-confirmed subscription plan is recorded in owner-metadata.json.
-No video or AI conversation screenshot has been fabricated. Read REVIEW_CHECKLIST.md.
-The cover and ZIP use the owner-provided name and student ID. No email is sent
-by these scripts; the review and missing-evidence flags still govern completeness.
-"""
-
-
-def main():
-    stage = ROOT / "submission"
-    stage.mkdir(exist_ok=True)
-    files = set()
-
-    def copy(source, relative):
-        destination = stage / relative
-        assert destination.resolve().is_relative_to(stage.resolve())
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
-        files.add(destination)
-
-    def write(relative, text):
-        destination = stage / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(text, encoding="utf-8")
-        files.add(destination)
-
-    def tree(source, relative):
-        for path in sorted(source.rglob("*")):
-            # A ZIP cannot contain its own final hash; final audits stay beside it.
-            if path in {
-                ROOT / "evidence/package-audit.json",
-                ROOT / "evidence/package-final-content.json",
-            }:
-                continue
-            if source == ROOT / "report" and (
-                path.suffix
-                in {
-                    ".aux",
-                    ".bbl",
-                    ".blg",
-                    ".log",
-                    ".toc",
-                    ".lof",
-                    ".lot",
-                    ".out",
-                    ".fls",
-                }
-                or path.name.endswith((".synctex.gz", ".fdb_latexmk"))
-            ):
-                continue
-            if path.is_file() and not any(
-                p in ("__pycache__", ".pytest_cache", ".venv", "tmp")
-                or p.endswith(".egg-info")
-                for p in path.parts
-            ):
-                copy(path, Path(relative) / path.relative_to(source))
-
-    for directory in (
-        "src",
-        "tests",
-        "tools",
-        "docs",
-        "report",
-        "figures",
-        "results",
-        "evidence",
-        "examples",
-        "demo",
-        ".github",
-    ):
-        tree(ROOT / directory, Path("02_SourceCode") / directory)
-    for name in (
-        "README.md",
-        "REVIEW_CHECKLIST.md",
-        "devlog.md",
-        "owner-metadata.json",
-        "pyproject.toml",
-        "requirements.txt",
-        "requirements-dev.txt",
-        "install.bat",
-        "run.bat",
-        "test.bat",
-        "run.sh",
-        ".gitignore",
-        ".gitattributes",
-    ):
-        copy(ROOT / name, Path("02_SourceCode") / name)
-    tree(ROOT / "report", "01_Report")
-    tree(ROOT / "figures", "01_Report/figures")
-    copy(ROOT / "evidence/gui-native.png", "01_Report/figures/gui-native.png")
-    for name in (
-        "ai-interaction-1.png",
-        "pi-environment.png",
-        "pi-interaction-invariants.png",
-        "ai-interaction-2.png",
-        "pi-tiny-cell-code-continuation.png",
-        "pi-interaction-tests.png",
-        "pi-tests-summary.png",
-        "canvas-preview.jpg",
-        "canvas-export.png",
-    ):
-        copy(ROOT / "evidence" / name, Path("01_Report/figures") / name)
-    tree(ROOT / "tests", "tests")
-    tree(ROOT / "examples", "04_Demo/examples")
-    tree(ROOT / "demo", "04_Demo")
-    copy(ROOT / "devlog.md", "devlog.md")
-    copy(ROOT / "REVIEW_CHECKLIST.md", "REVIEW_CHECKLIST.md")
-    copy(ROOT / "requirements.txt", "03_Executable/requirements.txt")
-    write("README.txt", ROOT_README)
-    write(
-        "03_Executable/run.bat",
-        '@echo off\nsetlocal\npushd "%~dp0..\\02_SourceCode"\ncall run.bat %*\nset "task_exit=%errorlevel%"\npopd\nexit /b %task_exit%\n',
-    )
-    write(
-        "03_Executable/README.txt",
-        "Windows entry point: run.bat --interactive, run.bat --animate, or run.bat --input examples\\sites.txt --output output\\demo.png --csv output\\cells.csv. Dependencies install into 02_SourceCode/.venv on first use. Read the root README.txt.\n",
-    )
-    try:
-        revision = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL
-        ).strip()
-        gitlog = subprocess.check_output(
-            ["git", "log", "--date=iso-strict", "--pretty=fuller", "--stat"],
-            cwd=ROOT,
-            text=True,
-            encoding="utf-8",
-        )
-        source_worktree_dirty = bool(
-            subprocess.check_output(
-                ["git", "status", "--porcelain"], cwd=ROOT, text=True, encoding="utf-8"
-            ).strip()
-        )
-    except (OSError, subprocess.CalledProcessError):
-        revision = "unavailable"
-        source_worktree_dirty = None
-        gitlog = "Git unavailable; see included development log.\n"
-    write("02_SourceCode/git_log.txt", gitlog)
-    write(
-        "02_SourceCode/SOURCE_REVISION.json",
-        json.dumps(
-            {
-                "base_git_commit": revision,
-                "source_worktree_dirty": source_worktree_dirty,
-                "note": "The archive includes the current working files; the base commit alone does not identify uncommitted changes.",
-            },
-            indent=2,
-        ),
-    )
-    metadata = json.loads((ROOT / "owner-metadata.json").read_text(encoding="utf-8"))
-    required = [
-        "01_Report/report.pdf",
-        "01_Report/report.tex",
-        "01_Report/preamble.tex",
-        "01_Report/references.bib",
-        "01_Report/sections/01-introduction.tex",
-        "01_Report/sections/appendix-c.tex",
-        "01_Report/figures/canvas-preview.jpg",
-        "02_SourceCode/src/fortune/sweep.py",
-        "02_SourceCode/src/fortune/replay_canvas.py",
-        "02_SourceCode/src/fortune/replay_canvas.html",
-        "02_SourceCode/src/fortune/replay_canvas.js",
-        "02_SourceCode/tools/verify_package.py",
-        "03_Executable/run.bat",
-        "04_Demo/script.md",
-        "04_Demo/recording-checklist.md",
-        "04_Demo/examples/sweep-pointer-replay.html",
-        "tests/test_diagram.py",
-        "README.txt",
-        "devlog.md",
-    ]
-    staged_names = {p.relative_to(stage).as_posix() for p in files}
-    missing = [p for p in required if p not in staged_names]
-    owner = dict(
-        subscription_plan=bool(metadata.get("subscription_plan")),
-        ai_screenshot_1=(ROOT / "evidence" / "ai-interaction-1.png").is_file(),
-        ai_screenshot_2=(ROOT / "evidence" / "ai-interaction-2.png").is_file(),
-        narrated_recording=(ROOT / "demo" / "walkthrough.mp4").is_file(),
-    )
-    verified = ROOT / "evidence/package-verification.json"
-    runtime_check = dict(matches_tested_payload=False, compared_files=0)
-    if verified.is_file():
-        record = json.loads(verified.read_text(encoding="utf-8"))
-        expected = record.get("source_and_test_sha256", {})
-        changed = [
-            name
-            for name, expected_hash in expected.items()
-            if not (stage / "02_SourceCode" / name).is_file()
-            or hashlib.sha256((stage / "02_SourceCode" / name).read_bytes()).hexdigest()
-            != expected_hash
-        ]
-        runtime_check = dict(
-            matches_tested_payload=bool(expected) and not changed,
-            compared_files=len(expected),
-            changed_files=changed,
-            installed_tests_passed=record.get("tests_passed"),
-            installed_module_assertions=record.get(
-                "all_tested_fortune_modules_installed", False
-            ),
-            verification_record="02_SourceCode/evidence/package-verification.json",
-        )
-    report_audit = json.loads(
-        (ROOT / "evidence/report-audit.json").read_text(encoding="utf-8")
-    )
-    report_hash = hashlib.sha256(
-        (stage / "01_Report/report.pdf").read_bytes()
-    ).hexdigest()
-    report_check = dict(
-        matches_audited_pdf=report_hash == report_audit.get("pdf_sha256"),
-        sha256=report_hash,
-        pages=report_audit.get("pages"),
-        body_pages=report_audit.get("main_body_pages"),
-    )
-    manifest = dict(
-        generated_at=datetime.now(timezone(timedelta(hours=8))).isoformat(),
-        source_revision=revision,
-        source_worktree_dirty=source_worktree_dirty,
-        missing_required_files=missing,
-        ai_artifacts_present=not missing,
-        owner_evidence_present=owner,
-        owner_review_required=not metadata.get("owner_review_complete", False),
-        runtime_verification=runtime_check,
-        report_verification=report_check,
-        complete_against_reference=not missing
-        and all(owner.values())
-        and runtime_check["matches_tested_payload"]
-        and runtime_check.get("installed_module_assertions", False)
-        and report_check["matches_audited_pdf"]
-        and metadata.get("owner_review_complete", False),
-        note="Review copy; file presence alone does not verify video duration, narration or screenshot authenticity.",
-    )
-    write("completeness.json", json.dumps(manifest, indent=2) + "\n")
-    dist = ROOT / "dist"
-    dist.mkdir(exist_ok=True)
-    identifier = re.sub(
-        r"[^A-Za-z0-9_-]+", "_", str(metadata.get("student_id") or "PERSONAL")
-    )
-    author = re.sub(
-        r"[^A-Za-z0-9_-]+", "_", metadata.get("author", "broccolize")
-    ).strip("_")
-    archive = dist / f"CG_Assignment_{identifier}_{author}.zip"
-    with ZipFile(archive, "w", compression=ZIP_DEFLATED, compresslevel=9) as out:
-        for path in sorted(files):
-            out.write(path, path.relative_to(stage).as_posix())
-    with ZipFile(archive) as check:
-        assert check.testzip() is None
-        assert all(
-            not p.startswith("/") and ".." not in Path(p).parts
-            for p in check.namelist()
-        )
-    audit = dict(
-        archive=archive.name,
-        bytes=archive.stat().st_size,
-        files=len(files),
-        sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
-        source_revision=revision,
-        source_worktree_dirty=source_worktree_dirty,
-        required_files_present=not missing,
-        zip_crc_check="passed",
-        owner_evidence_present=owner,
-    )
-    (ROOT / "evidence" / "package-audit.json").write_text(
-        json.dumps(audit, indent=2) + "\n", encoding="utf-8"
-    )
-    print(json.dumps(audit, indent=2))
-
-
-if __name__ == "__main__":
-    main()
-
-
-==============================================================================
-tools\profile_replay.py
+tools/profile_replay.py
 ==============================================================================
 """Reproduce replay rendering CPU measurements; these are not desktop FPS."""
 # ruff: noqa: E402
@@ -6406,7 +6743,7 @@ if __name__ == "__main__":
 
 
 ==============================================================================
-tools\profile_replay_tk.py
+tools/profile_replay_tk.py
 ==============================================================================
 """Measure the actual Tk playback timer and canvas on this desktop."""
 # ruff: noqa: E402
@@ -6490,7 +6827,7 @@ if __name__ == "__main__":
 
 
 ==============================================================================
-tools\stress.py
+tools/stress.py
 ==============================================================================
 """Independent stress validation, including every 10,000-site circle vertex.
 
@@ -6531,6 +6868,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--seeds", type=int, default=300)
     p.add_argument("--largest", type=int, default=10000)
+    p.add_argument("--output", type=Path, default=ROOT / "evidence/stress-final.json")
     args = p.parse_args()
     started = time.perf_counter()
     failures = []
@@ -6585,263 +6923,12 @@ def main():
         failures=failures,
         seconds=time.perf_counter() - started,
     )
-    (ROOT / "evidence" / "stress-final.json").write_text(
-        json.dumps(result, indent=2), encoding="utf-8"
-    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
     return bool(failures)
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-==============================================================================
-tools\verify_package.py
-==============================================================================
-"""Verify a delivered ZIP in a fresh Windows environment, retaining real logs."""
-
-import argparse
-import hashlib
-import json
-import os
-import subprocess
-import sys
-import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from zipfile import ZipFile
-
-ROOT = Path(__file__).resolve().parents[1]
-
-# Load Fortune before pytest and verify every loaded submodule's actual location.
-INSTALLED_TEST_RUNNER = """
-from pathlib import Path
-import sys
-import fortune
-import pytest
-folder = Path(fortune.__file__).resolve().parent
-assert "site-packages" in str(folder), folder
-print("Tested installed package:", folder)
-result = pytest.main(sys.argv[1:])
-modules = {name: Path(module.__file__).resolve()
-           for name, module in sys.modules.items()
-           if name == "fortune" or name.startswith("fortune.")}
-assert modules and all(path.is_relative_to(folder) for path in modules.values()), modules
-print("All loaded Fortune modules came from the installed package:", len(modules))
-raise SystemExit(result)
-"""
-
-
-def installed_test_command(python, junit):
-    return [
-        str(python),
-        "-I",
-        "-c",
-        INSTALLED_TEST_RUNNER,
-        "-c",
-        "pytest-package.ini",
-        "tests",
-        "-q",
-        "--basetemp",
-        "pytest-temp",
-        "--junitxml",
-        str(junit),
-    ]
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("archive", type=Path)
-    args = parser.parse_args()
-    archive = args.archive.resolve()
-    if os.name != "nt":
-        parser.error("This check exercises the delivered Windows launcher.")
-    stamp = datetime.now(timezone(timedelta(hours=8)))
-    target = (ROOT / "tmp" / stamp.strftime("package-check-%Y%m%d-%H%M%S")).resolve()
-    assert target.is_relative_to((ROOT / "tmp").resolve())
-    target.mkdir(parents=True, exist_ok=False)
-    log = ROOT / "evidence/package-verification.log"
-    log.write_text("", encoding="utf-8")
-    with ZipFile(archive) as bundle:
-        if bundle.testzip() is not None:
-            raise RuntimeError("Archive CRC verification failed")
-        for name in bundle.namelist():
-            if not (target / name).resolve().is_relative_to(target):
-                raise RuntimeError(f"Unsafe archive member: {name}")
-        bundle.extractall(target)
-    source = target / "02_SourceCode"
-    temporary = target / "temporary"
-    temporary.mkdir()
-    env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
-    env["TEMP"] = env["TMP"] = str(temporary)
-    env["MPLBACKEND"] = "Agg"
-    env["MPLCONFIGDIR"] = str(target / "mplconfig")
-    env["PYTHONIOENCODING"] = "utf-8"
-
-    def run(name, command, *, cwd=source):
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            env=env,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=600,
-            check=False,
-        )
-        with log.open("a", encoding="utf-8") as stream:
-            stream.write(f"=== {name} ===\n{result.stdout}\n")
-        print(f"{name}: exit {result.returncode}", flush=True)
-        if result.returncode:
-            raise RuntimeError(f"{name} failed; inspect {log}")
-        return result.stdout
-
-    python = source / ".venv/Scripts/python.exe"
-    run(
-        "new isolated environment",
-        [sys.executable, "-m", "venv", str(source / ".venv")],
-    )
-    run(
-        "pinned dependencies",
-        [
-            str(python),
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "-q",
-            "-r",
-            "requirements.txt",
-        ],
-    )
-    run(
-        "install delivered package",
-        [
-            str(python),
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "-q",
-            "--no-deps",
-            ".",
-        ],
-    )
-    installed = run(
-        "isolated import and Canvas assets",
-        [
-            str(python),
-            "-I",
-            "-c",
-            (
-                "from pathlib import Path; import fortune; "
-                "from fortune.replay_canvas import write_replay; "
-                "folder=Path(fortune.__file__).parent; "
-                "assert 'site-packages' in str(folder); "
-                "assert (folder/'replay_canvas.html').is_file(); "
-                "assert (folder/'replay_canvas.js').is_file(); "
-                "r=write_replay([(0,0),(1,0),(0.5,1)], output='clean-replay.html'); "
-                "text=r.path.read_text(encoding='utf-8'); "
-                "assert '<canvas' in text and '__FORTUNE_DATA__' not in text; "
-                "print(fortune.__file__)"
-            ),
-        ],
-    ).strip()
-    # Block ancestor configuration discovery, including the primary checkout's
-    # pythonpath option when an archive is extracted beneath that checkout.
-    (target / "pytest-package.ini").write_text(
-        "[pytest]\naddopts = -ra\n", encoding="utf-8"
-    )
-    run(
-        "delivered independent test suite",
-        installed_test_command(python, ROOT / "evidence/package-tests.xml"),
-        cwd=target,
-    )
-    run(
-        "03_Executable batch launcher",
-        [
-            "cmd.exe",
-            "/d",
-            "/c",
-            "03_Executable\\run.bat",
-            "--input",
-            "examples\\sites.txt",
-            "--bbox",
-            "0",
-            "0",
-            "1",
-            "1",
-            "--output",
-            "output\\package.png",
-            "--csv",
-            "output\\package.csv",
-            "--json",
-            "output\\package.json",
-        ],
-        cwd=target,
-    )
-    for name in ("package.png", "package.csv", "package.json"):
-        if (source / "output" / name).stat().st_size <= 0:
-            raise RuntimeError(f"Empty batch output: {name}")
-    tree = ET.parse(ROOT / "evidence/package-tests.xml")
-    cases = list(tree.iter("testcase"))
-    failures = sum(len(list(tree.iter(tag))) for tag in ("failure", "error"))
-    skipped = len(list(tree.iter("skipped")))
-    if failures:
-        raise RuntimeError("Delivered tests failed")
-    hashes = {
-        str(p.relative_to(source)).replace("\\", "/"): hashlib.sha256(
-            p.read_bytes()
-        ).hexdigest()
-        for folder in ("src/fortune", "tests")
-        for p in sorted((source / folder).rglob("*"))
-        if p.is_file() and "__pycache__" not in p.parts
-    }
-    for name in (
-        "pyproject.toml",
-        "requirements.txt",
-        "run.bat",
-        "test.bat",
-        "install.bat",
-        "run.sh",
-    ):
-        hashes[name] = hashlib.sha256((source / name).read_bytes()).hexdigest()
-    summary = dict(
-        status="passed",
-        actual_timestamp=datetime.now(timezone(timedelta(hours=8))).isoformat(),
-        archive=archive.name,
-        archive_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
-        extracted_to=str(target),
-        separate_environment=True,
-        installed_import=installed,
-        installed_import_isolated=True,
-        pytest_configuration_isolated=True,
-        all_tested_fortune_modules_installed=True,
-        canvas_assets_and_offline_export="passed",
-        delivered_windows_launcher="passed",
-        tests_passed=len(cases) - skipped,
-        tests_skipped=skipped,
-        test_failures=failures,
-        source_and_test_sha256=hashes,
-        source_hash_scope="Delivered src/fortune, tests, package configuration and launchers; excludes generated egg-info and caches",
-        log="evidence/package-verification.log",
-        junit="evidence/package-tests.xml",
-    )
-    (ROOT / "evidence/package-verification.json").write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-    )
-    print(
-        json.dumps(
-            {k: v for k, v in summary.items() if k != "source_and_test_sha256"},
-            indent=2,
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()
 

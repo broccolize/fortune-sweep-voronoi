@@ -6,7 +6,7 @@ rather than copying a payload, because queued events refer to arc objects.
 
 from dataclasses import dataclass
 
-from .geometry import breakpoint_x
+from .geometry import breakpoint_side
 
 
 @dataclass(eq=False, slots=True)
@@ -151,12 +151,20 @@ class BeachLine:
     def locate(self, x, directrix, points):
         node = self.root
         while node:
-            if node.prev and x < breakpoint_x(
-                points[node.prev.site], points[node.site], directrix
+            if (
+                node.prev
+                and breakpoint_side(
+                    points[node.prev.site], points[node.site], directrix, x
+                )
+                < 0
             ):
                 node = node.left
-            elif node.next and x > breakpoint_x(
-                points[node.site], points[node.next.site], directrix
+            elif (
+                node.next
+                and breakpoint_side(
+                    points[node.site], points[node.next.site], directrix, x
+                )
+                > 0
             ):
                 node = node.right
             else:

@@ -1,0 +1,12 @@
+{
+  "source": "report/source_appendix.tex",
+  "editable_sections": "report/sections/",
+  "engine": "lualatex",
+  "wsl_distribution": "Debian",
+  "bibliography_style": null,
+  "latex_passes": 3,
+  "shell_escape": false,
+  "overfull_box_warnings": 0,
+  "pdf_bytes": 590632,
+  "output": "report/source_appendix.pdf"
+}

@@ -1,0 +1,15 @@
+{
+  "tests.test_adversarial": 14,
+  "tests.test_beachline": 7,
+  "tests.test_delaunay": 11,
+  "tests.test_diagram": 42,
+  "tests.test_events": 4,
+  "tests.test_geometry": 11,
+  "tests.test_interfaces": 4,
+  "tests.test_pi_regressions": 4,
+  "tests.test_precision_frame": 12,
+  "tests.test_reference_compare": 9,
+  "tests.test_replay": 30,
+  "tests.test_replay_canvas": 13,
+  "tests.test_replay_view": 10
+}

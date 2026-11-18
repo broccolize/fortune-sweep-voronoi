@@ -61,12 +61,25 @@ def circumcircle(a: Point, b: Point, c: Point):
     Translation to a local origin avoids subtracting large squared coordinates.
     For cancellation-prone determinants, recompute the construction in Decimal.
     """
+    # Anchor at the closest pair. Subtracting a distant origin from two very
+    # close sites can destroy their separation in the squared-length numerators
+    # even when the determinant itself is well conditioned.
+    a, b, c = min(
+        ((a, b, c), (b, c, a), (c, a, b)),
+        key=lambda triple: triple[0].distance(triple[1]),
+    )
     ux, uy = b.x - a.x, b.y - a.y
     vx, vy = c.x - a.x, c.y - a.y
     cross = ux * vy - uy * vx
     # A reliable determinant sign alone does not imply an accurate centre.
     # Ill-conditioned (almost collinear) triples need high-precision coordinates.
-    if abs(cross) <= 1e-8 * (abs(ux * vy) + abs(uy * vx)):
+    u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
+    nx, ny = u2 * vy - v2 * uy, ux * v2 - vx * u2
+    if (
+        abs(cross) <= 1e-8 * (abs(ux * vy) + abs(uy * vx))
+        or abs(nx) <= 1e-8 * (abs(u2 * vy) + abs(v2 * uy))
+        or abs(ny) <= 1e-8 * (abs(ux * v2) + abs(vx * u2))
+    ):
         with localcontext() as ctx:
             ctx.prec = 80
             ax, ay = Decimal(a.x), Decimal(a.y)
@@ -80,10 +93,9 @@ def circumcircle(a: Point, b: Point, c: Point):
                 float(ax + (u2 * t - s2 * v) / d), float(ay + (u * s2 - s * u2) / d)
             )
     else:
-        u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
         centre = Point(
-            a.x + (u2 * vy - v2 * uy) / (2 * cross),
-            a.y + (ux * v2 - vx * u2) / (2 * cross),
+            a.x + nx / (2 * cross),
+            a.y + ny / (2 * cross),
         )
     radius = centre.distance(a)
     if not math.isfinite(radius):
@@ -103,17 +115,19 @@ def breakpoint_x(left: Point, right: Point, directrix: float) -> float:
 
     Equal-height sites give a linear equation. A focus on the directrix gives
     a vertical limiting arc. The remaining quadratic is solved with a stable
-    two-root formula, in coordinates translated to the left focus.
+    two-root formula, in coordinates translated to the lower focus. That origin
+    avoids subtracting a distant upper focus from a breakpoint near a new site.
     """
     if left.y == right.y:
         return left.x + (right.x - left.x) / 2
-    dp, dq = left.y - directrix, right.y - directrix
-    if dp <= 0:
+    if left.y <= directrix:
         return left.x
-    if dq <= 0:
+    if right.y <= directrix:
         return right.x
-    dx = right.x - left.x
-    aa = right.y - left.y
+    a, b = (left, right) if left.y < right.y else (right, left)
+    dp, dq = a.y - directrix, b.y - directrix
+    dx = b.x - a.x
+    aa = b.y - a.y
     bb = 2 * dp * dx
     cc = -dp * dx * dx - aa * dp * dq
     discr = bb * bb - 4 * aa * cc
@@ -125,7 +139,7 @@ def breakpoint_x(left: Point, right: Point, directrix: float) -> float:
     q = -0.5 * (bb + math.copysign(math.sqrt(discr), bb))
     roots = (q / aa, cc / q) if q else (-bb / (2 * aa),) * 2
     root = min(roots) if left.y > right.y else max(roots)
-    return left.x + root
+    return a.x + root
 
 
 def circle_bottom(centre: Point, through: Point) -> float:
@@ -135,6 +149,43 @@ def circle_bottom(centre: Point, through: Point) -> float:
     if dy >= 0 and radius + dy:
         return through.y - dx * dx / (radius + dy)
     return centre.y - radius
+
+
+def breakpoint_side(left, right, directrix, x):
+    """Compare x with a breakpoint, resolving close searches exactly.
+
+    The quadratic's vertex separates its two roots. On the selected branch,
+    evaluating its sign compares x to that root without rounding a square root.
+    """
+    boundary = breakpoint_x(left, right, directrix)
+    error = 32 * math.ulp(max(1.0, abs(left.x), abs(right.x), abs(x), abs(boundary)))
+    if abs(x - boundary) > error:
+        return -1 if x < boundary else 1
+    lx, ly, rx, ry, s, query = map(
+        Fraction, (left.x, left.y, right.x, right.y, directrix, x)
+    )
+    if ly == ry:
+        value = 2 * query - lx - rx
+    elif ly <= s:
+        value = query - lx
+    elif ry <= s:
+        value = query - rx
+    else:
+        ax, ay, bx, by = (lx, ly, rx, ry) if ly < ry else (rx, ry, lx, ly)
+        dp, dq, dx, u = ay - s, by - s, bx - ax, query - ax
+        aa, bb = by - ay, 2 * dp * dx
+        cc = -dp * dx * dx - aa * dp * dq
+        side_of_axis = 2 * aa * u + bb
+        value_at_query = aa * u * u + bb * u + cc
+        if ly > ry:
+            if side_of_axis >= 0:
+                return 1
+            value = -value_at_query
+        else:
+            if side_of_axis <= 0:
+                return -1
+            value = value_at_query
+    return (value > 0) - (value < 0)
 
 
 def circle_identity(a, b, c):

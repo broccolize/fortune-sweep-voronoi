@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from time import perf_counter
 
 from .clipping import clipped_cell
+from .frame import CoordinateFrame, inferred_box
 from .geometry import Box, Point, orient, polygon_area
 from .sweep import FortuneSweep, Vertex, all_collinear, collinear_neighbours
 
@@ -37,6 +38,7 @@ class Diagram:
     vertices: list[Vertex]
     box: Box
     statistics: dict = field(default_factory=dict)
+    delaunay_edges: list[tuple[int, int]] = field(default_factory=list)
 
 
 def hull_order(points):
@@ -60,12 +62,31 @@ def hull_order(points):
     return lower[:-1] + upper[:-1]
 
 
+def delaunay_triangulation(sites, sweep, zero_edges):
+    """Dual edges, with a deterministic fan for each exactly cocircular face.
+
+    A Voronoi vertex shared by more than three sites defines a convex polygon
+    with several valid Delaunay triangulations. Use its lexicographically first
+    site as the fan anchor, so the diagonals do not depend on event/input order.
+    Collinear input retains the consecutive-site chain.
+    """
+    edges = set(sweep.edges) - zero_edges
+    for vertex in sweep.vertices:
+        if len(vertex.defining) <= 3:
+            continue
+        ids = sorted(vertex.defining)
+        ring = [ids[i] for i in hull_order([sites[i] for i in ids])]
+        for other in ring[2:-1]:
+            edges.add(tuple(sorted((ring[0], other))))
+    return sorted(edges)
+
+
 def construct(coordinates, box=None, *, debug=False):
     """Build a Voronoi diagram; exact duplicates share one cell and index list.
 
-    Geometric calculations use a translated, uniformly scaled frame. Distinct
-    near-coincident points are not deliberately merged. Extremely disparate
-    coordinates that collapse in normalization are rejected explicitly.
+    Geometric calculations use an exactly representable uniform transform.
+    Distinct near-coincident points are not deliberately merged. Coordinate
+    ranges that lose subnormal bits in that transform are rejected explicitly.
     """
     started = perf_counter()
     sites, groups, index = [], [], {}
@@ -87,35 +108,14 @@ def construct(coordinates, box=None, *, debug=False):
         input_count += 1
     if not sites:
         raise ValueError("At least one finite site is required")
-    xmin, xmax = min(p.x for p in sites), max(p.x for p in sites)
-    ymin, ymax = min(p.y for p in sites), max(p.y for p in sites)
-    scale = max(xmax - xmin, ymax - ymin)
-    if not scale:
-        scale = max(1.0, abs(xmin) * 1e-6, abs(ymin) * 1e-6)
-    if not math.isfinite(scale):
-        raise ValueError("Coordinate extent exceeds supported floating-point range")
-    ox, oy = xmin + (xmax - xmin) / 2, ymin + (ymax - ymin) / 2
-
-    def normalize(p):
-        return Point((p.x - ox) / scale, (p.y - oy) / scale)
-
-    def world(p):
-        return Point(ox + scale * p.x, oy + scale * p.y)
-
+    frame = CoordinateFrame.for_sites(sites)
+    world = frame.world
     if box is None:
-        pad = scale * 0.1
-        box = Box(xmin - pad, ymin - pad, xmax + pad, ymax + pad)
+        box = inferred_box(sites)
     elif not isinstance(box, Box):
         box = Box(*box)
-    nbox = Box(
-        (box.xmin - ox) / scale,
-        (box.ymin - oy) / scale,
-        (box.xmax - ox) / scale,
-        (box.ymax - oy) / scale,
-    )
-    normalized = [normalize(p) for p in sites]
-    if len(set(normalized)) != len(sites):
-        raise ValueError("Distinct sites collapse at this floating-point scale")
+    nbox = frame.normalize_box(box)
+    normalized = [frame.normalize(p) for p in sites]
     collinear = all_collinear(sites)
     sweep_start = perf_counter()
     sweep = (
@@ -134,6 +134,7 @@ def construct(coordinates, box=None, *, debug=False):
         for key, edge in sweep.edges.items()
         if len(edge.vertices) == 1 and key not in hull_edges and not collinear
     }
+    dual = delaunay_triangulation(sites, sweep, zero_edges)
     vertices = [Vertex(world(v.point), set(v.defining)) for v in sweep.vertices]
     for identity, i in sweep._vertex_index.items():
         vertices[i].point = Point(float(identity[0]), float(identity[1]))
@@ -208,7 +209,8 @@ def construct(coordinates, box=None, *, debug=False):
         cells=len(cells),
         vertices=len(vertices),
         edges=len(edges),
+        delaunay_edges=len(dual),
         sweep_seconds=sweep_seconds,
         construction_seconds=perf_counter() - started,
     )
-    return Diagram(sites, cells, edges, vertices, box, statistics)
+    return Diagram(sites, cells, edges, vertices, box, statistics, dual)

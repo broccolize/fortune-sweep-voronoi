@@ -1,0 +1,37 @@
+=== new isolated environment ===
+
+=== pinned dependencies ===
+
+=== install delivered package ===
+
+=== isolated import and Canvas assets ===
+C:\projects\fortune-sweep-voronoi\tmp\package-check-20261119-000614\02_SourceCode\.venv\Lib\site-packages\fortune\__init__.py
+
+=== delivered independent test suite ===
+Tested installed package: C:\projects\fortune-sweep-voronoi\tmp\package-check-20261119-000614\02_SourceCode\.venv\Lib\site-packages\fortune
+........................................................................ [ 42%]
+........................................................................ [ 84%]
+...........................                                              [100%]
+171 passed in 17.39s
+All loaded Fortune modules came from the installed package: 19
+
+=== 03_Executable batch launcher ===
+{
+  "site_events": 9,
+  "circle_events": 10,
+  "stale_events": 8,
+  "queue_peak": 9,
+  "events_pushed": 27,
+  "beach_max_height": 4,
+  "trace_edges": 18,
+  "input_sites": 9,
+  "unique_sites": 9,
+  "duplicates": 0,
+  "cells": 9,
+  "vertices": 10,
+  "edges": 16,
+  "delaunay_edges": 18,
+  "sweep_seconds": 0.0021815000218339264,
+  "construction_seconds": 0.00331290002213791
+}
+

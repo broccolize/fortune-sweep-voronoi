@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "report"
@@ -54,7 +55,7 @@ def select_engine(requested, distro):
 
 def wsl_path(path, distro):
     result = checked(
-        ["wsl.exe", "-d", distro, "--", "wslpath", "-u", str(path)], timeout=30
+        ["wsl.exe", "-d", distro, "--", "wslpath", "-u", path.as_posix()], timeout=30
     )
     if result.returncode:
         raise RuntimeError(result.stdout)
@@ -62,6 +63,48 @@ def wsl_path(path, distro):
 
 
 def source_listing():
+    snapshot = REPORT / "implementation-snapshot.zip"
+    if snapshot.is_file():
+        # Keep a scoped report tied to the archived implementation it describes.
+        # Rebuilding must not substitute a later checkout into Appendix A.
+        with ZipFile(snapshot) as archive:
+            paths = sorted(
+                name
+                for name in archive.namelist()
+                if not name.endswith("/")
+                and name
+                not in {
+                    "tools/build_report.py",
+                    "tools/commit_milestone.py",
+                    "tools/package_project.py",
+                }
+                and (
+                    (
+                        name.startswith(("src/", "tests/", "tools/"))
+                        and Path(name).suffix in {".py", ".js", ".html", ".sh"}
+                    )
+                    or ("/" not in name and Path(name).suffix in {".bat", ".sh"})
+                    or name
+                    in {
+                        "pyproject.toml",
+                        "requirements.txt",
+                        ".github/workflows/tests.yml",
+                    }
+                )
+            )
+            listing = []
+            for name in paths:
+                listing.extend(
+                    [
+                        "=" * 78,
+                        name,
+                        "=" * 78,
+                        archive.read(name).decode("utf-8").replace("\r\n", "\n"),
+                        "",
+                    ]
+                )
+        (REPORT / "source_listing.txt").write_text("\n".join(listing), encoding="utf-8")
+        return
     paths = []
     for directory in ("src", "tests", "tools"):
         paths.extend((ROOT / directory).rglob("*.py"))
@@ -95,15 +138,38 @@ def source_listing():
 
 
 def main(argv=None):
+    global REPORT
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--report-dir",
+        type=Path,
+        default=REPORT,
+        help="Report source folder, including a standalone packaged copy",
+    )
     parser.add_argument(
         "--engine", choices=["auto", "lualatex", "xelatex"], default="auto"
     )
     parser.add_argument(
         "--wsl", metavar="DISTRO", help="Compile in this WSL distribution"
     )
+    parser.add_argument(
+        "--entry", default="report.tex", help="TeX entry file in the report folder"
+    )
+    parser.add_argument(
+        "--skip-bibliography",
+        action="store_true",
+        help="Build a source-only supplement without BibTeX",
+    )
     args = parser.parse_args(argv)
+    entry = Path(args.entry)
+    if entry.name != args.entry or entry.suffix != ".tex":
+        parser.error("--entry must name a .tex file in the report folder")
+    job = entry.stem
+    record = "report-build" if job == "report" else f"{job}-build"
+    log_prefix = "" if job == "report" else f"{job}-"
+    REPORT = args.report_dir.resolve()
     BUILD.mkdir(parents=True, exist_ok=True)
+    (ROOT / "evidence").mkdir(parents=True, exist_ok=True)
     engine, distro = select_engine(args.engine, args.wsl)
     if distro:
         report_path, build_path = wsl_path(REPORT, distro), wsl_path(BUILD, distro)
@@ -142,15 +208,15 @@ def main(argv=None):
             build_path,
             "--",
             "bibtex",
-            "report",
+            job,
         ]
         build_option = build_path
     else:
         command = [engine]
         bibtex = shutil.which("bibtex")
-        if not bibtex:
+        if not bibtex and not args.skip_bibliography:
             raise RuntimeError("BibTeX is required for the numbered references.")
-        bib_command = [bibtex, "report"]
+        bib_command = [bibtex, job]
         build_option = str(BUILD)
     command.extend(
         [
@@ -160,7 +226,7 @@ def main(argv=None):
             "-no-shell-escape",
             "-synctex=1",
             f"-output-directory={build_option}",
-            "report.tex",
+            entry.name,
         ]
     )
     shutil.copy2(REPORT / "references.bib", BUILD / "references.bib")
@@ -168,9 +234,9 @@ def main(argv=None):
 
     def run_stage(name, stage_command, cwd):
         result = checked(stage_command, cwd=cwd)
-        (BUILD / f"{name}.log").write_text(result.stdout, encoding="utf-8")
+        (BUILD / f"{log_prefix}{name}.log").write_text(result.stdout, encoding="utf-8")
         logs.append(f"=== {name} ===\n{result.stdout}")
-        (ROOT / "evidence/report-build.log").write_text(
+        (ROOT / "evidence" / f"{record}.log").write_text(
             "\n".join(logs), encoding="utf-8"
         )
         if result.returncode:
@@ -179,8 +245,11 @@ def main(argv=None):
             )
         return result.stdout
 
+    # Appendix A includes this listing, so refresh it before the first TeX pass.
+    source_listing()
     run_stage("latex-pass-1", command, REPORT)
-    run_stage("bibtex", bib_command, BUILD)
+    if not args.skip_bibliography:
+        run_stage("bibtex", bib_command, BUILD)
     run_stage("latex-pass-2", command, REPORT)
     final_output = run_stage("latex-pass-3", command, REPORT)
     if re.search(
@@ -189,24 +258,23 @@ def main(argv=None):
         raise RuntimeError(
             "Unresolved citations or references; see evidence/report-build.log"
         )
-    pdf = BUILD / "report.pdf"
+    pdf = BUILD / f"{job}.pdf"
     if not pdf.is_file():
         raise RuntimeError("LaTeX did not produce report.pdf")
-    shutil.copy2(pdf, REPORT / "report.pdf")
-    source_listing()
+    shutil.copy2(pdf, REPORT / f"{job}.pdf")
     summary = {
-        "source": "report/report.tex",
+        "source": "report/" + entry.name,
         "editable_sections": "report/sections/",
         "engine": Path(engine).name,
         "wsl_distribution": distro,
-        "bibliography_style": "ieeetr",
+        "bibliography_style": None if args.skip_bibliography else "ieeetr",
         "latex_passes": 3,
         "shell_escape": False,
         "overfull_box_warnings": len(re.findall(r"Overfull \\[hv]box", final_output)),
         "pdf_bytes": pdf.stat().st_size,
-        "output": "report/report.pdf",
+        "output": f"report/{job}.pdf",
     }
-    (ROOT / "evidence/report-build.json").write_text(
+    (ROOT / "evidence" / f"{record}.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"
     )
     print(json.dumps(summary, indent=2))

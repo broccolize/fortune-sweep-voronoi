@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-11-19T00:05:27.547158+08:00",
+  "path": "demo/walkthrough.mp4",
+  "bytes": 92020653,
+  "sha256": "6b4abd2d22d98bf431badfbebaa3e101aec6c4c8598a11e58000244a4630e548",
+  "duration_seconds": 407.966667,
+  "video_codec": "h264",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "frames_per_second": 60,
+  "audio_codec": "aac",
+  "audio_sample_rate": 48000,
+  "audio_channels": 2,
+  "assignment_duration_limit_seconds": 300,
+  "meets_duration_limit": false,
+  "author_requested_current_video": true,
+  "media_modified": false
+}

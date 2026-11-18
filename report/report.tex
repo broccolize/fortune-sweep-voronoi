@@ -1,5 +1,5 @@
 % Main editable report. Compile with LuaLaTeX or XeLaTeX, not pdfLaTeX.
-% Build from the project root: python tools/build_report.py --wsl Debian
+% Build from the project root: python report/build_snapshot.py --wsl Debian
 \documentclass[12pt,a4paper]{article}
 \input{preamble}
 
@@ -10,9 +10,13 @@
 \pagenumbering{roman}
 \hypersetup{pageanchor=true}
 \begingroup
+\setcounter{tocdepth}{1}
 \setstretch{1.05}
 \tableofcontents
 \endgroup
+\vspace{1em}
+\noindent\textbf{Companion document.} Appendix A, the complete source listing, is supplied separately as \href{source_appendix.pdf}{\nolinkurl{source_appendix.pdf}}. This volume contains the main report, references and Appendices B--D.
+\setcounter{tocdepth}{2}
 \clearpage
 \begingroup
 \setstretch{1.08}
@@ -37,6 +41,7 @@
 \clearpage
 \input{sections/09-conclusion}
 
+\clearpage
 \phantomsection
 \addcontentsline{toc}{section}{References}
 \bibliographystyle{ieeetr}
@@ -45,9 +50,11 @@
 
 \clearpage
 \appendix
-\input{sections/appendix-a}
-\clearpage
+% Appendix A is supplied in source_appendix.pdf; B--D remain in this volume.
+\setcounter{section}{1}
 \input{sections/appendix-b}
 \clearpage
 \input{sections/appendix-c}
+\clearpage
+\input{sections/appendix-d}
 \end{document}

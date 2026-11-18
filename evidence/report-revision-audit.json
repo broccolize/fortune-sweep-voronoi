@@ -1,0 +1,66 @@
+{
+  "actual_timestamp": "2026-11-19T00:05:06.186924+08:00",
+  "report_scope_end": "2026-11-18",
+  "pdf_sha256": "0b07ed3b1ee872a662f622c3e1b39de8b78c406deafbe174e96267c16d6f4da1",
+  "pages": 34,
+  "main_body_pages": 24,
+  "reference_pages": 1,
+  "main_body_including_references": 25,
+  "source_listing_blocks": 56,
+  "runtime_and_test_files_covered": 39,
+  "source_blocks_match_archived_files": true,
+  "source_snapshot_matches_current_application": true,
+  "word_cover_imported_without_overlay": true,
+  "cover_date": "2026.11.18",
+  "overfull_box_warnings": 0,
+  "missing_glyph_warnings": 0,
+  "unresolved_references": false,
+  "current_tests": 171,
+  "current_test_record": "report/data/current-tests.xml",
+  "precision_configurations": 800,
+  "reference_cases": 45,
+  "scipy_matches": 39,
+  "exact_reference_fallback_cases": 6,
+  "largest_stress_sites": 10000,
+  "git_history_entries": 21,
+  "git_history_columns": [
+    "commit date",
+    "recorded changes"
+  ],
+  "git_hashes_in_history_table": false,
+  "narrative_refined": true,
+  "substantive_ai_interactions": 2,
+  "embedded_evidence": [
+    {
+      "file": "report/figures/ai-interaction-1.png",
+      "pdf_physical_page": 33,
+      "original_pixels_preserved": true,
+      "sha256": "bbd0451041979c053e06c0d4d8516af5970c7a15b3070f9a70716efab1de0ba4"
+    },
+    {
+      "file": "report/figures/ai-interaction-2.png",
+      "pdf_physical_page": 34,
+      "original_pixels_preserved": true,
+      "sha256": "00bd402fcc388ba52d050a00d42cd1e9909f30b9a6f2587957e9379a8bc7615b"
+    },
+    {
+      "file": "report/figures/pi-tiny-cell-code-continuation.png",
+      "pdf_physical_page": 34,
+      "original_pixels_preserved": true,
+      "sha256": "8271a6a3b31e2f4ee67aa37a07b57c0693c94b8b8212cfd3265536110dc90c3a"
+    }
+  ],
+  "benchmark_record_actual_timestamp": "2026-11-18T23:25:00.886144+08:00",
+  "benchmark_scope": "Fresh current-engine benchmark; three repeats at each size; original raw execution metadata retained.",
+  "visual_review": "All pages rendered to contact sheets; selected narrative, source and evidence pages inspected.",
+  "current_application_files_unchanged": true,
+  "protected_files_checked": 64,
+  "report_build": "report/build.bat / report/build_snapshot.py; exact archived listing retained",
+  "assignment_complete": false,
+  "remaining": [
+    "Video exceeds five minutes; author explicitly requested packaging the current 6:48 version.",
+    "Language-assistance disclosure decision."
+  ],
+  "source_supplement_pages": 113,
+  "source_supplement_sha256": "04dcc71d5a828aec10ea15d612231a037fdc0767a461e75e626e9ba4dcda7b64"
+}

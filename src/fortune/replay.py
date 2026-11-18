@@ -10,6 +10,7 @@ import math
 from dataclasses import dataclass
 
 from .diagram import construct
+from .frame import CoordinateFrame
 from .geometry import Box, Point, breakpoint_x, parabola_y
 from .replay_state import clone_sweep
 from .sweep import FortuneSweep, all_collinear, collinear_neighbours
@@ -46,10 +47,9 @@ class SweepReplay:
         self.debug = debug
         xmin, xmax = min(p.x for p in self.sites), max(p.x for p in self.sites)
         ymin, ymax = min(p.y for p in self.sites), max(p.y for p in self.sites)
-        self.scale = max(xmax - xmin, ymax - ymin) or max(
-            1.0, abs(xmin) * 1e-6, abs(ymin) * 1e-6
-        )
-        self.ox, self.oy = xmin + (xmax - xmin) / 2, ymin + (ymax - ymin) / 2
+        self.frame = CoordinateFrame.for_sites(self.sites)
+        self.scale = self.frame.scale
+        self.ox, self.oy = self.frame.ox, self.frame.oy
         self.points = [self.normalize(p) for p in self.sites]
         b = self.box
         self.view = Box(
@@ -72,10 +72,10 @@ class SweepReplay:
             self.reset()
 
     def normalize(self, p):
-        return Point((p.x - self.ox) / self.scale, (p.y - self.oy) / self.scale)
+        return self.frame.normalize(p)
 
     def world(self, p):
-        return Point(self.ox + self.scale * p.x, self.oy + self.scale * p.y)
+        return self.frame.world(p)
 
     @property
     def done(self):

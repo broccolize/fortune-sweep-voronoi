@@ -1,0 +1,3 @@
+# Validation only. The Fortune construction engine never imports SciPy.
+-r requirements.txt
+scipy==1.18.1

@@ -1,89 +1,216 @@
 % Editable report section: Problems and Solutions
 \section{Problems and Solutions}
 \label{sec:6}
+\lstset{aboveskip=7pt,belowskip=7pt,lineskip=0pt}
 
 \subsection{Rounded Zero-Length Edges}
 
-\textbf{Symptom.} The diagonal two-site and nine-site cocircular examples reported holes during cell-ownership sampling, while their total-area checks passed.
+\textbf{Symptom.} The diagonal two-site and nine-site cocircular examples reported holes during cell-ownership sampling, although their total-area checks passed.
 
-\textbf{Investigation.} Consecutive polygon endpoints and their cross products were inspected. Three concurrent constraints had created nearly equal output vertices and a tiny boundary segment.
+\textbf{Investigation.} Inspecting endpoints and cross products revealed nearly equal vertices and a tiny segment created by three concurrent constraints.
 
-\textbf{Root cause.} Subtracting rounded equal endpoints gave an arbitrary segment direction. The convex-containment check then treated that segment as an additional, incorrect boundary constraint.
+\textbf{Root cause.} Rounded equal endpoints gave an arbitrary direction that the containment check treated as another boundary constraint. Removing all short segments would also delete real microscopic cells.
 
-\textbf{Solution.} The final cleanup removes a support only when \code{concurrent(p,q,r)} proves exact rational concurrence. An intermediate distance cutoff was rejected after per-site checks found missing tiny cells. Exact circle identities also replace rounded-centre grouping.
+\textbf{Solution.} Short edges remain unless their defining lines are exactly concurrent. The cleanup in \path{src/fortune/clipping.py} uses a rational concurrence test:
 
-\textbf{Verification.} The original failures and six new positive-cell regressions pass. The later failing cases are retained in \path{tiny-cell-initial.xml}.
+\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[caption={Remove a short support only after proving concurrence.},label={lst:concurrent-fix}]
+active = [
+    h
+    for i, h in enumerate(active)
+    if not (
+        vertices[i].distance(vertices[(i + 1) % len(vertices)]) < 1e-12
+        and concurrent(active[i - 1], h, active[(i + 1) % len(active)])
+    )
+]
+\end{lstlisting}
+\end{minipage}
 
-\textbf{Prevention and lesson.} Check that every site retains its cell; area and sampled ownership alone can miss microscopic missing cells.
+Exact circle identities in \path{src/fortune/geometry.py} preserve distinct nearby vertices.
 
+\textbf{Verification.} The original two-site and cocircular cases pass \code{test\_degenerate\_cells}. The six parametrizations of \code{test\_every\_distinct\_cluster\_site\_retains\_a\_positive\_cell} check each cell's vertex count, positive area and containment of its generating site. The failures preceding this correction are retained in \path{evidence/tiny-cell-initial.xml}.
+
+\textbf{Prevention and lesson.} Per-site checks cover microscopic cells that area totals and sampled ownership can miss. Edge removal requires a geometric justification.
+
+\clearpage
 \subsection{Close-Site Half-Plane Coefficients}
 \label{prob:coefficients}
 
 \textbf{Symptom.} A seed-11 cluster at scale $10^{-11}$ produced area 1.439996905390856 for a box of area 1.44.
 
-\textbf{Investigation.} Cluster inputs and polygon intersections were compared with ordinary random cases. The problem appeared when almost parallel bisectors were intersected.
+\textbf{Investigation.} Comparing cluster intersections with ordinary cases isolated the error to almost parallel bisectors.
 
-\textbf{Root cause.} Unit-normal coefficients had already lost precision before division by a small intersection determinant. More precision applied only to those rounded coefficients could not recover the missing information.
+\textbf{Root cause.} Unit-normal coefficients lost precision before division by a small determinant. Higher-precision arithmetic on those rounded coefficients could not recover it.
 
-\textbf{Solution.} \code{HalfPlane} retains its defining focus pair. For \code{abs(det) < 1e-7}, coefficients are rebuilt from those binary coordinates and intersected using 80-digit Decimal arithmetic.
+\textbf{Solution.} The fallback rebuilds coefficients from their defining focus pairs. The uncertain branch in \path{src/fortune/clipping.py} uses 80-digit Decimal arithmetic:
 
-\textbf{Verification.} The seed-11 cluster now passes area, ownership and empty-circle checks.
+\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[caption={Reconstruct an ill-conditioned intersection from its defining sites.},label={lst:intersection-fix}]
+if abs(det) < 1e-7:
+    if parallel(p, q):
+        return None
+    with localcontext() as ctx:
+        ctx.prec = 80
+        a, b, c = p.exact()
+        d, e, f = q.exact()
+        denominator = a * e - b * d
+        if not denominator:
+            return None
+        return Point(
+            float((c * e - b * f) / denominator),
+            float((a * f - c * d) / denominator),
+        )
+\end{lstlisting}
+\end{minipage}
 
-\textbf{Prevention and lesson.} Preserve construction provenance and identify the conditioning of arithmetic operations, not just the final output's finiteness.
+\textbf{Verification.} The exponent-11 parametrization of \path{test_tight_cluster_among_distant_sites} checks the cluster using area coverage, sampled ownership and empty-circle validation. The corrected case passes all three checks.
 
+\textbf{Prevention and lesson.} I preserved defining inputs for the precision fallback. Finite output coordinates alone do not establish an accurate construction.
+
+\clearpage
 \subsection{Predicate Reliability versus Construction Accuracy}
 
-\textbf{Symptom.} The initial exponent-15 cluster emitted a centre that failed equidistance to its defining sites. The original failure and input are saved in \path{adversarial-initial.json}.
+\textbf{Symptom.} The initial exponent-15 cluster emitted a centre that failed equidistance to its defining sites. The input and failure are retained in \path{evidence/adversarial-initial.json}.
 
-\textbf{Investigation.} The determinant used for the centre was compared with its product magnitudes. Its sign was plausible, but the calculated coordinates remained inaccurate.
+\textbf{Investigation.} Comparing the determinant with its product terms showed a plausible sign despite inaccurate centre coordinates.
 
-\textbf{Root cause.} The original relative fallback threshold of \(8\times 10^{-16}\) addressed severe sign cancellation. A sign filter does not provide an accuracy guarantee for the division used to construct a circumcentre.
+\textbf{Root cause.} The original \(8\times10^{-16}\) fallback threshold addressed sign cancellation. A reliable sign did not guarantee accurate coordinates after division by the determinant.
 
-\textbf{Solution.} With translated vectors \(u=b-a\) and \(v=c-a\), the circumcentre is recomputed in Decimal when
+\textbf{Solution.} Circumcentre construction uses an accuracy threshold separate from the orientation sign filter. For translated vectors \(u=b-a\) and \(v=c-a\), the construction switches to Decimal when
 \begin{equation}
   \lvert u_xv_y-u_yv_x\rvert
   \leq 10^{-8}\bigl(\lvert u_xv_y\rvert+\lvert u_yv_x\rvert\bigr).
   \label{eq:centre-filter}
 \end{equation}
-This construction policy is separate from the orientation predicate.
+The current construction also anchors at the closest pair and checks cancellation in both centre numerators. This addresses close pairs whose determinant is usable but whose squared-length terms lose information:
 
-\textbf{Verification.} All five tight-cluster exponents pass the circle tests.
+\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[caption={Use a construction-accuracy threshold for the circumcentre.},label={lst:circumcentre-fix}]
+a, b, c = min(
+    ((a, b, c), (b, c, a), (c, a, b)),
+    key=lambda triple: triple[0].distance(triple[1]),
+)
+ux, uy = b.x - a.x, b.y - a.y
+vx, vy = c.x - a.x, c.y - a.y
+cross = ux * vy - uy * vx
+u2, v2 = ux * ux + uy * uy, vx * vx + vy * vy
+nx, ny = u2 * vy - v2 * uy, ux * v2 - vx * u2
+if (
+    abs(cross) <= 1e-8 * (abs(ux * vy) + abs(uy * vx))
+    or abs(nx) <= 1e-8 * (abs(u2 * vy) + abs(v2 * uy))
+    or abs(ny) <= 1e-8 * (abs(ux * v2) + abs(vx * u2))
+):
+\end{lstlisting}
+\end{minipage}
 
-\textbf{Prevention and lesson.} Distinguish decisions about a determinant's sign from coordinate construction. The AI's first implementation conflated the two, and adversarial tests exposed the gap.
+\textbf{Verification.} The five parametrizations of \path{test_tight_cluster_among_distant_sites}, at exponents 8, 11, 13, 14 and 15, pass the equidistance and empty-circle checks as well as cell validation. The close-pair cases in \path{tests/test_precision_frame.py} additionally check exact empty circles under every input permutation.
 
+\textbf{Prevention and lesson.} Coordinate accuracy and predicate signs need separate error criteria. The first AI-generated implementation conflated these requirements, and the adversarial input exposed the difference.
+
+\clearpage
 \subsection{A Generous Epsilon Created Invalid Boundary Edges}
 \label{prob:epsilon}
 
 \textbf{Symptom.} After the precision changes, exponent-13 and exponent-14 clusters still reported a hole at \((0.783765456996815,\,0.7120393849074937)\).
 
-\textbf{Investigation.} A corner cell contained a vertex at \(y=1.100000000000123\) despite a clipping maximum of \(1.1\). A reversed edge about \(1.2\times 10^{-13}\) long excluded valid interior queries.
+\textbf{Investigation.} A corner cell contained a vertex at \(y=1.100000000000123\), beyond the clipping maximum of \(1.1\). Its reversed edge, about \(1.2\times10^{-13}\) long, excluded valid interior queries.
 
-\textbf{Root cause.} The original membership allowance of \(2\times 10^{-13}\) kept an inactive constraint and admitted a corner just outside the rectangle. Relaxing the validator did not repair that polygon.
+\textbf{Root cause.} The membership allowance of \(2\times10^{-13}\) retained an inactive constraint and admitted a corner outside the rectangle. Relaxing the validation tolerance did not repair the polygon.
 
-\textbf{Solution.} The first fix reduced the allowance to \(8\times 10^{-16}\); final \code{corner\_inside} uses exact rational signs when the floating result is uncertain.
+\textbf{Solution.} The rational homogeneous-coordinate sign test in \code{corner\_inside} resolves membership before division can round the corner:
 
-\textbf{Verification.} The two failures saved in \path{tests-adversarial.xml} pass afterward.
+\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[caption={Resolve an uncertain corner-membership decision without inexact division.},label={lst:membership-fix}]
+a, b, c = p.rational()
+d, e, f = q.rational()
+g, h, k = test.rational()
+determinant = a * e - b * d
+sign = g * (c * e - b * f) + h * (a * f - c * d) - k * determinant
+return sign <= 0 if determinant > 0 else sign >= 0
+\end{lstlisting}
+\end{minipage}
 
-\textbf{Prevention and lesson.} Increasing epsilon is not a universal repair; construction must be rechecked against independent geometric properties.
+\textbf{Verification.} The exponent-13 and exponent-14 cluster cases in \path{test_tight_cluster_among_distant_sites} pass. The preceding failures are retained in \path{evidence/tests-adversarial.xml}.
 
+\textbf{Prevention and lesson.} I checked construction independently before changing the validator. Increasing epsilon can hide an invalid boundary.
+
+\clearpage
 \subsection{A Validator Omitted Output Representation Error}
 
 \textbf{Symptom.} Translating an otherwise small input near \(10^9\) caused an equidistance failure under the original fixed $10^{-8}$ validation allowance.
 
-\textbf{Investigation.} The spacing between representable output coordinates was measured. One double-precision ULP near \(10^9\) is about \(1.19\times 10^{-7}\), already larger than that validation bound. The constructor calculates locally but must round when it returns world coordinates.
+\textbf{Investigation.} One double-precision ULP near \(10^9\) is about \(1.19\times10^{-7}\), exceeding the allowance. Locally calculated coordinates round again on return to the world frame.
 
-\textbf{Root cause.} The validator assumed that normalization eliminated all scale effects, including final coordinate representation. It also underestimated cross-product uncertainty for extremely short exported edges.
+\textbf{Root cause.} The validator assumed that normalization eliminated every scale effect, including final coordinate representation. It also underestimated cross-product uncertainty for extremely short exported edges.
 
-\textbf{Solution.} The circle-distance tolerance is
+\textbf{Solution.} The circle-distance tolerance includes world-coordinate representation error:
 \begin{equation}
   \tau_{\mathrm{circle}}
-  =10^{-8}\max(1,r)+8\,\operatorname{ulp}_{\mathrm{world}},
+  =10^{-8}\max(1,r)+8\,\operatorname{ulp}_{\mathrm{world}}.
   \label{eq:validation-tolerance}
 \end{equation}
-where \(\operatorname{ulp}_{\mathrm{world}}\) is the float spacing at the largest absolute vertex coordinate. Polygon containment also includes endpoint-subtraction uncertainty and a bounding-box rejection. These bounds describe representation error; they do not replace the ownership check with a direct site scan.
+The corresponding excerpt from \path{tests/validation.py} is:
 
-\textbf{Verification.} The translation and scaling cases pass. Cluster tests still failed until the distinct construction defects in Sections~\ref{prob:coefficients}--\ref{prob:epsilon} were fixed, showing that the validator change alone did not hide those defects.
+\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[caption={Account for output-coordinate spacing in empty-circle validation.},label={lst:validator-fix}]
+coordinate_ulp = math.ulp(max(abs(vertex.point.x), abs(vertex.point.y)))
+tolerance = 1e-8 * max(1, r) + 8 * coordinate_ulp
+assert max(defining) - min(defining) <= tolerance, ("equidistance", vertex)
+assert min(ds) >= r - tolerance, ("nonempty", vertex, min(ds), r)
+\end{lstlisting}
+\end{minipage}
 
-\textbf{Prevention and lesson.} A validator is software with its own assumptions. Review its error model and preserve independent checks that can disagree with it. A passing tolerance-based test is evidence within a stated precision regime, not a universal proof.
+Polygon containment accounts for endpoint-subtraction uncertainty and bounding-box rejection.
 
-The five cases above were observed during actual development. Their symptoms, inputs, fixes and regression checks are retained in \path{docs/problems.md} and \path{evidence/}. Additional environment issues included pip bootstrapping into an unwritable temporary directory and a duplicate dictionary key in the first benchmark script. Those were corrected and are recorded as engineering issues rather than substituted for the five geometric analyses.
+\textbf{Verification.} The three \code{test\_coordinate\_scaling} cases cover scales \(10^{-8}\), \(10^8\), and translation near \(10^9\); all pass cell and empty-circle validation. Cluster failures persisted until the construction fixes in Sections~\ref{prob:coefficients}--\ref{prob:epsilon}, so this allowance did not conceal them.
+
+\textbf{Prevention and lesson.} The validator's assumptions also need tests. Tolerance-based checks provide evidence within a precision regime, rather than a proof for every input.
+
+
+\clearpage
+\subsection{Normalization Lost a Nonzero Site Distinction}
+\label{prob:normalization}
+
+\textbf{Symptom.} The accepted input $(0,0)$, $(2,10^{-16})$, $(3,0)$ and $(3,2)$ produced cells with total area approximately 18.3583 inside a box of area 9.36. A separate near-cluster input emitted a circle containing another site.
+
+\textbf{Investigation.} Midpoint translation rounded the first three normalized heights to the same value. Whole points remained distinct, so the existing duplicate-collapse guard did not detect the lost orientation. The hull used original coordinates while the sweep used the rounded frame.
+
+\textbf{Root cause.} An inexact transform changed the geometry before otherwise careful predicates were evaluated. Further precision tests exposed cancellation near newly inserted sites and circle events whose different exact heights rounded to the same double.
+
+\textbf{Solution.} Scaling now uses powers of two. Translation uses an endpoint only where subtraction is exact; other coordinate ranges keep zero as the origin. A round-trip check rejects lost subnormal bits. The constructor and replay share this frame:
+
+\begin{lstlisting}[caption={Normalize with an exact power-of-two scale.},label={lst:frame-fix}]
+def normalize(self, p):
+    return Point(
+        math.ldexp(p.x - self.ox, -self.exponent),
+        math.ldexp(p.y - self.oy, -self.exponent),
+    )
+\end{lstlisting}
+
+Breakpoint construction uses the lower focus as its local origin, close search comparisons use rational signs, and site insertion searches at the site's exact birth height. Close event priorities compare $c_y-\sqrt{r^2}$ algebraically using rational centre and squared-radius values. The heap therefore distinguishes sub-ULP event-height differences without choosing a tie by epsilon.
+
+\textbf{Verification.} \path{tests/test_precision_frame.py} checks all input orders of four minimized cases, exact empty circles, a close-event grid, transform preservation and replay consistency. The original area is now 9.36. The expanded campaign passed all 800 configurations; the current 171-test suite also passed.
+
+\textbf{Prevention and lesson.} A robust predicate cannot restore information removed before it runs. Coordinate transforms, event ordering and geometric construction need compatible precision policies.
+
+\clearpage
+\subsection{File Input Was Outside the Interactive View}
+
+\textbf{Symptom.} Interactive input containing $(100,100)$, $(101,100)$ and $(100,101)$ opened on the unit square, hiding all three sites. Batch mode displayed the same data correctly.
+
+\textbf{Investigation.} The CLI passed no box for file input. The controller then chose its empty-canvas default instead of deriving a view from the supplied sites.
+
+\textbf{Root cause.} A default appropriate for click entry was also applied to existing coordinate data.
+
+\textbf{Solution.} The controller shares the constructor's padded-bound calculation. Explicit bounds take precedence; an empty click canvas still uses the unit square:
+
+\begin{lstlisting}[caption={Infer the interactive view from supplied sites.},label={lst:bounds-fix}]
+self.box = box if box is not None else inferred_box(self.sites)
+\end{lstlisting}
+
+\textbf{Verification.} The interactive CLI regression loads the three non-unit sites and checks the view $[99.9,101.1]\times[99.9,101.1]$. It then computes nonempty cells and exercises the Delaunay checkbox. Separate callback checks verify exports, explicit bounds and the empty canvas.
+
+\textbf{Prevention and lesson.} Interface tests need file coordinates outside the unit square as well as clicks inside the default canvas. A valid geometric result is not sufficient if the initial view hides its input.
+
+\lstset{aboveskip=12pt,belowskip=12pt,lineskip=1pt}
+

@@ -55,6 +55,11 @@ def main(argv=None):
     parser.add_argument(
         "--no-labels", action="store_true", help="Hide indices for dense previews"
     )
+    parser.add_argument(
+        "--delaunay",
+        action="store_true",
+        help="Overlay the dual Delaunay triangulation in batch/interactive views",
+    )
     args = parser.parse_args(argv)
     try:
         sites = (
@@ -72,6 +77,8 @@ def main(argv=None):
             else None
         )
         if args.animate:
+            if args.delaunay:
+                parser.error("Use --delaunay with batch or --interactive mode.")
             if args.csv or args.json_path:
                 parser.error(
                     "Use batch mode for CSV/JSON; Canvas replay --output saves HTML."
@@ -103,7 +110,7 @@ def main(argv=None):
         if args.interactive or not argv:
             from .interactive import launch
 
-            launch(sites, box, args.output or "interactive.png")
+            launch(sites, box, args.output or "interactive.png", delaunay=args.delaunay)
             return 0
         if not sites:
             parser.error("Specify --input FILE, --random N, or --interactive")
@@ -115,7 +122,13 @@ def main(argv=None):
         if args.output or args.show:
             from .visualize import render
 
-            render(diagram, args.output, show=args.show, labels=not args.no_labels)
+            render(
+                diagram,
+                args.output,
+                show=args.show,
+                labels=not args.no_labels,
+                delaunay=args.delaunay,
+            )
         print(json.dumps(diagram.statistics, indent=2))
     except (ValueError, ArithmeticError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

@@ -1,16 +1,31 @@
 """Click-to-add interface with explicit computation, clear and export buttons."""
 
 from .diagram import construct
-from .geometry import Box, Point
+from .frame import inferred_box
+from .geometry import Point
 from .io import write_csv, write_json
 from .visualize import draw
 
 
 class InteractiveController:
-    def __init__(self, figure, axes, sites=(), box=None, output="interactive.png"):
+    def __init__(
+        self,
+        figure,
+        axes,
+        sites=(),
+        box=None,
+        output="interactive.png",
+        *,
+        delaunay=False,
+    ):
         self.figure, self.axes = figure, axes
         self.sites = list(sites)
-        self.box = box or Box(0, 0, 1, 1)
+        self.sites = [
+            p if isinstance(p, Point) else Point(float(p[0]), float(p[1]))
+            for p in self.sites
+        ]
+        self.box = box if box is not None else inferred_box(self.sites)
+        self.delaunay = delaunay
         self.output = output
         self.diagram = None
         self.replays = []
@@ -59,7 +74,7 @@ class InteractiveController:
             return
         try:
             self.diagram = construct(self.sites, self.box)
-            draw(self.diagram, self.axes)
+            draw(self.diagram, self.axes, delaunay=self.delaunay)
             stats = self.diagram.statistics
             self.status.set_text(
                 f"{stats['unique_sites']} cells; {stats['construction_seconds']:.4f} s. Export saves image, CSV and JSON."
@@ -67,6 +82,12 @@ class InteractiveController:
         except (ValueError, ArithmeticError) as exc:
             self.status.set_text(str(exc))
         self.figure.canvas.draw_idle()
+
+    def toggle_delaunay(self, label=None):
+        self.delaunay = not self.delaunay
+        if self.diagram is not None:
+            draw(self.diagram, self.axes, delaunay=self.delaunay)
+            self.figure.canvas.draw_idle()
 
     def clear(self, event=None):
         self.sites.clear()
@@ -115,13 +136,17 @@ class InteractiveController:
         self.figure.canvas.draw_idle()
 
 
-def launch(sites=(), box=None, output="interactive.png"):
+def launch(sites=(), box=None, output="interactive.png", *, delaunay=False):
     import matplotlib.pyplot as plt
-    from matplotlib.widgets import Button
+    from matplotlib.widgets import Button, CheckButtons
 
     fig, axes = plt.subplots(figsize=(9, 8))
-    fig.subplots_adjust(bottom=0.17)
-    controller = InteractiveController(fig, axes, sites, box, output)
+    fig.subplots_adjust(bottom=0.22)
+    controller = InteractiveController(fig, axes, sites, box, output, delaunay=delaunay)
+    controller.dual_control = CheckButtons(
+        fig.add_axes([0.12, 0.14, 0.2, 0.04]), ["Delaunay"], [delaunay]
+    )
+    controller.dual_control.on_clicked(controller.toggle_delaunay)
     controller.buttons = []
     for x, label, callback in (
         (0.12, "Compute", controller.compute),

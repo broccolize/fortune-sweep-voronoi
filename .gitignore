@@ -33,6 +33,9 @@ htmlcov/
 # Final measured results, figures and evidence should be deliberately tracked.
 demo/*.mp4
 demo/*.gif
+# Local recording preparation and editing files stay outside the repository.
+/demo/recording/
+/demo/command.txt
 
 # LaTeX auxiliaries from direct editor builds; PDF and TeX sources are retained.
 report/**/*.aux

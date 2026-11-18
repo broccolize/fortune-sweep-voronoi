@@ -3,9 +3,9 @@
 from .io import ensure_parent
 
 
-def draw(diagram, axes, *, labels=True):
+def draw(diagram, axes, *, labels=True, delaunay=False):
     from matplotlib import colormaps
-    from matplotlib.collections import PolyCollection
+    from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.patches import Rectangle
 
     axes.clear()
@@ -20,6 +20,22 @@ def draw(diagram, axes, *, labels=True):
             alpha=0.65,
         )
     )
+    if delaunay and diagram.delaunay_edges:
+        segments = [
+            [(diagram.sites[i].x, diagram.sites[i].y) for i in edge]
+            for edge in diagram.delaunay_edges
+        ]
+        axes.add_collection(
+            LineCollection(
+                segments,
+                colors="#6d28d9",
+                linewidths=1.25,
+                linestyles="--",
+                zorder=2,
+                label="Delaunay triangulation",
+            )
+        )
+        axes.legend(loc="upper right", fontsize=8)
     axes.scatter(
         [p.x for p in diagram.sites],
         [p.y for p in diagram.sites],
@@ -57,7 +73,7 @@ def draw(diagram, axes, *, labels=True):
     axes.set_aspect("equal", adjustable="box")
 
 
-def render(diagram, path=None, *, show=False, labels=True):
+def render(diagram, path=None, *, show=False, labels=True, delaunay=False):
     if show:
         import matplotlib.pyplot as plt
 
@@ -69,7 +85,7 @@ def render(diagram, path=None, *, show=False, labels=True):
         fig = Figure(figsize=(8, 7))
         FigureCanvasAgg(fig)
         axes = fig.subplots()
-    draw(diagram, axes, labels=labels)
+    draw(diagram, axes, labels=labels, delaunay=delaunay)
     fig.tight_layout()
     if path:
         fig.savefig(ensure_parent(path), dpi=160)

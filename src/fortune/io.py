@@ -108,6 +108,8 @@ def write_json(diagram, path):
         bbox=diagram.box.as_tuple(),
         sites=[pair(p) for p in diagram.sites],
         statistics=diagram.statistics,
+        delaunay_edges=diagram.delaunay_edges,
+        delaunay_policy="lexicographic fan for exactly cocircular faces; collinear chain",
         cells=[
             dict(
                 site=c.site,

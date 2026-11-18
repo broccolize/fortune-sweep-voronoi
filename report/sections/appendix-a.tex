@@ -1,16 +1,30 @@
-% Editable report section: Source and Reproduction Materials
-\section{Source and Reproduction Materials}
+% Complete source listing for the implementation described in this report.
+\section{Complete Source Listing}
 \label{sec:a}
 
-The complete source is supplied under \path{02_SourceCode/src/fortune} in the review package, with a companion searchable plain-text source listing in \path{01_Report/source_listing.txt}. The pytest suite is under \path{tests/}. The editable LaTeX report includes separate section files, a shared preamble and a BibTeX database. The PDF build script is included. Figures are reproduced by \path{tools/make_figures.py} from the program and recorded benchmark data.
+\textbf{Mineth Lohiru Ariyarathna}\hfill\textbf{2024380145}
 
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.90\linewidth,height=0.48\textheight,keepaspectratio]{large.png}
-\caption{A 1,000-site diagram with labels hidden to preserve legibility.}
-\label{fig:8}
-\end{figure}
+Companion to the \href{report.pdf}{main report}. Page numbers in this source supplement use the A prefix.
 
-This dense example uses seed 2026 and the unit square. Labels are intentionally hidden for this preview; the CLI displays them by default. Construction statistics and machine-readable output remain independent of the drawing density.
+This appendix reproduces the complete application, automated tests, launchers and numerical validation and benchmarking code. File boundaries are identified by their repository paths. The same listing is supplied as \path{source_listing.txt}. The corresponding editable files and supplementary utilities are retained in \path{implementation-snapshot.zip}.
 
-The ZIP's isolated installation passed 139 tests; all eighteen loaded Fortune modules came from site-packages. Installed Canvas assets and Windows-launcher exports were verified. Logs and payload hashes are retained in \path{evidence/package-verification.json}.
+The archive matches the current application and tests used for the 171-test verification. The current records are \path{data/current-tests.xml}, \path{data/precision-validation.json} and \path{data/reference-comparison.json}. Earlier installation records remain under their original core filenames in \path{data/}. Administrative report and packaging utilities are included in the archive as supplementary editable files.
+
+\begingroup
+\setstretch{1}
+\lstinputlisting[
+  language={},
+  basicstyle=\ttfamily\fontsize{9}{10.5}\selectfont,
+  numberstyle=\ttfamily\fontsize{8}{10}\selectfont\color{numbergray},
+  numbersep=7pt,
+  xleftmargin=30pt,
+  xrightmargin=0pt,
+  frame=none,
+  backgroundcolor=\color{white},
+  aboveskip=0pt,
+  belowskip=0pt,
+  lineskip=0pt,
+  breaklines=true,
+  breakatwhitespace=false
+]{source_listing.txt}
+\endgroup

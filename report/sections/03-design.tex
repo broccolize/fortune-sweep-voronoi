@@ -2,7 +2,7 @@
 \section{Algorithm Design and Data Structures}
 \label{sec:3}
 
-The architecture separates construction from validation and presentation. Geometry, event management and the AVL tree use the Python standard library. Matplotlib draws the static diagrams and point-entry interface; an offline browser Canvas presents the sweep replay. Neither renderer supplies a Voronoi core. The validators live under tests and are never called to construct cells.
+The architecture separates construction, validation and presentation so that each can be checked independently. Geometry, event management and the AVL tree use the Python standard library. Matplotlib draws the static diagrams and point-entry interface. An offline Canvas viewer presents recorded states from the same sweep engine. SciPy is installed separately for reference validation and is not imported by the construction core. The validators live under tests and outside the construction pipeline, so their nearest-site scans cannot supply the cells they are meant to check.
 
 \begin{figure}[!htbp]
 \centering
@@ -19,24 +19,24 @@ The architecture separates construction from validation and presentation. Geomet
 \toprule
 \textbf{Component} & \textbf{Main responsibility} \\
 \midrule
-\path{geometry.py} & Filtered orientation, circumcentres, breakpoints \\
+\path{geometry.py} and \path{frame.py} & Filtered predicates, constructions and an exact uniform coordinate transform \\
 \path{beachline.py} & Stable arc identities and AVL order \\
 \path{events.py} and \path{circle.py} & Priority queue and candidate circle events \\
 \path{sweep.py} & Site splits, arc removal, vertices and traced edges \\
 \path{clipping.py} and \path{diagram.py} & Neighbour constraints and ordered clipped cells \\
-\path{io.py}, \path{cli.py}, \path{visualize.py} & Inputs, exports, batch and interactive display \\
-\path{replay.py} and \path{replay_canvas.py} & Real event stepping and offline replay export \\
+\path{io.py}, \path{cli.py}, \path{interactive.py}, \path{visualize.py} & Inputs, exports, batch display and Delaunay overlay \\
+\path{replay.py}, \path{replay_state.py}, \path{replay_canvas.py} & Event stepping, bounded checkpoints and browser replay \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Arc nodes contain tree links, predecessor/successor links, height, site identifier, live state and generation counter. A site can own several arcs; a site identifier is therefore not a unique arc identity. Deletion physically transplants a successor node instead of copying its payload, preserving queued references to other arc objects.
+Each arc stores tree links, predecessor/successor links, height, site identifier, live state and a generation counter. A site can own several arcs, so its identifier cannot serve as a unique arc identity. Deletion transplants the successor node rather than copying its payload. This preserves queued references to the other arc objects.
 
 \subsection{Invariants, Complexity and Numerical Policy}
 
 The beach-line invariant is that the tree's in-order traversal equals the live left-to-right arc sequence, with consistent adjacent links. Search compares a query \(x\) against the node's current left and right breakpoints. AVL rotations preserve sequence order. Tests validate parent pointers, stored heights, balance and neighbour links after each randomized update.
 
-The queue invariant is that the next valid event has the greatest remaining sweep height. Heap keys are ordered lexicographically as \((-y,t,x,s)\), where \(t\) is the event kind and \(s\) is a monotonically increasing serial number. Site events precede circle events at equal height. A circle is valid only while its arc is alive and its stored generation equals the arc's current generation. Rescheduling increments that generation; stale entries are discarded when popped.
+The queue invariant is that the next valid event has the greatest remaining sweep height. The first heap key compares descending event heights. Ordinary separated heights use doubles; close circle heights are compared as exact rational-plus-square-root expressions. Event kind, horizontal position and a monotonically increasing serial number break equal-height ties. Site events precede circle events at equal height. A circle is valid only while its arc is alive and its stored generation equals the arc's current generation. Rescheduling increments that generation; stale entries are discarded when popped.
 
 Each structural update creates only a constant number of candidates. AVL updates and heap operations cost $O(\log n)$, giving the intended $O(n \log n)$ sweep with $O(n)$ records. Traced adjacencies form a planar graph; hull order distinguishes true rays from zero-length cocircular diagonals. For cell degree \(k\), final intersection sorts \(k\) neighbour constraints plus four box constraints and uses a deque. Its cost is $O(k \log k)$; summing degrees in the planar graph preserves an $O(n \log n)$ overall target. It does not compare each cell with every site.
 
@@ -56,9 +56,11 @@ The implementation rescales this constraint and intersects only constraints gene
 \toprule
 \textbf{Numerical operation} & \textbf{Current policy} \\
 \midrule
-Construction frame & Translate and uniformly scale by input extent \\
+Construction frame & Power-of-two scale with an exact translation or zero origin \\
 Orientation cancellation & Filtered double sign, exact rational fallback \\
-Ill-conditioned centre & Decimal construction below relative threshold $10^{-8}$ \\
+Close breakpoint searches & Exact rational comparison with the selected quadratic root \\
+Ill-conditioned centre & Closest-pair origin and Decimal cancellation fallbacks \\
+Close event heights & Exact comparison of rational radical expressions \\
 Near-parallel half-planes & Rebuild coefficients from defining sites in Decimal \\
 Clipping membership & Exact rational signs for uncertain corner tests \\
 Repeated circle vertices & Exact input-circle identity, not coordinate rounding \\
@@ -66,4 +68,4 @@ Repeated circle vertices & Exact input-circle identity, not coordinate rounding 
 \end{tabularx}
 \end{table}
 
-These are tested engineering policies, not a proof of exact topology for arbitrary floating-point inputs. Coordinate construction uses fixed 80-digit fallbacks and rounded output, which still have limits. The implementation does not claim the fully certified predicates described in robust-geometry research \cite{shewchuk1997}.
+These policies improved the tested cases, but they do not certify topology for every floating-point input. Coordinate construction still uses fixed 80-digit fallbacks and rounded output. A transform that loses subnormal coordinate bits is rejected explicitly. The complexity analysis counts arithmetic operations; the cost of exact rational fallbacks also depends on operand size. A fully certified geometry kernel would require stronger guarantees \cite{shewchuk1997}.

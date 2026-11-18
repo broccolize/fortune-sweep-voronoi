@@ -1,0 +1,94 @@
+{
+  "executed_at": "2026-11-18T05:58:35.923755+00:00",
+  "scope": [
+    "geometry precision",
+    "interactive bounds",
+    "independent reference comparison",
+    "Delaunay overlay"
+  ],
+  "tests": {
+    "passed": 171,
+    "record": "evidence/first-four-tests.xml"
+  },
+  "precision": {
+    "configurations": 800,
+    "failed": 0,
+    "record": "evidence/precision-validation.json"
+  },
+  "reference": {
+    "cases": 45,
+    "passed": 45,
+    "failed": 0,
+    "scipy_fully_compared": 39,
+    "reference_limitations": [
+      "single",
+      "two",
+      "horizontal",
+      "vertical",
+      "slanted",
+      "near-cluster"
+    ]
+  },
+  "stress": {
+    "status": "passed",
+    "random_configurations": 300,
+    "cluster_cases": 40,
+    "checked_configurations": 340,
+    "queries_per_random": 25,
+    "largest_cases": [
+      {
+        "n": 100,
+        "vertices_checked": 188,
+        "cell_queries": 100
+      },
+      {
+        "n": 1000,
+        "vertices_checked": 1984,
+        "cell_queries": 100
+      },
+      {
+        "n": 10000,
+        "vertices_checked": 19978,
+        "cell_queries": 100
+      }
+    ],
+    "failures": [],
+    "seconds": 28.62634940003045
+  },
+  "files": {
+    ".github/workflows/tests.yml": "fd868411cd352c1838146aa498c588182acc584dd77604a0549014b45408bce0",
+    "evidence/first-four-stress.json": "1abd3d63da5852f37465d6d3d37b327642499b646c566e08384b59577d652842",
+    "evidence/first-four-tests.xml": "8de2df112338abfd4d2cefa35ff2b184044946799313edbc624568fb1eed67a7",
+    "evidence/precision-validation.json": "0ccb4da96fc9e0b4eac464c40dcae04df84ad394e40de868d8c1d188e9c62be0",
+    "evidence/reference-comparison.json": "4d1612ac0f63b6883a25c64ebbd665197eceb4df3e1c2e6acc9ab9c8eba0a1ca",
+    "pyproject.toml": "fd536fee8fd1bd7fb06d2808b4537032510dbd412dd0864f1965d376db051742",
+    "REPORT_ISSUES.md": "f36adbcae45a2eb355f25ae1b3c65ad077152bc8ba5dacf60a862f2494dbbd26",
+    "requirements-reference.txt": "958aa8aae6827b9697cfbed89e66d74444d9da74eb8133c73a2bc9c559e36721",
+    "src/fortune/beachline.py": "cef9c3ad7039909285e02d2b06a49d450ca8c8c3a5cfa238b68b339d8843b98a",
+    "src/fortune/cli.py": "2b31948963e5537fbd1921dd07f3d368632a7a53a2c228b6d1f7e742f097c234",
+    "src/fortune/diagram.py": "b61f1cb0d7a0d4053093b0617cbe8a4768a98b60ef552548ae704e4f9a3519c3",
+    "src/fortune/events.py": "65183d1fd4ade042a5cd42a0d3f13b97f63edd9ab7edfde2f8f9d2962ddc3ca3",
+    "src/fortune/frame.py": "faedf8996d301cf2a63d39ebd332a3f02275b095a11799ad9a6f56a60bd8ad31",
+    "src/fortune/geometry.py": "afda4c39d5329520adc366c627eeebf697ec5f389fbddfd1f3e1500ad0f37fa0",
+    "src/fortune/interactive.py": "b7c6363c389d0bd14154476a48f071ce4c6a3f91dba73fc21c30af2b9249fe00",
+    "src/fortune/io.py": "297381c76ac3204cfd32760355fda3f796a1bebecfa16dace2a19ee58538b2bb",
+    "src/fortune/replay.py": "f7f4c2f4bf73ba24293b3408a6daf316c212c12c3f50a0223a5fd83f3a78b421",
+    "src/fortune/replay_state.py": "676d100b11a9253cf4a0c82a9e8dc20b5584769d0642a1cc410b171ebc345448",
+    "src/fortune/sweep.py": "8382e223e7edcccad80071ecba08ea22ab142c047eb1929306989e4d32572f39",
+    "src/fortune/visualize.py": "b817579607baf72d605a2dc8d09ce0f9ebcc9aa10de12d219442422396fa86d3",
+    "tests/data/precision-grid.json": "3414fcda4453ed17f7c51ccaf4667ddcebd900ee04364ea99f41d74bedf61969",
+    "tests/reference_compare/__init__.py": "148c8921f605847b73bad0911374c893d2fb5715674bd1426d24d882661d8f57",
+    "tests/reference_compare/compare.py": "bccd1ffd05d61c2947a6bd0195d0f71a23ba2a036643c62e359b91680e37b4f3",
+    "tests/test_delaunay.py": "a4f83ee086cd343261b02ece12b4d0287b1087bd531942592c2450fbc5ab79fc",
+    "tests/test_precision_frame.py": "42915f5ba28d2f16c0f0659dc219a2c9f423b997dda3073c4544a5638bc39084",
+    "tests/test_reference_compare.py": "d12a9af8b75af4a6aefc66e6dc117932d30366ef41aac6ec0513a97c8ef2a37b",
+    "tools/check_precision.py": "af441fd7378d79cd6750bc96e559af8624e964352976693d08121dc95b7702f2",
+    "tools/package_project.py": "b4bf316273d566e2fbb09fe1f85d8b3b1c092f60e3d8860bbea0eae6416b8e94"
+  },
+  "report_pdf_unchanged": "3a74c32644a0fa28620f516d7f3f984608795dd1d254115f0369d59d85237eee",
+  "production_reference_imports": false,
+  "notes": [
+    "SciPy is validation-only. Six cases use the independent exact oracle and record reference limitations.",
+    "The historical report and final ZIP have not been rebuilt during this group of four steps."
+  ]
+}

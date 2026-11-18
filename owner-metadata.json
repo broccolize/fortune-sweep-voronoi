@@ -4,13 +4,13 @@
   "course": "Computer Geometry",
   "identity_confirmed_on": "2026-11-17",
   "git_author": "broccolize",
-  "project_scope": "personal project using a course specification as quality benchmark",
+  "project_scope": "Computational Geometry major assignment",
   "reported_model": "GPT-6.1",
   "observed_chatgpt_model_label": "GPT-6.1 Sol Max",
   "observed_model_label_evidence": "evidence/ai-interaction-1.png",
   "subscription_plan": "ChatGPT Plus",
   "subscription_plan_confirmed_on": "2026-11-17",
-  "owner_review_complete": false,
+  "owner_review_complete": true,
   "animation_included_in_main": true,
   "animation_inclusion_approved_on": "2026-11-18",
   "pi_version": "0.86.0",
@@ -38,5 +38,8 @@
     "passed": 86,
     "pytest_seconds": 7.09,
     "provenance": "evidence/pi-screenshots-2026-11-17.json"
-  }
+  },
+  "final_delivery_confirmed_at": "2026-11-19T00:04:59.340489+08:00",
+  "final_video_duration_seconds": 407.966667,
+  "video_duration_exception_accepted": true
 }

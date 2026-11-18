@@ -1,16 +1,16 @@
 {
   "archive": "CG_Assignment_2024380145_Mineth_Lohiru_Ariyarathna.zip",
-  "bytes": 10357408,
-  "files": 320,
-  "sha256": "95748ea106b0f2b3639b0e1aaa22fc92562852258d4bf961b7b0c0350387024f",
-  "source_revision": "64dc377f82c390d35f27da8ab4872f619f7b9391",
-  "source_worktree_dirty": false,
+  "bytes": 101436959,
+  "files": 406,
+  "sha256": "90120a498c6ec9fe9c0c3ec16e09ee460d59a5033451e4fb3009456cfe7b45e8",
+  "source_revision": "b0d0400c257f71c4959e7e09d97f6822141da1ca",
+  "source_worktree_dirty": true,
   "required_files_present": true,
   "zip_crc_check": "passed",
   "owner_evidence_present": {
     "subscription_plan": true,
     "ai_screenshot_1": true,
     "ai_screenshot_2": true,
-    "narrated_recording": false
+    "narrated_recording": true
   }
 }

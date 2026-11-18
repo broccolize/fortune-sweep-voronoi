@@ -44,6 +44,8 @@ def clone_sweep(source, extra_event=None):
             generation=event.generation,
             centre=event.centre,
             defining=event.defining,
+            circle_points=event.circle_points,
+            _height=event._height,
         )
 
     result.queue._heap = [
@@ -63,6 +65,7 @@ def clone_sweep(source, extra_event=None):
     result._vertex_index = dict(source._vertex_index)
     result.statistics = dict(source.statistics)
     result._started = source._started
+    result._level = source._level
     if result.debug:
         result.beach.validate()
     return result, clone_event(extra_event)
